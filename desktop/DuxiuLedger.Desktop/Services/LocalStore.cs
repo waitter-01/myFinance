@@ -7,11 +7,13 @@ namespace DuxiuLedger.Desktop.Services;
 public sealed class LocalStore
 {
     private readonly string _connectionString;
+    public string DatabasePath { get; }
     public LocalStore()
     {
         var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DuxiuLedger");
         Directory.CreateDirectory(folder);
-        _connectionString = $"Data Source={Path.Combine(folder, "ledger.db")}";
+        DatabasePath = Path.Combine(folder, "ledger.db");
+        _connectionString = $"Data Source={DatabasePath}";
         using var connection = Open();
         using var command = connection.CreateCommand();
         command.CommandText = """

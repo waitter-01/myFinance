@@ -8,3 +8,4 @@ tsconfig.tsbuildinfo
 desktop/**/bin/
 desktop/**/obj/
 desktop/publish/
+desktop/ui-preview.png
