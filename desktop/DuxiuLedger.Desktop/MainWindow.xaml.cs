@@ -86,7 +86,15 @@ public partial class MainWindow : Window
         catch (Exception ex) { MessageBox.Show(ex.Message, "导入失败", MessageBoxButton.OK, MessageBoxImage.Warning); }
     }
 
-    private void AddClick(object sender, RoutedEventArgs e) => MessageBox.Show("手动录入窗口将在下一阶段接入。当前版本支持微信、支付宝和 Excel 账单导入。", "新增记录", MessageBoxButton.OK, MessageBoxImage.Information);
+    private void AddClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ManualEntryWindow { Owner = this };
+        if (dialog.ShowDialog() != true || dialog.Result is null) return;
+        _store.Import([dialog.Result]);
+        LoadRecords();
+        ShowPage("Transactions");
+        StatusText.Text = "手动流水已保存到本地数据库";
+    }
 
     private void BackupClick(object sender, RoutedEventArgs e)
     {
