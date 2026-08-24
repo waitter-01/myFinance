@@ -1,154 +1,210 @@
-# 独秀指数基础账本（MVP）
+<div align="center">
+  <img src="desktop/DuxiuLedger.Desktop/Assets/duxiu-logo.png" width="112" alt="独秀账本 Logo">
+  <h1>独秀账本</h1>
+  <p>本地优先、轻量易用的 Windows 个人财务账本</p>
 
-这是一个单用户家庭/个人账本 MVP：登录、收入/支出流水、分类、预算和月度总览。当前阶段不包含文件导入、S3、Redis、报告导出或多用户注册。
+  <p>
+    <img src="https://img.shields.io/badge/平台-Windows%2010%20%7C%2011-0078D4" alt="Windows">
+    <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8">
+    <img src="https://img.shields.io/badge/UI-WPF%20%2F%20Fluent-146C70" alt="WPF Fluent">
+    <img src="https://img.shields.io/badge/数据库-SQLite-0F80CC" alt="SQLite">
+  </p>
+</div>
 
-## 已实现
+## 项目简介
 
-- Auth.js Credentials 登录，管理员账号来自环境变量并由 seed 写入数据库。
-- 交易、预算、分类都按当前会话的 `userId` 查询和写入；浏览器不能指定归属用户。
-- 金额只以整数 `amountCents` 保存，输入最多两位小数。
-- 交易日期保存为 `YYYY-MM-DD`；预算按 `YYYY-MM` 查询。
-- 交易 CRUD API、预算 upsert API、分类 API、月度收入/支出/结余页面。
-- PostgreSQL 迁移、种子数据、Linux/macOS Shell 与 Windows PowerShell 安装脚本。
+独秀账本是一款面向个人用户的 Windows 桌面记账应用。应用无需服务器和在线账户，账单数据保存在本机 SQLite 数据库中，支持导入 Excel、CSV 以及微信、支付宝常见格式的官方账单。
 
-## 服务器部署（推荐 Ubuntu 22.04/24.04）
+项目当前处于早期开发阶段，桌面端是主要开发方向。仓库中的 Next.js 代码是早期 Web 原型，不代表当前推荐的使用方式。
 
-### Ubuntu 一键部署
+## 功能特性
 
-如果代码已经上传到 Ubuntu 服务器，可以直接运行：
+- 本地优先：数据默认保存在当前 Windows 用户目录，不依赖云端服务。
+- 账单导入：支持 `.xlsx`、`.xlsm` 和 `.csv` 文件。
+- 格式识别：识别微信、支付宝常见账单表头以及项目标准模板。
+- 自动去重：通过交易时间、金额、方向、交易对方等信息生成指纹，避免重复导入。
+- 财务总览：显示本月收入、支出、结余和最近流水。
+- 流水搜索：按交易对方或备注查找记录。
+- 数据备份：可直接导出 SQLite 数据库备份并打开数据目录。
+- Fluent 风格：采用 WPF 实现接近 WinUI 3 的导航、卡片和交互样式。
+- 独立运行：可发布为自包含的单文件 EXE，目标电脑无需安装 .NET Runtime。
 
-```bash
-cd duxiu-ledger
-chmod +x scripts/deploy-ubuntu.sh
-./scripts/deploy-ubuntu.sh
+## 当前状态
+
+| 模块 | 状态 | 说明 |
+| --- | --- | --- |
+| 本地数据库 | 可用 | SQLite 持久化存储 |
+| Excel/CSV 导入 | 可用 | 支持标准模板和常见账单表头 |
+| 微信/支付宝识别 | 基础可用 | 不同版本账单可能需要补充表头规则 |
+| 导入去重 | 可用 | 重复导入不会重复保存 |
+| 流水搜索 | 可用 | 支持交易对方和备注 |
+| 数据备份 | 可用 | 导出数据库文件 |
+| 手动录入 | 开发中 | 当前按钮仅显示提示 |
+| 预算管理 | 规划中 | 已有页面框架，业务功能尚未接入 |
+| 分类编辑 | 规划中 | 已有页面框架，业务功能尚未接入 |
+
+## 快速开始
+
+### 环境要求
+
+- Windows 10 或 Windows 11，64 位
+- 构建源码需要 [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- 运行自包含 EXE 不需要预装 .NET
+
+### 从源码运行
+
+```powershell
+git clone https://github.com/waitter-01/myFinance.git
+cd myFinance
+dotnet run --project .\desktop\DuxiuLedger.Desktop\DuxiuLedger.Desktop.csproj
 ```
 
-脚本会逐项检查 Docker、Docker Compose 插件、OpenSSL 和 Docker 服务：已安装且可用的组件会直接复用，缺少的组件才会通过 apt 安装。随后脚本交互式询问管理员邮箱/密码，自动生成数据库密码和 `AUTH_SECRET`，构建 Next.js 容器、启动 PostgreSQL、执行数据库迁移和初始化分类。它不会把 PostgreSQL 或 Node.js 端口直接暴露到公网；应用只监听 `127.0.0.1:3000`。如果已有 `.env`，脚本不会覆盖它。
+### 生成独立 EXE
 
-更新代码后执行：
+在仓库根目录执行：
 
-```bash
-git pull
-docker compose --env-file .env -f docker-compose.prod.yml up -d --build
+```powershell
+.\desktop\publish-win-x64.ps1
 ```
 
-查看状态和日志：
-
-```bash
-docker compose --env-file .env -f docker-compose.prod.yml ps
-docker compose --env-file .env -f docker-compose.prod.yml logs -f app
-```
-
-以下命令在服务器执行，不需要在开发电脑上启动项目。先准备 Node.js 22、npm、Docker 和 Docker Compose；也可以使用云 PostgreSQL，此时跳过本地 PostgreSQL 容器。
-
-### 1. 上传代码并准备配置
-
-```bash
-git clone <你的代码仓库地址> duxiu-ledger
-cd duxiu-ledger
-cp .env.example .env
-```
-
-编辑 `.env`：
-
-```dotenv
-DATABASE_URL=postgresql://ledger:change-me@127.0.0.1:5432/duxiu_ledger?schema=public
-AUTH_SECRET=请使用至少32个字符的随机字符串
-OWNER_EMAIL=你的管理员邮箱
-OWNER_PASSWORD=至少12位的强密码
-```
-
-生成密钥的示例：`openssl rand -base64 48`。`.env` 只放服务器，不能提交到 Git。
-
-### 2. 启动 PostgreSQL
-
-修改 `docker-compose.yml` 里的 `POSTGRES_PASSWORD`，并同步更新 `.env` 的 `DATABASE_URL` 密码，然后执行：
-
-```bash
-docker compose up -d postgres
-docker compose ps
-```
-
-如果使用云数据库，确保服务器安全组允许出站访问数据库，并把数据库连接字符串直接写入 `.env`。
-
-### 3. 安装、迁移、初始化管理员
-
-```bash
-chmod +x scripts/install.sh
-./scripts/install.sh
-```
-
-脚本会执行 `npm ci`、Prisma Client 生成、生产迁移、管理员/默认分类 seed 和 Next.js production build。首次运行若没有 `.env`，脚本只会复制示例配置并退出；填好配置后再次运行即可。
-
-### 4. 启动应用
-
-```bash
-npm start
-```
-
-默认监听 `http://127.0.0.1:3000`。建议使用 systemd 守护：
-
-```ini
-[Unit]
-Description=Duxiu Ledger
-After=network.target docker.service
-
-[Service]
-WorkingDirectory=/opt/duxiu-ledger
-ExecStart=/usr/bin/npm start
-Restart=always
-Environment=NODE_ENV=production
-User=ledger
-
-[Install]
-WantedBy=multi-user.target
-```
-
-保存为 `/etc/systemd/system/duxiu-ledger.service` 后执行：
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now duxiu-ledger
-sudo systemctl status duxiu-ledger
-```
-
-### 5. 配置 HTTPS 反向代理
-
-用 Nginx 或 Caddy 将公网域名代理到 `127.0.0.1:3000`。Caddy 示例：
+生成文件位于：
 
 ```text
-ledger.example.com {
-    reverse_proxy 127.0.0.1:3000
-}
+desktop\publish\win-x64\DuxiuLedger.exe
 ```
 
-把域名解析到服务器后，Caddy 会自动申请和续期 HTTPS 证书。生产环境不要直接把 Node 端口暴露到公网。
+发布目录已被 Git 忽略，不会提交到仓库。正式发行版后续建议通过 GitHub Releases 提供下载。
 
-### 6. 更新版本
+## 导入账单
 
-```bash
-git pull
-npm ci
-npx prisma migrate deploy
-npm run build
-sudo systemctl restart duxiu-ledger
+点击应用右上角的“导入账单”，选择一个或多个账单文件。导入成功后，程序会自动跳转到“全部流水”。
+
+标准 Excel 模板位于：
+
+[下载独秀账本 Excel 导入模板](desktop/templates/独秀账本-Excel导入模板.xlsx)
+
+模板必填字段：
+
+| 字段 | 格式 | 示例 |
+| --- | --- | --- |
+| 交易时间 | `yyyy-mm-dd hh:mm:ss` | `2026-08-24 08:30:00` |
+| 收支 | `支出` 或 `收入` | `支出` |
+| 金额(元) | 大于 0 的数字 | `18.50` |
+
+选填字段包括交易对方、商品说明、分类和备注。微信、支付宝官方导出的账单可直接尝试导入，不必先转换为标准模板。
+
+## 数据存储
+
+数据库默认位置：
+
+```text
+%LOCALAPPDATA%\DuxiuLedger\ledger.db
 ```
 
-### 7. 备份与安全检查
+启动错误日志位置：
 
-- 每天备份 PostgreSQL，并定期做一次恢复演练；Docker 卷或数据库快照都不能替代异地备份。
-- 生产环境必须使用 HTTPS、强管理员密码和独立数据库密码。
-- 定期更新 Node、Next.js、Prisma 和操作系统安全补丁。
-- 不要把 `.env`、数据库备份或日志提交到代码仓库。
-- 当前是单用户 MVP，若以后增加导入任务，按计划引入私有对象存储和队列，并保留现有服务的 `userId` 边界。
-
-## 本地验证（仅供开发环境）
-
-```bash
-npm install
-npm run test:unit
-npx prisma validate
-npm run build
+```text
+%LOCALAPPDATA%\DuxiuLedger\logs\startup-error.log
 ```
 
-本次交付不会在当前电脑启动开发服务器或部署应用。
+卸载或清理应用前，请先在“数据备份”页面导出数据库文件。仅删除 EXE 不会自动删除账本数据。
+
+## 项目结构
+
+```text
+myFinance/
+├── desktop/
+│   ├── DuxiuLedger.Desktop/    # WPF 桌面应用源码
+│   ├── templates/              # Excel 导入模板
+│   ├── publish-win-x64.ps1     # Windows 自包含发布脚本
+│   └── README.md               # 桌面端补充说明
+├── src/                        # 早期 Next.js Web 原型
+├── prisma/                     # Web 原型数据库模型
+└── README.md
+```
+
+桌面端主要组件：
+
+- `MainWindow.xaml`：Fluent 风格主界面和页面导航。
+- `LocalStore.cs`：SQLite 数据持久化和查询。
+- `BillImporter.cs`：Excel、CSV 和账单格式识别。
+- `TransactionRecord.cs`：本地流水数据模型。
+
+## 开发与验证
+
+编译桌面项目：
+
+```powershell
+dotnet build .\desktop\DuxiuLedger.Desktop\DuxiuLedger.Desktop.csproj -c Release
+```
+
+重新发布：
+
+```powershell
+.\desktop\publish-win-x64.ps1
+```
+
+提交前至少确认：
+
+1. Release 编译没有错误和警告。
+2. 应用可以正常启动。
+3. 受影响的导航、导入或备份功能完成基本验证。
+4. 没有提交数据库、日志、构建目录或个人账单文件。
+
+## 路线图
+
+- [x] WPF 桌面应用框架
+- [x] Fluent 风格导航与财务总览
+- [x] 本地 SQLite 持久化
+- [x] Excel、CSV、微信和支付宝账单基础导入
+- [x] 导入去重与数据备份
+- [ ] 手动新增、编辑和删除流水
+- [ ] 可编辑分类与自动分类规则
+- [ ] 月度预算设置和使用进度
+- [ ] 导入预览、字段映射和错误行报告
+- [ ] 图表、月报和年度汇总
+- [ ] 安装包、代码签名和 GitHub Releases
+- [ ] 自动化测试和持续集成
+
+## 参与贡献
+
+欢迎通过 [Issues](https://github.com/waitter-01/myFinance/issues) 报告问题或提出建议。
+
+建议的贡献流程：
+
+1. Fork 仓库并创建功能分支。
+2. 每个提交只处理一个明确问题。
+3. 使用中文提交说明，例如 `修复：兼容新版支付宝账单表头`。
+4. 完成编译和必要验证。
+5. 提交 Pull Request，并说明变更内容和验证结果。
+
+## 提交约定
+
+本项目采用小步提交、频繁推送的开发方式，方便审查、定位问题和回退：
+
+- 所有新提交使用中文描述。
+- 一个提交只包含一个逻辑变更。
+- 功能、修复、界面、文档和重构分别提交。
+- 每次提交完成并验证后及时推送远程仓库。
+- 避免把无关格式化、生成文件或多个大型功能混在同一提交。
+
+推荐格式：
+
+```text
+功能：增加手动录入流水
+修复：避免重复导入相同交易
+界面：优化流水列表空状态
+文档：补充 Excel 模板说明
+重构：拆分账单解析服务
+```
+
+## 隐私与安全
+
+- 请勿提交真实账单、数据库文件或个人隐私数据。
+- 导入文件只在本机读取，当前桌面版不会主动上传账单。
+- 发布来源不明或未经签名的 EXE 可能触发 Windows SmartScreen；请优先自行构建或从可信 Release 下载。
+- 发现安全问题时，请避免在公开 Issue 中粘贴个人账单和敏感日志。
+
+## 许可证
+
+项目目前尚未添加开源许可证。在正式确定许可证之前，默认保留所有权利；如需复制、分发或二次发布，请先联系仓库所有者。
