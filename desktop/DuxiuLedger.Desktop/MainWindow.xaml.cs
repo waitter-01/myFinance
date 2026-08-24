@@ -12,7 +12,18 @@ public partial class MainWindow : Window
     private readonly BillImporter _importer = new();
     private readonly ObservableCollection<TransactionRecord> _records = new();
     public MainWindow() { InitializeComponent(); LedgerGrid.ItemsSource = _records; LoadRecords(); }
-    private void LoadRecords(string? search = null) { _records.Clear(); foreach (var row in _store.List(search)) _records.Add(row); StatusText.Text = $"已保存 {_records.Count} 条记录 · 数据保存在本机应用数据目录"; }
+    private void LoadRecords(string? search = null)
+    {
+        var rows = _store.List(search);
+        _records.Clear(); foreach (var row in rows) _records.Add(row);
+        var month = DateTime.Now.ToString("yyyy-MM");
+        var current = rows.Where(r => r.OccurredOn.ToString("yyyy-MM") == month);
+        var income = current.Where(r => r.Direction == "收入").Sum(r => r.Amount);
+        var expense = current.Where(r => r.Direction == "支出").Sum(r => r.Amount);
+        IncomeText.Text = $"¥{income:N2}"; ExpenseText.Text = $"¥{expense:N2}"; BalanceText.Text = $"¥{income - expense:N2}";
+        CountText.Text = $"共 {_records.Count} 条记录 · 本月 {current.Count()} 条";
+        StatusText.Text = "数据保存在本机应用数据目录";
+    }
     private void SearchClick(object sender, RoutedEventArgs e) => LoadRecords(SearchBox.Text.Trim());
     private void ImportClick(object sender, RoutedEventArgs e)
     {
