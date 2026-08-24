@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+enum Direction {
+  INCOME
+  EXPENSE
+}
+enum ExpenseNature {
+  NECESSARY
+  OPTIONAL
+  UNCLASSIFIED
+}
+enum CategoryKind {
+  INCOME
+  EXPENSE
+}
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  passwordHash String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  categories Category[]
+  transactions Transaction[]
+  budgets Budget[]
+}
+model Category {
+  id String @id @default(cuid())
+  userId String?
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name String
+  level Int @default(1)
+  kind CategoryKind
+  defaultExpenseNature ExpenseNature @default(UNCLASSIFIED)
+  sortOrder Int @default(0)
+  parentId String?
+  parent Category? @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children Category[] @relation("CategoryTree")
+  transactions Transaction[]
+  budgets Budget[]
+  @@index([userId, kind])
+}
+model Transaction {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  occurredOn String
+  direction Direction
+  amountCents Int
+  categoryId String?
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  merchant String?
+  note String?
+  expenseNature ExpenseNature @default(UNCLASSIFIED)
+  source String @default("MANUAL")
+  sourceReference String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([userId, occurredOn])
+  @@index([userId, categoryId])
+}
+model Budget {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month String
+  categoryId String
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  amountCents Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([userId, month, categoryId])
+}

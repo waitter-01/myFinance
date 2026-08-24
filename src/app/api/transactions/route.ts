@@ -1,0 +1,5 @@
+import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { createTransaction, listTransactions } from "@/modules/transactions/transaction-service";
+export async function GET(request: Request) { const session = await auth(); if (!session?.user?.id) return NextResponse.json({ error: "未登录" }, { status: 401 }); const url = new URL(request.url); const data = await listTransactions(session.user.id, { month: url.searchParams.get("month") ?? undefined, direction: (url.searchParams.get("direction") as "INCOME" | "EXPENSE") || undefined }); return NextResponse.json({ data }); }
+export async function POST(request: Request) { const session = await auth(); if (!session?.user?.id) return NextResponse.json({ error: "未登录" }, { status: 401 }); try { return NextResponse.json({ data: await createTransaction(session.user.id, await request.json()) }, { status: 201 }); } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "请求无效" }, { status: 400 }); } }

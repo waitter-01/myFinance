@@ -1,0 +1,3 @@
+import Link from "next/link";
+import { auth, signOut } from "@/lib/auth";
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) { const session=await auth(); return <main className="shell"><nav className="nav"><strong>独秀指数账本</strong><div className="navlinks"><Link href="/dashboard">总览</Link><Link href="/transactions">流水</Link><Link href="/budgets">预算</Link><form action={async()=>{"use server";await signOut({redirectTo:"/login"})}}><button className="secondary">退出</button></form></div></nav><p className="muted">当前账户：{session?.user?.email}</p>{children}</main> }
