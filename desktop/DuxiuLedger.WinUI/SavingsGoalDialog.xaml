@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentDialog
+    x:Class="DuxiuLedger.WinUI.SavingsGoalDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="储蓄目标"
+    PrimaryButtonText="保存"
+    CloseButtonText="取消"
+    DefaultButton="Primary"
+    PrimaryButtonClick="OnPrimaryButtonClick">
+  <StackPanel Width="440" Spacing="12">
+    <TextBox x:Name="NameBox" Header="目标名称" PlaceholderText="例如：应急备用金、旅行基金" />
+    <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+      <NumberBox x:Name="TargetBox" Header="目标金额（元）" Minimum="0.01" SpinButtonPlacementMode="Compact" />
+      <NumberBox x:Name="SavedBox" Grid.Column="1" Header="当前已存（元）" Minimum="0" SpinButtonPlacementMode="Compact" />
+    </Grid>
+    <CalendarDatePicker x:Name="TargetDatePicker" Header="目标日期（可选）" />
+    <CheckBox x:Name="CompletedCheck" Content="标记为已完成" />
+  </StackPanel>
+</ContentDialog>

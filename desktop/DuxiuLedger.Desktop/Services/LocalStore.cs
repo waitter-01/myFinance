@@ -70,6 +70,14 @@ public sealed class LocalStore
               ('礼金收入','收入',1,60,datetime('now'),datetime('now')),
               ('其他收入','收入',1,70,datetime('now'),datetime('now')),
               ('未分类','通用',1,999,datetime('now'),datetime('now'));
+            CREATE TABLE IF NOT EXISTS budgets (
+              id INTEGER PRIMARY KEY AUTOINCREMENT, month TEXT NOT NULL, category TEXT NOT NULL,
+              amount REAL NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+              UNIQUE(month,category));
+            CREATE TABLE IF NOT EXISTS savings_goals (
+              id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, target_amount REAL NOT NULL,
+              saved_amount REAL NOT NULL DEFAULT 0, target_date TEXT NULL, is_completed INTEGER NOT NULL DEFAULT 0,
+              created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
             """;
         command.ExecuteNonQuery();
         EnsureColumn(connection, "transactions", "account_id", "INTEGER");
@@ -260,6 +268,72 @@ public sealed class LocalStore
         using var used = c.CreateCommand(); used.CommandText = "SELECT COUNT(*) FROM transactions WHERE category=$name"; used.Parameters.AddWithValue("$name", categoryName);
         if (Convert.ToInt32(used.ExecuteScalar()) > 0) throw new InvalidOperationException("该分类已经关联流水，不能删除。可以将它编辑为停用状态。 ");
         using var cmd = c.CreateCommand(); cmd.CommandText = "DELETE FROM categories WHERE id=$id"; cmd.Parameters.AddWithValue("$id", id);
+        return cmd.ExecuteNonQuery() == 1;
+    }
+
+    public IReadOnlyList<BudgetRecord> ListBudgets(string month)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = """
+            SELECT b.id,b.month,b.category,b.amount,
+              COALESCE((SELECT SUM(t.amount) FROM transactions t
+                WHERE t.direction='支出' AND t.category=b.category AND substr(t.occurred_on,1,7)=b.month),0)
+            FROM budgets b WHERE b.month=$month ORDER BY b.category
+            """;
+        cmd.Parameters.AddWithValue("$month", month);
+        using var reader = cmd.ExecuteReader(); var rows = new List<BudgetRecord>();
+        while (reader.Read()) rows.Add(new BudgetRecord { Id = reader.GetInt64(0), Month = reader.GetString(1), Category = reader.GetString(2), Amount = reader.GetDecimal(3), Spent = reader.GetDecimal(4) });
+        return rows;
+    }
+
+    public long SaveBudget(BudgetRecord budget)
+    {
+        if (!DateTime.TryParseExact(budget.Month + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _)) throw new InvalidOperationException("预算月份格式无效。 ");
+        if (budget.Amount <= 0) throw new InvalidOperationException("预算金额必须大于 0。 ");
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO budgets(month,category,amount,created_at,updated_at) VALUES($month,$category,$amount,$now,$now)
+            ON CONFLICT(month,category) DO UPDATE SET amount=$amount,updated_at=$now;
+            SELECT id FROM budgets WHERE month=$month AND category=$category;
+            """;
+        cmd.Parameters.AddWithValue("$month", budget.Month); cmd.Parameters.AddWithValue("$category", budget.Category.Trim());
+        cmd.Parameters.AddWithValue("$amount", budget.Amount); cmd.Parameters.AddWithValue("$now", DateTime.Now.ToString("O"));
+        return Convert.ToInt64(cmd.ExecuteScalar());
+    }
+
+    public bool DeleteBudget(long id)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand(); cmd.CommandText = "DELETE FROM budgets WHERE id=$id"; cmd.Parameters.AddWithValue("$id", id);
+        return cmd.ExecuteNonQuery() == 1;
+    }
+
+    public IReadOnlyList<SavingsGoalRecord> ListSavingsGoals()
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT id,name,target_amount,saved_amount,target_date,is_completed FROM savings_goals ORDER BY is_completed, target_date IS NULL, target_date, id";
+        using var reader = cmd.ExecuteReader(); var rows = new List<SavingsGoalRecord>();
+        while (reader.Read()) rows.Add(new SavingsGoalRecord { Id = reader.GetInt64(0), Name = reader.GetString(1), TargetAmount = reader.GetDecimal(2), SavedAmount = reader.GetDecimal(3), TargetDate = reader.IsDBNull(4) ? null : DateTime.Parse(reader.GetString(4)), IsCompleted = reader.GetBoolean(5) });
+        return rows;
+    }
+
+    public long SaveSavingsGoal(SavingsGoalRecord goal)
+    {
+        if (string.IsNullOrWhiteSpace(goal.Name)) throw new InvalidOperationException("请输入储蓄目标名称。 ");
+        if (goal.TargetAmount <= 0 || goal.SavedAmount < 0) throw new InvalidOperationException("目标金额必须大于 0，已存金额不能为负数。 ");
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = goal.Id == 0
+            ? "INSERT INTO savings_goals(name,target_amount,saved_amount,target_date,is_completed,created_at,updated_at) VALUES($name,$target,$saved,$date,$completed,$now,$now); SELECT last_insert_rowid();"
+            : "UPDATE savings_goals SET name=$name,target_amount=$target,saved_amount=$saved,target_date=$date,is_completed=$completed,updated_at=$now WHERE id=$id; SELECT $id;";
+        if (goal.Id > 0) cmd.Parameters.AddWithValue("$id", goal.Id);
+        cmd.Parameters.AddWithValue("$name", goal.Name.Trim()); cmd.Parameters.AddWithValue("$target", goal.TargetAmount); cmd.Parameters.AddWithValue("$saved", goal.SavedAmount);
+        cmd.Parameters.AddWithValue("$date", goal.TargetDate is null ? DBNull.Value : goal.TargetDate.Value.ToString("yyyy-MM-dd"));
+        cmd.Parameters.AddWithValue("$completed", goal.IsCompleted || goal.SavedAmount >= goal.TargetAmount ? 1 : 0); cmd.Parameters.AddWithValue("$now", DateTime.Now.ToString("O"));
+        return Convert.ToInt64(cmd.ExecuteScalar());
+    }
+
+    public bool DeleteSavingsGoal(long id)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand(); cmd.CommandText = "DELETE FROM savings_goals WHERE id=$id"; cmd.Parameters.AddWithValue("$id", id);
         return cmd.ExecuteNonQuery() == 1;
     }
 

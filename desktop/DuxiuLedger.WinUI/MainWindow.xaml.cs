@@ -57,6 +57,7 @@ public sealed partial class MainWindow : Window
         RecordCountText.Text = $"共 {allRecords.Count} 条记录 · 本月 {records.Count} 条";
         LoadSubscriptions(allRecords);
         LoadInsights(allRecords);
+        LoadBudgets(allRecords);
         LoadAccounts();
         LoadCategories();
         StatusText.Text = $"已读取本地账本 · 本月 {records.Count} 条流水";
@@ -64,6 +65,24 @@ public sealed partial class MainWindow : Window
 
     private void LoadAccounts() => AccountsList.ItemsSource = _store.ListAccounts();
     private void LoadCategories() => CategoriesList.ItemsSource = _store.ListCategories();
+
+    private void LoadBudgets(IReadOnlyList<TransactionRecord> allRecords)
+    {
+        BudgetMonthPicker.Date ??= DateTimeOffset.Now;
+        var month = BudgetMonthPicker.Date.Value.ToString("yyyy-MM");
+        var budgets = _store.ListBudgets(month);
+        var settings = _store.LoadSettings();
+        var monthSpent = allRecords.Where(row => row.Direction == "支出" && row.OccurredOn.ToString("yyyy-MM") == month).Sum(row => row.Amount);
+        var totalBudget = settings.MonthlyBudget > 0 ? settings.MonthlyBudget : budgets.Sum(item => item.Amount);
+        var remaining = totalBudget - monthSpent;
+        BudgetTotalText.Text = totalBudget > 0 ? $"¥{totalBudget:N2}" : "未设置";
+        BudgetSpentText.Text = $"¥{monthSpent:N2}";
+        BudgetRemainingText.Text = totalBudget <= 0 ? "—" : remaining >= 0 ? $"¥{remaining:N2}" : $"超出 ¥{Math.Abs(remaining):N2}";
+        BudgetTotalProgress.Maximum = 1;
+        BudgetTotalProgress.Value = totalBudget <= 0 ? 0 : Math.Min(1, (double)(monthSpent / totalBudget));
+        BudgetsList.ItemsSource = budgets;
+        SavingsGoalsList.ItemsSource = _store.ListSavingsGoals();
+    }
 
     private void LoadInsights(IReadOnlyList<TransactionRecord> allRecords)
     {
@@ -168,13 +187,60 @@ public sealed partial class MainWindow : Window
         DashboardPage.Visibility = key == "Dashboard" ? Visibility.Visible : Visibility.Collapsed;
         TransactionsPage.Visibility = key == "Transactions" ? Visibility.Visible : Visibility.Collapsed;
         InsightsPage.Visibility = key == "Insights" ? Visibility.Visible : Visibility.Collapsed;
+        BudgetsPage.Visibility = key == "Budgets" ? Visibility.Visible : Visibility.Collapsed;
         SubscriptionsPage.Visibility = key == "Subscriptions" ? Visibility.Visible : Visibility.Collapsed;
         AccountsPage.Visibility = key == "Accounts" ? Visibility.Visible : Visibility.Collapsed;
         CategoriesPage.Visibility = key == "Categories" ? Visibility.Visible : Visibility.Collapsed;
         SettingsPage.Visibility = key == "Settings" ? Visibility.Visible : Visibility.Collapsed;
         BackupPage.Visibility = key == "Backup" ? Visibility.Visible : Visibility.Collapsed;
-        PlaceholderPage.Visibility = key == "Budgets" ? Visibility.Visible : Visibility.Collapsed;
+        PlaceholderPage.Visibility = Visibility.Collapsed;
         PlaceholderTitle.Text = $"{page.Title}正在建设";
+    }
+
+    private void BudgetMonthChanged(CalendarDatePicker sender, CalendarDatePickerDateChangedEventArgs args)
+    {
+        if (sender.Date is not null) LoadBudgets(_store.List());
+    }
+
+    private async void AddBudgetClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new BudgetDialog(_store.ListCategories()) { XamlRoot = ContentHost.XamlRoot };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary || dialog.Result is null) return;
+        try { _store.SaveBudget(dialog.Result); LoadDashboard(); SelectNavigation("Budgets"); StatusText.Text = "分类预算已保存"; }
+        catch (Exception ex) { await ShowMessage("预算保存失败", ex.Message); }
+    }
+
+    private async void DeleteBudgetClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: BudgetRecord budget }) return;
+        var confirm = new ContentDialog { XamlRoot = ContentHost.XamlRoot, Title = "删除这条预算？", Content = $"{budget.Month} · {budget.Category} · {budget.AmountDisplay}", PrimaryButtonText = "删除", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Close };
+        if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;
+        _store.DeleteBudget(budget.Id); LoadDashboard(); SelectNavigation("Budgets"); StatusText.Text = "分类预算已删除";
+    }
+
+    private async void AddSavingsGoalClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SavingsGoalDialog { XamlRoot = ContentHost.XamlRoot };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary || dialog.Result is null) return;
+        try { _store.SaveSavingsGoal(dialog.Result); LoadDashboard(); SelectNavigation("Budgets"); StatusText.Text = "储蓄目标已添加"; }
+        catch (Exception ex) { await ShowMessage("目标保存失败", ex.Message); }
+    }
+
+    private async void EditSavingsGoalClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: SavingsGoalRecord goal }) return;
+        var dialog = new SavingsGoalDialog(goal) { XamlRoot = ContentHost.XamlRoot };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary || dialog.Result is null) return;
+        try { _store.SaveSavingsGoal(dialog.Result); LoadDashboard(); SelectNavigation("Budgets"); StatusText.Text = "储蓄目标已更新"; }
+        catch (Exception ex) { await ShowMessage("目标保存失败", ex.Message); }
+    }
+
+    private async void DeleteSavingsGoalClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: SavingsGoalRecord goal }) return;
+        var confirm = new ContentDialog { XamlRoot = ContentHost.XamlRoot, Title = "删除这个储蓄目标？", Content = $"{goal.Name}\n{goal.TargetDisplay}", PrimaryButtonText = "删除", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Close };
+        if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;
+        _store.DeleteSavingsGoal(goal.Id); LoadDashboard(); SelectNavigation("Budgets"); StatusText.Text = "储蓄目标已删除";
     }
 
     private void TitleBarPaneToggleRequested(TitleBar sender, object args) => NavView.IsPaneOpen = !NavView.IsPaneOpen;
