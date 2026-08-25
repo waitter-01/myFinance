@@ -23,6 +23,7 @@ public sealed class FinancialAnalysisResult
     public decimal SuggestedLimit { get; set; }
     public TransactionRecord? LargestExpense { get; set; }
     public IReadOnlyList<SpendingRankItem> CategoryRanks { get; set; } = [];
+    public IReadOnlyList<SpendingRankItem> MajorCategoryRanks { get; set; } = [];
     public IReadOnlyList<SpendingRankItem> MerchantRanks { get; set; } = [];
     public IReadOnlyList<AnalysisTrendItem> Trend { get; set; } = [];
     public IReadOnlyList<InsightSuggestion> Suggestions { get; set; } = [];

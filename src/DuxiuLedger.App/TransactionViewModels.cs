@@ -1,6 +1,7 @@
 using DuxiuLedger.Desktop.Models;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using Microsoft.UI.Xaml.Media;
 
 namespace DuxiuLedger.WinUI;
 
@@ -29,6 +30,14 @@ public sealed class TransactionFilterChip
 {
     public string Key { get; init; } = "";
     public string Label { get; init; } = "";
+}
+
+public sealed class CategoryPieSliceViewModel
+{
+    public string Name { get; init; } = "";
+    public string AmountDisplay { get; init; } = "";
+    public string ShareDisplay { get; init; } = "";
+    public Brush Fill { get; init; } = new SolidColorBrush(Microsoft.UI.Colors.Gray);
 }
 
 public sealed class TransactionDateGroup : ObservableCollection<TransactionRecord>

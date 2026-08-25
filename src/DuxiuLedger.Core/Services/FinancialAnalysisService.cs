@@ -26,6 +26,7 @@ public sealed class FinancialAnalysisService
         var optionalNames = ParseNames(settings.OptionalCategories);
         var optionalRows = expenseRows.Where(row => optionalNames.Contains(row.Category)).ToList();
         var categoryRanks = BuildRanks(expenseRows, row => row.Category, grossExpense);
+        var majorCategoryRanks = BuildRanks(expenseRows, row => MajorCategory(row.Category), grossExpense);
         var merchantRanks = BuildRanks(expenseRows, row => string.IsNullOrWhiteSpace(row.Merchant) ? "未注明交易对方" : row.Merchant.Trim(), grossExpense);
         var totalDays = Math.Max(1, (end - start).Days);
         var projection = netExpense / elapsed * totalDays;
@@ -51,6 +52,7 @@ public sealed class FinancialAnalysisService
             SuggestedLimit = suggestedLimit,
             LargestExpense = expenseRows.OrderByDescending(row => row.Amount).FirstOrDefault(),
             CategoryRanks = categoryRanks,
+            MajorCategoryRanks = majorCategoryRanks,
             MerchantRanks = merchantRanks,
             Trend = BuildTrend(records, period, start, end)
         };
@@ -97,6 +99,24 @@ public sealed class FinancialAnalysisService
             .Select(group => new SpendingRankItem { Name = group.Key, Amount = group.Sum(row => row.Amount), Count = group.Count(), Share = total <= 0 ? 0 : group.Sum(row => row.Amount) / total })
             .OrderByDescending(item => item.Amount)
             .ToList();
+
+    public static string MajorCategory(string category)
+    {
+        if (string.IsNullOrWhiteSpace(category)) return "其他";
+        return category.Trim() switch
+        {
+            "日常餐饮" or "零食饮料" => "餐饮饮品",
+            "居住物业" or "水电燃气" or "通讯网络" or "生活日用" => "居住生活",
+            "交通出行" => "交通出行",
+            "数码家电" or "服饰美容" => "购物消费",
+            "娱乐休闲" or "游戏消费" or "旅行度假" or "宠物消费" => "休闲娱乐",
+            "医疗健康" or "保险保障" => "健康保障",
+            "学习教育" => "学习成长",
+            "人情往来" => "人情往来",
+            "订阅消费" => "订阅服务",
+            _ => "其他"
+        };
+    }
 
     private static decimal SuggestedLimit(AnalysisPeriodKind period, decimal monthlyBudget, decimal projection, decimal previous, decimal current)
     {

@@ -6,7 +6,10 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
+using XamlPath = Microsoft.UI.Xaml.Shapes.Path;
 using Windows.Graphics;
+using Windows.Foundation;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 using Windows.Storage.Streams;
@@ -24,6 +27,7 @@ public sealed partial class MainWindow : Window
     private readonly FinancialAnalysisService _analysisService = new();
     private AnalysisPeriodKind _analysisPeriod = AnalysisPeriodKind.Month;
     private DateTime _analysisAnchor = DateTime.Today;
+    private FinancialAnalysisResult? _currentAnalysisResult;
     private TransactionQuery _transactionQuery = new();
     private TransactionGroupMode _transactionGroupMode = TransactionGroupMode.Day;
     private readonly CollectionViewSource _transactionGroupsSource = new() { IsSourceGrouped = true };
@@ -120,6 +124,7 @@ public sealed partial class MainWindow : Window
     {
         var settings = _store.LoadSettings();
         var result = _analysisService.Analyze(allRecords, settings, _analysisPeriod, _analysisAnchor);
+        _currentAnalysisResult = result;
         var currentStart = FinancialAnalysisService.GetRange(_analysisPeriod, DateTime.Today).Start;
         AnalysisRangeText.Text = result.PeriodLabel;
         AnalysisNextButton.IsEnabled = result.Start < currentStart;
@@ -145,8 +150,116 @@ public sealed partial class MainWindow : Window
         AnalysisTrendTitle.Text = _analysisPeriod switch { AnalysisPeriodKind.Week => "每日收支趋势", AnalysisPeriodKind.Year => "月度收支趋势", _ => "每周收支趋势" };
         AnalysisTrendList.ItemsSource = result.Trend;
         CategoryRankingList.ItemsSource = result.CategoryRanks.Take(8).ToList();
+        DrawCategoryPie(result.MajorCategoryRanks, result.GrossExpense);
         MerchantRankingList.ItemsSource = result.MerchantRanks.Take(8).ToList();
         InsightSuggestionsList.ItemsSource = result.Suggestions;
+    }
+
+    private void DrawCategoryPie(IReadOnlyList<SpendingRankItem> ranks, decimal total)
+    {
+        CategoryPieCanvas.Children.Clear();
+        CategoryPieTotalText.Text = $"¥{total:N2}";
+        CategoryPieEmptyText.Visibility = total <= 0 ? Visibility.Visible : Visibility.Collapsed;
+        CategoryPieTotalText.Visibility = total <= 0 ? Visibility.Collapsed : Visibility.Visible;
+        if (total <= 0)
+        {
+            CategoryPieLegend.ItemsSource = Array.Empty<CategoryPieSliceViewModel>();
+            return;
+        }
+
+        var colors = new[]
+        {
+            ColorHelper.FromArgb(255, 37, 99, 235), ColorHelper.FromArgb(255, 20, 184, 166),
+            ColorHelper.FromArgb(255, 245, 158, 11), ColorHelper.FromArgb(255, 139, 92, 246),
+            ColorHelper.FromArgb(255, 236, 72, 153), ColorHelper.FromArgb(255, 16, 185, 129),
+            ColorHelper.FromArgb(255, 249, 115, 22), ColorHelper.FromArgb(255, 6, 182, 212),
+            ColorHelper.FromArgb(255, 100, 116, 139), ColorHelper.FromArgb(255, 148, 163, 184)
+        };
+        var visibleRanks = ranks.Take(10).ToList();
+        var legend = new List<CategoryPieSliceViewModel>();
+        var angle = -90d;
+        for (var index = 0; index < visibleRanks.Count; index++)
+        {
+            var item = visibleRanks[index];
+            var sweep = Math.Min(359.999, (double)(item.Amount / total) * 360);
+            var brush = new SolidColorBrush(colors[index % colors.Length]);
+            var path = new XamlPath
+            {
+                Data = CreateDonutSegment(110, 110, 96, 58, angle, sweep),
+                Fill = brush,
+                Opacity = 0.9,
+                Tag = item,
+                StrokeThickness = 2
+            };
+            ToolTipService.SetToolTip(path, $"{item.Name}  {item.AmountDisplay}  ·  {item.ShareDisplay}");
+            path.PointerEntered += CategoryPieSlicePointerEntered;
+            path.PointerExited += CategoryPieSlicePointerExited;
+            CategoryPieCanvas.Children.Add(path);
+            legend.Add(new CategoryPieSliceViewModel { Name = item.Name, AmountDisplay = item.AmountDisplay, ShareDisplay = item.ShareDisplay, Fill = brush });
+            angle += sweep;
+        }
+        CategoryPieLegend.ItemsSource = legend;
+    }
+
+    private static Geometry CreateDonutSegment(double centerX, double centerY, double outerRadius, double innerRadius, double startAngle, double sweepAngle)
+    {
+        static Point PointOnCircle(double x, double y, double radius, double angle)
+        {
+            var radians = angle * Math.PI / 180;
+            return new Point(x + radius * Math.Cos(radians), y + radius * Math.Sin(radians));
+        }
+
+        var outerStart = PointOnCircle(centerX, centerY, outerRadius, startAngle);
+        var outerEnd = PointOnCircle(centerX, centerY, outerRadius, startAngle + sweepAngle);
+        var innerEnd = PointOnCircle(centerX, centerY, innerRadius, startAngle + sweepAngle);
+        var innerStart = PointOnCircle(centerX, centerY, innerRadius, startAngle);
+        var figure = new PathFigure { StartPoint = outerStart, IsClosed = true, IsFilled = true };
+        figure.Segments.Add(new ArcSegment { Point = outerEnd, Size = new Size(outerRadius, outerRadius), IsLargeArc = sweepAngle > 180, SweepDirection = SweepDirection.Clockwise });
+        figure.Segments.Add(new LineSegment { Point = innerEnd });
+        figure.Segments.Add(new ArcSegment { Point = innerStart, Size = new Size(innerRadius, innerRadius), IsLargeArc = sweepAngle > 180, SweepDirection = SweepDirection.Counterclockwise });
+        return new PathGeometry { Figures = [figure] };
+    }
+
+    private void AnalysisBarPointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is not Border bar) return;
+        bar.Opacity = 1;
+        bar.RenderTransformOrigin = new Point(0.5, 1);
+        bar.RenderTransform = new ScaleTransform { ScaleX = 1.16, ScaleY = 1.04 };
+    }
+
+    private void AnalysisBarPointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is not Border bar) return;
+        bar.Opacity = 0.8;
+        bar.RenderTransform = null;
+    }
+
+    private void CategoryPieSlicePointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is not XamlPath path) return;
+        path.Opacity = 1;
+        path.Stroke = new SolidColorBrush(Colors.White);
+        Canvas.SetZIndex(path, 1);
+    }
+
+    private void CategoryPieSlicePointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is not XamlPath path) return;
+        path.Opacity = 0.9;
+        path.Stroke = null;
+        Canvas.SetZIndex(path, 0);
+    }
+
+    private async void CategoryRankingItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is not SpendingRankItem item || _currentAnalysisResult is null) return;
+        var rows = _store.List()
+            .Where(row => row.Direction == "支出" && row.Category.Equals(item.Name, StringComparison.OrdinalIgnoreCase)
+                && row.OccurredOn >= _currentAnalysisResult.Start && row.OccurredOn < _currentAnalysisResult.EndExclusive)
+            .OrderByDescending(row => row.OccurredOn).ThenByDescending(row => row.Id).ToList();
+        var dialog = new CategoryTransactionsDialog(item.Name, rows, _currentAnalysisResult.PeriodLabel) { XamlRoot = Content.XamlRoot };
+        await dialog.ShowAsync();
     }
 
     private void AnalysisPeriodChanged(object sender, SelectionChangedEventArgs e)

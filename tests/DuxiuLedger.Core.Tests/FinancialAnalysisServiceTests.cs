@@ -65,13 +65,32 @@ public sealed class FinancialAnalysisServiceTests
         Assert.Equal(-0.5m, result.ExpenseChangeRate);
     }
 
-    private static TransactionRecord Row(string direction, decimal amount, DateTime? occurredOn = null)
+    [Fact]
+    public void Analyze_GroupsDetailedCategoriesIntoUsefulMajorCategories()
+    {
+        var records = new[]
+        {
+            Row("支出", 30, category: "日常餐饮"),
+            Row("支出", 20, category: "零食饮料"),
+            Row("支出", 300, category: "居住物业"),
+            Row("支出", 100, category: "水电燃气"),
+            Row("支出", 50, category: "未分类")
+        };
+
+        var result = _service.Analyze(records, _settings, AnalysisPeriodKind.Month, new DateTime(2026, 8, 15), new DateTime(2026, 8, 15));
+
+        Assert.Equal(400, result.MajorCategoryRanks.Single(item => item.Name == "居住生活").Amount);
+        Assert.Equal(50, result.MajorCategoryRanks.Single(item => item.Name == "餐饮饮品").Amount);
+        Assert.Equal(50, result.MajorCategoryRanks.Single(item => item.Name == "其他").Amount);
+    }
+
+    private static TransactionRecord Row(string direction, decimal amount, DateTime? occurredOn = null, string category = "零食饮料")
         => new()
         {
             OccurredOn = occurredOn ?? new DateTime(2026, 8, 10),
             Direction = direction,
             Amount = amount,
-            Category = "零食饮料",
+            Category = category,
             Merchant = "测试商户"
         };
 }
