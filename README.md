@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8">
     <img src="https://img.shields.io/badge/UI-WinUI%203-146C70" alt="WinUI 3">
     <img src="https://img.shields.io/badge/同步-S3%20兼容-0F80CC" alt="S3 compatible">
-    <img src="https://img.shields.io/badge/版本-v0.10.1-6B7280" alt="v0.10.1">
+    <img src="https://img.shields.io/badge/版本-v0.11.0-6B7280" alt="v0.11.0">
   </p>
 </div>
 
@@ -52,7 +52,7 @@
 
 ## 当前版本
 
-当前版本为 **v0.10.1**，优化全部流水表头的排序按钮、列对齐与筛选入口，同时保留批量管理和常用筛选能力。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本为 **v0.11.0**，新增周期性支出管理、主要消费占比图、柱状图悬停交互和分类流水下钻。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
 
 版本号采用 `主版本.次版本.修订版本`：
 
@@ -114,7 +114,7 @@ dotnet run --project .\src\DuxiuLedger.App\DuxiuLedger.App.csproj -p:Platform=x6
 
 ```text
 artifacts\win-x64\DuxiuLedger.exe
-artifacts\DuxiuLedger-v0.10.1-win-x64.zip
+artifacts\DuxiuLedger-v0.11.0-win-x64.zip
 ```
 
 单文件 EXE 可以单独复制运行，首次启动时会将 WinUI 3 运行依赖释放到临时目录，因此第一次启动可能稍慢。发布目录已被 Git 忽略，不会提交到仓库。
@@ -138,7 +138,7 @@ winget install --id JRSoftware.InnoSetup -e
 生成文件：
 
 ```text
-artifacts\installer\DuxiuLedger-Setup-v0.10.1-win-x64.exe
+artifacts\installer\DuxiuLedger-Setup-v0.11.0-win-x64.exe
 ```
 
 安装程序默认安装到当前用户的 `%LOCALAPPDATA%\Programs\DuxiuLedger`，不要求管理员权限，并提供开始菜单、可选桌面快捷方式和标准卸载入口。
@@ -154,9 +154,9 @@ artifacts\installer\DuxiuLedger-Setup-v0.10.1-win-x64.exe
 5. 使用中文提交版本变更，然后创建并推送 Git 标签：
 
 ```powershell
-git tag -a v0.10.1 -m "版本：发布 v0.10.1"
+git tag -a v0.11.0 -m "版本：发布 v0.11.0"
 git push origin master
-git push origin v0.10.1
+git push origin v0.11.0
 ```
 
 6. 在 GitHub Releases 中使用相同标签创建发行版，并上传单文件 EXE、ZIP 和安装程序。发布说明以 `CHANGELOG.md` 对应版本内容为准。
@@ -179,7 +179,7 @@ git push origin v0.10.1
 | 收支 | `支出` 或 `收入` | `支出` |
 | 金额(元) | 大于 0 的数字 | `18.50` |
 
-选填字段包括交易对方、商品说明、分类、订阅月数和备注。归类为“订阅消费”时建议填写价格覆盖的月数，例如年度会员填写 `12`；微信、支付宝官方导出的账单可直接尝试导入，不必先转换为标准模板。
+选填字段包括交易对方、商品说明、分类、周期支出类型、覆盖月数、覆盖开始、下次付款、必要支出和备注。例如季度房租的覆盖月数填写 `3`，年度会员填写 `12`；微信、支付宝官方导出的账单可直接尝试导入，不必先转换为标准模板。
 
 ## 本地账本与备份
 
