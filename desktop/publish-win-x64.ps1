@@ -3,8 +3,10 @@ $ErrorActionPreference = 'Stop'
 $project = Join-Path $PSScriptRoot 'DuxiuLedger.WinUI/DuxiuLedger.WinUI.csproj'
 $publishRoot = Join-Path $PSScriptRoot 'publish'
 $output = Join-Path $publishRoot 'win-x64'
-$archive = Join-Path $publishRoot 'DuxiuLedger-win-x64.zip'
-$installer = Join-Path $PSScriptRoot 'install-win-x64.ps1'
+[xml]$projectXml = Get-Content -LiteralPath $project
+$version = [string]($projectXml.Project.PropertyGroup.Version | Select-Object -First 1)
+if ([string]::IsNullOrWhiteSpace($version)) { throw '项目文件中没有设置 Version。' }
+$archive = Join-Path $publishRoot "DuxiuLedger-v$version-win-x64.zip"
 
 $resolvedDesktop = [System.IO.Path]::GetFullPath($PSScriptRoot)
 $resolvedOutput = [System.IO.Path]::GetFullPath($output)
@@ -18,19 +20,29 @@ if (Test-Path -LiteralPath $output) {
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 
 dotnet restore $project -p:Platform=x64
-dotnet publish $project -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:WindowsAppSDKSelfContained=true -o $output
+dotnet publish $project -c Release -r win-x64 `
+    -p:Platform=x64 `
+    -p:WindowsPackageType=None `
+    -p:WindowsAppSDKSelfContained=true `
+    -p:SelfContained=true `
+    -p:EnableMsixTooling=true `
+    -p:PublishSingleFile=true `
+    -p:IncludeAllContentForSelfExtract=true `
+    -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:DebugType=None `
+    -p:DebugSymbols=false `
+    -o $output
 
 $executable = Join-Path $output 'DuxiuLedger.exe'
 if (-not (Test-Path -LiteralPath $executable)) {
     throw "发布失败：没有找到 $executable"
 }
 
-Copy-Item -LiteralPath $installer -Destination (Join-Path $output '安装独秀账本.ps1') -Force
 if (Test-Path -LiteralPath $archive) {
     Remove-Item -LiteralPath $archive -Force
 }
-Compress-Archive -Path (Join-Path $output '*') -DestinationPath $archive -CompressionLevel Optimal
+Compress-Archive -LiteralPath $executable -DestinationPath $archive -CompressionLevel Optimal
 
-Write-Host "WinUI 3 便携版已生成：$output"
+Write-Host "WinUI 3 单文件 EXE 已生成：$executable"
 Write-Host "分发压缩包已生成：$archive"
-Write-Host "请保留目录内全部文件，不要单独复制 EXE。"
+Write-Host '该 EXE 可单独复制运行，首次启动时会释放运行依赖到临时目录。'
