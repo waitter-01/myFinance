@@ -15,6 +15,7 @@ public partial class MainWindow : Window
     private readonly LocalStore _store = new();
     private readonly BillImporter _importer = new();
     private readonly ObservableCollection<TransactionRecord> _records = new();
+    private readonly ObservableCollection<SubscriptionSummary> _subscriptions = new();
     private readonly Dictionary<string, (Grid Page, Button Button, string Title, string Subtitle)> _navigation;
 
     public MainWindow()
@@ -25,12 +26,14 @@ public partial class MainWindow : Window
             ["Dashboard"] = (DashboardPage, DashboardNav, "总览", "查看本月财务情况和最近流水"),
             ["Transactions"] = (TransactionsPage, TransactionsNav, "全部流水", "搜索、核对和管理本地账单记录"),
             ["Budgets"] = (BudgetsPage, BudgetsNav, "预算计划", "规划每月支出，控制消费节奏"),
+            ["Subscriptions"] = (SubscriptionsPage, SubscriptionsNav, "订阅与月卡", "看清自动续费、会员和游戏月卡的长期成本"),
             ["Categories"] = (CategoriesPage, CategoriesNav, "分类设置", "建立适合自己的收支分类体系"),
             ["Settings"] = (SettingsPage, SettingsNav, "偏好设置", "按自己的习惯调整分析标准和提醒计划"),
             ["Backup"] = (BackupPage, BackupNav, "数据备份", "复制和保护本地账本数据库")
         };
         DashboardGrid.ItemsSource = _records;
         TransactionsGrid.ItemsSource = _records;
+        SubscriptionsGrid.ItemsSource = _subscriptions;
         DataPathText.Text = _store.DatabasePath;
         WeeklySummaryDayBox.ItemsSource = new[] { "星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日" };
         LoadSettings();
@@ -70,7 +73,44 @@ public partial class MainWindow : Window
         ExpenseText.Text = $"¥{expense:N2}";
         BalanceText.Text = $"¥{income - expense:N2}";
         CountText.Text = $"共 {_records.Count} 条记录 · 本月 {current.Count} 条";
+        LoadSubscriptionStats();
         StatusText.Text = search is null ? "数据已从本地数据库加载" : $"搜索到 {_records.Count} 条记录";
+    }
+
+    private void LoadSubscriptionStats()
+    {
+        var settings = _store.LoadSettings();
+        var keywords = settings.SubscriptionKeywords
+            .Split([',', '，', ';', '；', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var since = DateTime.Now.Date.AddMonths(-12);
+        var detected = _store.List()
+            .Where(r => r.Direction == "支出" && r.OccurredOn >= since)
+            .Where(r => keywords.Any(keyword => $"{r.Merchant} {r.Category} {r.Note}".Contains(keyword, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+        var summaries = detected
+            .GroupBy(r => string.IsNullOrWhiteSpace(r.Merchant) ? "未注明交易对方" : r.Merchant.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(group => new SubscriptionSummary
+            {
+                Merchant = group.Key,
+                Category = group.GroupBy(r => r.Category).OrderByDescending(g => g.Count()).First().Key,
+                PaymentCount = group.Count(),
+                PaidLast12Months = group.Sum(r => r.Amount),
+                MonthlyAverage = group.Sum(r => r.Amount) / 12m,
+                LatestPayment = group.Max(r => r.OccurredOn)
+            })
+            .OrderByDescending(item => item.MonthlyAverage)
+            .ToList();
+        _subscriptions.Clear();
+        foreach (var summary in summaries) _subscriptions.Add(summary);
+        var currentMonth = DateTime.Now.ToString("yyyy-MM");
+        SubscriptionCurrentMonthText.Text = $"¥{detected.Where(r => r.OccurredOn.ToString("yyyy-MM") == currentMonth).Sum(r => r.Amount):N2}";
+        SubscriptionMonthlyAverageText.Text = $"¥{summaries.Sum(item => item.MonthlyAverage):N2}";
+        SubscriptionProviderCountText.Text = $"{summaries.Count} 项";
+        SubscriptionHintText.Text = keywords.Length == 0
+            ? "尚未设置订阅识别关键词，请前往偏好设置添加。"
+            : $"按 {keywords.Length} 个关键词自动识别；近 12 个月总付款按 12 个月均摊。";
     }
 
     private void SearchClick(object sender, RoutedEventArgs e) => LoadRecords(SearchBox.Text.Trim());
@@ -139,6 +179,7 @@ public partial class MainWindow : Window
             WeeklySummaryTime = WeeklySummaryTimeBox.Text.Trim(),
             SubscriptionKeywords = SubscriptionKeywordsBox.Text.Trim()
         });
+        LoadSubscriptionStats();
         StatusText.Text = "偏好设置已保存，将用于消费分析和提醒计划";
     }
 
