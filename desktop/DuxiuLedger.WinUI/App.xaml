@@ -9,18 +9,18 @@
         <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
       </ResourceDictionary.MergedDictionaries>
       <Style TargetType="Control">
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+        <Setter Property="FontFamily" Value="Segoe UI Variable, Microsoft YaHei UI" />
       </Style>
       <Style TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+        <Setter Property="FontFamily" Value="Segoe UI Variable, Microsoft YaHei UI" />
       </Style>
       <Style x:Key="PageTitleStyle" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+        <Setter Property="FontFamily" Value="Segoe UI Variable, Microsoft YaHei UI" />
         <Setter Property="FontSize" Value="28" />
         <Setter Property="FontWeight" Value="SemiBold" />
       </Style>
       <Style x:Key="SectionTitleStyle" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+        <Setter Property="FontFamily" Value="Segoe UI Variable, Microsoft YaHei UI" />
         <Setter Property="FontSize" Value="18" />
         <Setter Property="FontWeight" Value="SemiBold" />
       </Style>

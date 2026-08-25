@@ -18,9 +18,11 @@
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <TitleBar x:Name="AppTitleBar" Title="独秀账本" Subtitle="个人财务中心" IsPaneToggleButtonVisible="True" PaneToggleRequested="TitleBarPaneToggleRequested" />
+    <TitleBar x:Name="AppTitleBar" Title="独秀账本" Subtitle="个人财务中心" IsPaneToggleButtonVisible="True" PaneToggleRequested="TitleBarPaneToggleRequested">
+      <TitleBar.IconSource><BitmapIconSource UriSource="ms-appx:///Assets/duxiu-logo.png" ShowAsMonochrome="False" /></TitleBar.IconSource>
+    </TitleBar>
 
-    <NavigationView x:Name="NavView" Grid.Row="1" IsBackButtonVisible="Collapsed" IsPaneToggleButtonVisible="False" PaneDisplayMode="Auto" OpenPaneLength="232" SelectionChanged="NavigationSelectionChanged">
+    <NavigationView x:Name="NavView" Grid.Row="1" IsBackButtonVisible="Collapsed" IsPaneToggleButtonVisible="False" IsSettingsVisible="False" PaneDisplayMode="Auto" OpenPaneLength="232" SelectionChanged="NavigationSelectionChanged">
       <NavigationView.MenuItems>
         <NavigationViewItem Content="总览" Tag="Dashboard" IsSelected="True"><NavigationViewItem.Icon><FontIcon Glyph="&#xE80F;" /></NavigationViewItem.Icon></NavigationViewItem>
         <NavigationViewItem Content="全部流水" Tag="Transactions"><NavigationViewItem.Icon><FontIcon Glyph="&#xE8CB;" /></NavigationViewItem.Icon></NavigationViewItem>
