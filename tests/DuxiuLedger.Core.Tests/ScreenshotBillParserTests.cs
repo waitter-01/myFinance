@@ -34,4 +34,28 @@ public sealed class ScreenshotBillParserTests
         Assert.Same(result.Records[^1], issue.Record);
         Assert.True(issue.CanReview);
     }
+
+    [Fact]
+    public void Parse_FlagsDateThatBreaksDescendingBillOrder()
+    {
+        var tokens = new List<ScreenshotOcrToken>
+        {
+            new("全部账单", 100, 50, 160, 36),
+            new("2026年7月", 100, 145, 180, 36),
+            new("第一笔", 180, 300, 180, 42),
+            new("7月24日 07:41", 180, 348, 230, 34),
+            new("-110.00", 760, 300, 130, 42),
+            new("第二笔", 180, 500, 180, 42),
+            new("7月25日 14:44", 180, 548, 230, 34),
+            new("-6.00", 760, 500, 130, 42)
+        };
+
+        var result = ScreenshotBillParser.Parse(tokens, 1000, 900, "日期异常.png", new DateTime(2026, 8, 25));
+
+        Assert.Equal(2, result.Records.Count);
+        Assert.False(result.Records[0].RequiresReview);
+        Assert.True(result.Records[1].RequiresReview);
+        var issue = Assert.Single(result.Issues, item => item.Record == result.Records[1]);
+        Assert.Contains("倒序不一致", issue.Reason);
+    }
 }

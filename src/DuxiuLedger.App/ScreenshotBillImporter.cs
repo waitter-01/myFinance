@@ -117,6 +117,7 @@ internal static partial class ScreenshotBillParser
         var records = new List<TransactionRecord>();
         var issues = new List<ImportIssue>();
         var (headerYear, headerMonth) = ReadHeaderMonth(compactText, now);
+        DateTime? lastTrustedOccurredOn = null;
 
         for (var index = 0; index < anchors.Count; index++)
         {
@@ -135,6 +136,8 @@ internal static partial class ScreenshotBillParser
             {
                 occurredOn = new DateTime(headerYear, headerMonth, 1);
             }
+            var chronologyMismatch = dateRecognized && lastTrustedOccurredOn is not null
+                && occurredOn > lastTrustedOccurredOn.Value.AddMinutes(1);
 
             var direction = MapDirection(merchant, sign);
             var category = merchantRecognized ? FindCategory(rowLines, merchant, dateText) : "未分类";
@@ -148,7 +151,7 @@ internal static partial class ScreenshotBillParser
                 Merchant = merchant,
                 Note = note,
                 Source = $"{platform}截图 · {source}",
-                RequiresReview = !merchantRecognized || !dateRecognized
+                RequiresReview = !merchantRecognized || !dateRecognized || chronologyMismatch
             };
             record.Fingerprint = TransactionFingerprint.Create(record);
             records.Add(record);
@@ -174,6 +177,21 @@ internal static partial class ScreenshotBillParser
                     RawValue = string.IsNullOrWhiteSpace(dateText) ? rawValue : dateText,
                     Record = record
                 });
+            }
+            if (chronologyMismatch)
+            {
+                issues.Add(new ImportIssue
+                {
+                    Source = source,
+                    RowNumber = index + 1,
+                    Reason = "交易时间与账单倒序不一致，需要手动核对",
+                    RawValue = dateText,
+                    Record = record
+                });
+            }
+            else if (dateRecognized)
+            {
+                lastTrustedOccurredOn = occurredOn;
             }
         }
 
