@@ -1,4 +1,5 @@
 using DuxiuLedger.Desktop.Models;
+using DuxiuLedger.Desktop.Services;
 using Microsoft.UI.Xaml.Controls;
 using System.Collections.ObjectModel;
 using System.Globalization;
@@ -17,11 +18,14 @@ public sealed partial class ImportPreviewDialog : ContentDialog
     public ImportPreviewDialog(IReadOnlyList<ImportPreviewResult> previews, IReadOnlyList<AccountRecord> accounts, IReadOnlyList<CategoryRecord> categories, IReadOnlySet<string> existingFingerprints)
     {
         InitializeComponent();
+        var activeCategories = categories.Where(category => category.IsActive).Select(category => category.Name).ToHashSet(StringComparer.Ordinal);
         var seen = new HashSet<string>(existingFingerprints, StringComparer.Ordinal);
         var candidates = new List<TransactionRecord>();
         var duplicates = 0;
         foreach (var record in previews.SelectMany(preview => preview.Records))
         {
+            var suggestedCategory = TransactionCategorizer.Suggest(record);
+            if (activeCategories.Contains(suggestedCategory)) record.Category = suggestedCategory;
             if (seen.Add(record.Fingerprint)) candidates.Add(record); else duplicates++;
         }
         _candidates = new ObservableCollection<TransactionRecord>(candidates);

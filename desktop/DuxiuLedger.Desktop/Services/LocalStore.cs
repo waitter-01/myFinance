@@ -51,6 +51,7 @@ public sealed class LocalStore
               ('水电燃气','支出',1,60,datetime('now'),datetime('now')),
               ('通讯网络','支出',1,70,datetime('now'),datetime('now')),
               ('医疗健康','支出',1,80,datetime('now'),datetime('now')),
+              ('保险保障','支出',1,85,datetime('now'),datetime('now')),
               ('学习教育','支出',1,90,datetime('now'),datetime('now')),
               ('数码家电','支出',1,100,datetime('now'),datetime('now')),
               ('服饰美容','支出',1,110,datetime('now'),datetime('now')),
