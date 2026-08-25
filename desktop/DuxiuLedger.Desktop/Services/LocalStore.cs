@@ -383,6 +383,7 @@ public sealed class LocalStore
         if (values.TryGetValue("weekly_summary_day", out var weeklyDay) && Enum.TryParse<DayOfWeek>(weeklyDay, out var day)) settings.WeeklySummaryDay = day;
         if (values.TryGetValue("weekly_summary_time", out var weeklyTime)) settings.WeeklySummaryTime = weeklyTime;
         if (values.TryGetValue("subscription_keywords", out var keywords)) settings.SubscriptionKeywords = keywords;
+        if (values.TryGetValue("optional_categories", out var optionalCategories)) settings.OptionalCategories = optionalCategories;
         if (TryBool(values, "mysql_sync_enabled", out var mysqlEnabled)) settings.MySqlSyncEnabled = mysqlEnabled;
         if (TryBool(values, "sync_on_startup", out var syncOnStartup)) settings.SyncOnStartup = syncOnStartup;
         if (values.TryGetValue("mysql_host", out var mysqlHost)) settings.MySqlHost = mysqlHost;
@@ -405,6 +406,7 @@ public sealed class LocalStore
             ["weekly_summary_day"] = settings.WeeklySummaryDay.ToString(),
             ["weekly_summary_time"] = settings.WeeklySummaryTime,
             ["subscription_keywords"] = settings.SubscriptionKeywords,
+            ["optional_categories"] = settings.OptionalCategories,
             ["mysql_sync_enabled"] = settings.MySqlSyncEnabled.ToString(),
             ["sync_on_startup"] = settings.SyncOnStartup.ToString(),
             ["mysql_host"] = settings.MySqlHost,

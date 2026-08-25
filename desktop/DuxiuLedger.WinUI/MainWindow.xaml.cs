@@ -101,7 +101,7 @@ public sealed partial class MainWindow : Window
         var settings = _store.LoadSettings();
         var threshold = settings.SmallExpenseThreshold;
         var small = expenses.Where(row => row.Amount <= threshold).ToList();
-        var optionalNames = new HashSet<string>(["零食饮料", "娱乐休闲", "游戏消费", "订阅消费", "小额杂项"]);
+        var optionalNames = settings.OptionalCategories.Split([',', '，', ';', '；', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var optional = expenses.Where(row => optionalNames.Contains(row.Category)).ToList();
         var previousOptional = previousExpenses.Where(row => optionalNames.Contains(row.Category)).Sum(row => row.Amount);
         var categoryRanks = BuildRanks(expenses, row => row.Category, total);
@@ -119,6 +119,13 @@ public sealed partial class MainWindow : Window
         InsightBudgetDetailText.Text = settings.MonthlyBudget > 0 ? "采用你设置的月度总预算" : "按本月日均预测后预留 10% 空间";
         CategoryRankingList.ItemsSource = categoryRanks.Take(6).ToList();
         MerchantRankingList.ItemsSource = merchantRanks.Take(6).ToList();
+        MonthlyTrendList.ItemsSource = Enumerable.Range(0, 6).Select(offset => monthStart.AddMonths(offset - 5)).Select(start =>
+        {
+            var end = start.AddMonths(1); var rows = allRecords.Where(row => row.OccurredOn >= start && row.OccurredOn < end).ToList();
+            var income = rows.Where(row => row.Direction == "收入").Sum(row => row.Amount);
+            var expense = rows.Where(row => row.Direction == "支出").Sum(row => row.Amount) - rows.Where(row => row.Direction is "退款" or "报销").Sum(row => row.Amount);
+            return new MonthlyTrendItem { Month = start.ToString("yyyy-MM"), Income = income, Expense = expense };
+        }).ToList();
 
         var smallTotal = small.Sum(row => row.Amount);
         var optionalTotal = optional.Sum(row => row.Amount);
@@ -181,6 +188,7 @@ public sealed partial class MainWindow : Window
         WeeklySummaryDayBox.SelectedIndex = settings.WeeklySummaryDay == DayOfWeek.Sunday ? 6 : (int)settings.WeeklySummaryDay - 1;
         WeeklySummaryTimePicker.Time = TimeSpan.Parse(settings.WeeklySummaryTime);
         SubscriptionKeywordsBox.Text = settings.SubscriptionKeywords;
+        OptionalCategoriesBox.Text = settings.OptionalCategories;
         MySqlSyncEnabledCheck.IsChecked = settings.MySqlSyncEnabled;
         SyncOnStartupCheck.IsChecked = settings.SyncOnStartup;
         MySqlHostBox.Text = settings.MySqlHost;
@@ -472,7 +480,7 @@ public sealed partial class MainWindow : Window
             SmallExpenseThreshold = (decimal)Math.Max(0, SmallExpenseThresholdBox.Value), MonthlyBudget = (decimal)Math.Max(0, MonthlyBudgetBox.Value),
             DailyReminderEnabled = DailyReminderCheck.IsChecked == true, DailyReminderTime = DailyReminderTimePicker.Time.ToString(@"hh\:mm"),
             WeeklySummaryEnabled = WeeklySummaryCheck.IsChecked == true, WeeklySummaryDay = dayIndex == 6 ? DayOfWeek.Sunday : (DayOfWeek)(dayIndex + 1), WeeklySummaryTime = WeeklySummaryTimePicker.Time.ToString(@"hh\:mm"),
-            SubscriptionKeywords = SubscriptionKeywordsBox.Text.Trim(), MySqlSyncEnabled = MySqlSyncEnabledCheck.IsChecked == true, SyncOnStartup = SyncOnStartupCheck.IsChecked == true,
+            SubscriptionKeywords = SubscriptionKeywordsBox.Text.Trim(), OptionalCategories = OptionalCategoriesBox.Text.Trim(), MySqlSyncEnabled = MySqlSyncEnabledCheck.IsChecked == true, SyncOnStartup = SyncOnStartupCheck.IsChecked == true,
             MySqlHost = MySqlHostBox.Text.Trim(), MySqlPort = (int)Math.Clamp(MySqlPortBox.Value, 1, 65535), MySqlDatabase = MySqlDatabaseBox.Text.Trim(),
             MySqlUsername = MySqlUsernameBox.Text.Trim(), MySqlSslMode = MySqlSslModeBox.SelectedItem?.ToString() ?? "Preferred"
         };
@@ -536,6 +544,23 @@ public sealed partial class MainWindow : Window
         var message = exception.Message.Replace("Password", "凭据", StringComparison.OrdinalIgnoreCase);
         return message.Length > 300 ? message[..300] : message;
     }
+
+    private async void ExportMonthlyReportClick(object sender, RoutedEventArgs e)
+    {
+        var picker = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = $"独秀账本月报-{DateTime.Now:yyyy-MM}" };
+        picker.FileTypeChoices.Add("CSV 表格", [".csv"]);
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
+        var file = await picker.PickSaveFileAsync();
+        if (file is null) return;
+        var month = DateTime.Now.ToString("yyyy-MM");
+        var rows = _store.List().Where(row => row.OccurredOn.ToString("yyyy-MM") == month).ToList();
+        var lines = new List<string> { "月份,交易时间,类型,金额,分类,交易对方,账户,备注" };
+        lines.AddRange(rows.Select(row => string.Join(',', Csv(month), Csv(row.DateDisplay), Csv(row.Direction), row.Amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture), Csv(row.Category), Csv(row.Merchant), Csv(row.AccountDisplay), Csv(row.Note))));
+        await File.WriteAllTextAsync(file.Path, "\uFEFF" + string.Join(Environment.NewLine, lines));
+        StatusText.Text = $"月报已导出：{file.Path}";
+    }
+
+    private static string Csv(string value) => $"\"{value.Replace("\"", "\"\"")}\"";
 
     private async void BackupClick(object sender, RoutedEventArgs e)
     {

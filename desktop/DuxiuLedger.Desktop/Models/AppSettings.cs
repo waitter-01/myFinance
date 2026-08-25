@@ -10,6 +10,7 @@ public sealed class AppSettings
     public DayOfWeek WeeklySummaryDay { get; set; } = DayOfWeek.Sunday;
     public string WeeklySummaryTime { get; set; } = "20:00";
     public string SubscriptionKeywords { get; set; } = "会员,订阅,月卡,季卡,年卡,续费,自动续费,游戏通行证,云服务,网盘,音乐会员,视频会员";
+    public string OptionalCategories { get; set; } = "零食饮料,娱乐休闲,游戏消费,订阅消费,小额杂项";
     public bool MySqlSyncEnabled { get; set; }
     public bool SyncOnStartup { get; set; }
     public string MySqlHost { get; set; } = "49.235.152.194";
