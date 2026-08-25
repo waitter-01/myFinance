@@ -150,4 +150,24 @@ public sealed class ScreenshotBillParserTests
         Assert.Equal("美团支付-美团月付还款", result.Records[0].Merchant);
         Assert.Equal(1330.79m, result.Records[0].Amount);
     }
+
+    [Fact]
+    public void Parse_UsesTrustedDigitCorrectionWithoutMarkingRecordAsUncertain()
+    {
+        var tokens = new List<ScreenshotOcrToken>
+        {
+            new("交易明细", 280, 120, 180, 40), new("借记卡4054", 290, 260, 180, 36),
+            new("测试商户", 65, 500, 220, 42), new("2026-08-20 19:25:12", 65, 555, 330, 34),
+            new("2026-08-20 19:23:12", 65, 555, 330, 34, "时间经固定区域多轮识别从 2026-08-20 19:25:12 校正为 2026-08-20 19:23:12", false),
+            new("-¥11.90", 760, 500, 170, 42), new("余额1215.30", 760, 555, 160, 34)
+        };
+
+        var result = ScreenshotBillParser.Parse(tokens, 1000, 800, "中信时间纠错.png", new DateTime(2026, 8, 25));
+
+        var record = Assert.Single(result.Records);
+        Assert.Equal(new DateTime(2026, 8, 20, 19, 23, 12), record.OccurredOn);
+        Assert.False(record.RequiresReview);
+        Assert.Empty(result.Issues);
+        Assert.Contains("时间经固定区域多轮识别", record.Note);
+    }
 }
