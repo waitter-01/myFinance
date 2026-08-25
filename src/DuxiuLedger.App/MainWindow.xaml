@@ -894,7 +894,9 @@
                   <StackPanel Orientation="Horizontal" Spacing="18">
                     <CheckBox x:Name="S3SyncEnabledCheck" Content="启用 S3 同步" />
                     <CheckBox x:Name="SyncOnStartupCheck" Content="启动后自动同步" />
+                    <CheckBox x:Name="AutoSyncChangesCheck" Content="自动合并本地修改" />
                   </StackPanel>
+                  <InfoBar Severity="Informational" IsOpen="True" IsClosable="False" Message="同步采用按记录双向合并：本地保存后约 10 秒批量上传，并每 5 分钟拉取其他设备的修改。同一记录冲突时保留更新时间较新的完整版本，删除记录也会参与合并。" />
                   <Grid ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
                       <ColumnDefinition Width="*" />

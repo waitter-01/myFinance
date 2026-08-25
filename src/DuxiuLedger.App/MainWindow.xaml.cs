@@ -36,6 +36,9 @@ public sealed partial class MainWindow : Window
     private readonly List<TransactionFilterOption> _transactionSourceOptions = [];
     private IReadOnlyList<TransactionRecord> _currentTransactionRows = [];
     private CancellationTokenSource? _transactionSearchDebounce;
+    private CancellationTokenSource? _cloudSyncDebounce;
+    private readonly SemaphoreSlim _cloudSyncGate = new(1, 1);
+    private readonly DispatcherTimer _periodicSyncTimer = new() { Interval = TimeSpan.FromMinutes(5) };
     private bool _transactionFiltersReady;
     private bool _transactionBatchMode;
     private bool _isInitialized;
@@ -67,6 +70,9 @@ public sealed partial class MainWindow : Window
         WeeklySummaryDayBox.ItemsSource = new[] { "星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日" };
         DataPathText.Text = _store.DatabasePath;
         LoadSettings();
+        _periodicSyncTimer.Tick += PeriodicSyncTimerTick;
+        Closed += MainWindowClosed;
+        ConfigureAutomaticSync();
         InitializeTransactionFilters();
         _isInitialized = true;
         LoadDashboard();
@@ -338,6 +344,7 @@ public sealed partial class MainWindow : Window
         OptionalCategoriesBox.Text = settings.OptionalCategories;
         S3SyncEnabledCheck.IsChecked = settings.S3SyncEnabled;
         SyncOnStartupCheck.IsChecked = settings.SyncOnStartup;
+        AutoSyncChangesCheck.IsChecked = settings.AutoSyncChanges;
         S3AccessUrlBox.Text = settings.S3AccessUrl;
         S3EndpointBox.Text = settings.S3Endpoint;
         S3RegionBox.Text = settings.S3Region;
@@ -376,7 +383,7 @@ public sealed partial class MainWindow : Window
     {
         var dialog = new BudgetDialog(_store.ListCategories()) { XamlRoot = ContentHost.XamlRoot };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary || dialog.Result is null) return;
-        try { _store.SaveBudget(dialog.Result); LoadDashboard(); SelectNavigation("Budgets"); StatusText.Text = "分类预算已保存"; }
+        try { _store.SaveBudget(dialog.Result); LoadDashboard(); SelectNavigation("Budgets"); StatusText.Text = "分类预算已保存"; ScheduleCloudSync(); }
         catch (Exception ex) { await ShowMessage("预算保存失败", ex.Message); }
     }
 
@@ -385,14 +392,14 @@ public sealed partial class MainWindow : Window
         if (sender is not Button { Tag: BudgetRecord budget }) return;
         var confirm = new ContentDialog { XamlRoot = ContentHost.XamlRoot, Title = "删除这条预算？", Content = $"{budget.Month} · {budget.Category} · {budget.AmountDisplay}", PrimaryButtonText = "删除", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Close };
         if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;
-        _store.DeleteBudget(budget.Id); LoadDashboard(); SelectNavigation("Budgets"); StatusText.Text = "分类预算已删除";
+        _store.DeleteBudget(budget.Id); LoadDashboard(); SelectNavigation("Budgets"); StatusText.Text = "分类预算已删除"; ScheduleCloudSync();
     }
 
     private async void AddSavingsGoalClick(object sender, RoutedEventArgs e)
     {
         var dialog = new SavingsGoalDialog { XamlRoot = ContentHost.XamlRoot };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary || dialog.Result is null) return;
-        try { _store.SaveSavingsGoal(dialog.Result); LoadDashboard(); SelectNavigation("Budgets"); StatusText.Text = "储蓄目标已添加"; }
+        try { _store.SaveSavingsGoal(dialog.Result); LoadDashboard(); SelectNavigation("Budgets"); StatusText.Text = "储蓄目标已添加"; ScheduleCloudSync(); }
         catch (Exception ex) { await ShowMessage("目标保存失败", ex.Message); }
     }
 
@@ -401,7 +408,7 @@ public sealed partial class MainWindow : Window
         if (sender is not Button { Tag: SavingsGoalRecord goal }) return;
         var dialog = new SavingsGoalDialog(goal) { XamlRoot = ContentHost.XamlRoot };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary || dialog.Result is null) return;
-        try { _store.SaveSavingsGoal(dialog.Result); LoadDashboard(); SelectNavigation("Budgets"); StatusText.Text = "储蓄目标已更新"; }
+        try { _store.SaveSavingsGoal(dialog.Result); LoadDashboard(); SelectNavigation("Budgets"); StatusText.Text = "储蓄目标已更新"; ScheduleCloudSync(); }
         catch (Exception ex) { await ShowMessage("目标保存失败", ex.Message); }
     }
 
@@ -410,7 +417,7 @@ public sealed partial class MainWindow : Window
         if (sender is not Button { Tag: SavingsGoalRecord goal }) return;
         var confirm = new ContentDialog { XamlRoot = ContentHost.XamlRoot, Title = "删除这个储蓄目标？", Content = $"{goal.Name}\n{goal.TargetDisplay}", PrimaryButtonText = "删除", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Close };
         if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;
-        _store.DeleteSavingsGoal(goal.Id); LoadDashboard(); SelectNavigation("Budgets"); StatusText.Text = "储蓄目标已删除";
+        _store.DeleteSavingsGoal(goal.Id); LoadDashboard(); SelectNavigation("Budgets"); StatusText.Text = "储蓄目标已删除"; ScheduleCloudSync();
     }
 
     private void TitleBarPaneToggleRequested(TitleBar sender, object args) => NavView.IsPaneOpen = !NavView.IsPaneOpen;
@@ -443,6 +450,7 @@ public sealed partial class MainWindow : Window
         LoadDashboard();
         SelectNavigation("Transactions");
         StatusText.Text = $"导入完成：新增 {imported} 条，重复 {previewWindow.DuplicateCount} 条，问题行 {previewWindow.IssueCount} 条";
+        ScheduleCloudSync();
     }
 
     private async void ScreenshotImportClick(object sender, RoutedEventArgs e)
@@ -582,6 +590,7 @@ public sealed partial class MainWindow : Window
         LoadDashboard();
         SelectNavigation("Transactions");
         StatusText.Text = $"截图导入完成：新增 {imported} 条，重复 {previewWindow.DuplicateCount} 条，问题记录 {previewWindow.IssueCount} 条";
+        ScheduleCloudSync();
     }
 
     private static bool IsSupportedScreenshot(StorageFile file) => ScreenshotExtensions.Contains(Path.GetExtension(file.Name));
@@ -594,6 +603,7 @@ public sealed partial class MainWindow : Window
         LoadDashboard();
         SelectNavigation("Transactions");
         StatusText.Text = "手动流水已保存到本地账本";
+        ScheduleCloudSync();
     }
 
     private async void EditTransactionClick(object sender, RoutedEventArgs e)
@@ -626,6 +636,7 @@ public sealed partial class MainWindow : Window
         LoadDashboard();
         SelectNavigation("Transactions");
         StatusText.Text = "流水修改已保存";
+        ScheduleCloudSync();
     }
 
     private async void DeleteTransactionClick(object sender, RoutedEventArgs e)
@@ -660,6 +671,7 @@ public sealed partial class MainWindow : Window
         LoadDashboard();
         SelectNavigation("Transactions");
         StatusText.Text = "流水已删除";
+        ScheduleCloudSync();
     }
 
     private async void AddAccountClick(object sender, RoutedEventArgs e)
@@ -672,6 +684,7 @@ public sealed partial class MainWindow : Window
             LoadDashboard();
             SelectNavigation("Accounts");
             StatusText.Text = "账户已添加";
+            ScheduleCloudSync();
         }
         catch (Exception ex) { await ShowMessage("账户保存失败", ex.Message); }
     }
@@ -687,6 +700,7 @@ public sealed partial class MainWindow : Window
             LoadDashboard();
             SelectNavigation("Accounts");
             StatusText.Text = "账户修改已保存";
+            ScheduleCloudSync();
         }
         catch (Exception ex) { await ShowMessage("账户保存失败", ex.Message); }
     }
@@ -710,6 +724,7 @@ public sealed partial class MainWindow : Window
             LoadDashboard();
             SelectNavigation("Accounts");
             StatusText.Text = "账户已删除";
+            ScheduleCloudSync();
         }
         catch (Exception ex) { await ShowMessage("账户不能删除", ex.Message); }
     }
@@ -722,6 +737,7 @@ public sealed partial class MainWindow : Window
         {
             _store.SaveCategory(dialog.Result);
             LoadDashboard(); SelectNavigation("Categories"); StatusText.Text = "分类已添加";
+            ScheduleCloudSync();
         }
         catch (Exception ex) { await ShowMessage("分类保存失败", ex.Message); }
     }
@@ -735,6 +751,7 @@ public sealed partial class MainWindow : Window
         {
             _store.SaveCategory(dialog.Result);
             LoadDashboard(); SelectNavigation("Categories"); StatusText.Text = "分类修改已保存";
+            ScheduleCloudSync();
         }
         catch (Exception ex) { await ShowMessage("分类保存失败", ex.Message); }
     }
@@ -748,6 +765,7 @@ public sealed partial class MainWindow : Window
         {
             _store.DeleteCategory(category.Id);
             LoadDashboard(); SelectNavigation("Categories"); StatusText.Text = "分类已删除";
+            ScheduleCloudSync();
         }
         catch (Exception ex) { await ShowMessage("分类不能删除", ex.Message); }
     }
@@ -1127,6 +1145,7 @@ public sealed partial class MainWindow : Window
         var count = _store.BatchUpdateTransactionCategory(rows.Select(item => item.Id), category);
         LoadDashboard(); SelectNavigation("Transactions");
         StatusText.Text = $"已将 {count} 条流水修改为“{category}”";
+        ScheduleCloudSync();
     }
 
     private async void BatchUpdateAccountClick(object sender, RoutedEventArgs e)
@@ -1138,6 +1157,7 @@ public sealed partial class MainWindow : Window
         var count = _store.BatchUpdateTransactionAccount(rows.Select(item => item.Id), accountId);
         LoadDashboard(); SelectNavigation("Transactions");
         StatusText.Text = $"已将 {count} 条流水修改为“{account.Name}”";
+        ScheduleCloudSync();
     }
 
     private async void BatchDeleteTransactionsClick(object sender, RoutedEventArgs e)
@@ -1158,6 +1178,7 @@ public sealed partial class MainWindow : Window
         var count = _store.BatchDeleteTransactions(rows.Select(item => item.Id));
         LoadDashboard(); SelectNavigation("Transactions");
         StatusText.Text = $"已删除 {count} 条流水";
+        ScheduleCloudSync();
     }
 
     private async void ExportFilteredTransactionsClick(object sender, RoutedEventArgs e)
@@ -1329,6 +1350,7 @@ public sealed partial class MainWindow : Window
             var settings = CollectSettings();
             _store.SaveSettings(settings);
             ReminderScheduler.Update(settings);
+            ConfigureAutomaticSync();
             LoadDashboard();
             StatusText.Text = "偏好设置和 Windows 提醒计划已保存";
         }
@@ -1349,7 +1371,7 @@ public sealed partial class MainWindow : Window
             SmallExpenseThreshold = (decimal)Math.Max(0, SmallExpenseThresholdBox.Value), MonthlyBudget = (decimal)Math.Max(0, MonthlyBudgetBox.Value),
             DailyReminderEnabled = DailyReminderCheck.IsChecked == true, DailyReminderTime = DailyReminderTimePicker.Time.ToString(@"hh\:mm"),
             WeeklySummaryEnabled = WeeklySummaryCheck.IsChecked == true, WeeklySummaryDay = dayIndex == 6 ? DayOfWeek.Sunday : (DayOfWeek)(dayIndex + 1), WeeklySummaryTime = WeeklySummaryTimePicker.Time.ToString(@"hh\:mm"),
-            SubscriptionKeywords = SubscriptionKeywordsBox.Text.Trim(), OptionalCategories = OptionalCategoriesBox.Text.Trim(), S3SyncEnabled = S3SyncEnabledCheck.IsChecked == true, SyncOnStartup = SyncOnStartupCheck.IsChecked == true,
+            SubscriptionKeywords = SubscriptionKeywordsBox.Text.Trim(), OptionalCategories = OptionalCategoriesBox.Text.Trim(), S3SyncEnabled = S3SyncEnabledCheck.IsChecked == true, SyncOnStartup = SyncOnStartupCheck.IsChecked == true, AutoSyncChanges = AutoSyncChangesCheck.IsChecked == true,
             S3AccessUrl = S3AccessUrlBox.Text.Trim(), S3Endpoint = S3EndpointBox.Text.Trim(), S3Region = S3RegionBox.Text.Trim(), S3Bucket = S3BucketBox.Text.Trim(), S3ObjectKey = S3ObjectKeyBox.Text.Trim(),
             S3AccessKeyId = S3AccessKeyIdBox.Text.Trim(), S3ForcePathStyle = S3ForcePathStyleCheck.IsChecked == true
         };
@@ -1375,6 +1397,7 @@ public sealed partial class MainWindow : Window
         {
             SaveCloudSettings(); CloudSyncProgress.IsActive = true; CloudSyncInfo.IsOpen = false;
             var target = await _syncService.TestConnectionAsync(_store.LoadSettings(), _store.LoadS3SecretKey(), _store.LoadS3SessionToken());
+            ConfigureAutomaticSync();
             CloudSyncInfo.Severity = InfoBarSeverity.Success; CloudSyncInfo.Title = "连接成功"; CloudSyncInfo.Message = $"已验证 S3 对象的读取和写入权限：{target}"; CloudSyncInfo.IsOpen = true;
         }
         catch (Exception ex) { CloudSyncInfo.Severity = InfoBarSeverity.Error; CloudSyncInfo.Title = "连接失败"; CloudSyncInfo.Message = SafeCloudError(ex); CloudSyncInfo.IsOpen = true; }
@@ -1390,15 +1413,17 @@ public sealed partial class MainWindow : Window
         await RunCloudSyncAsync(showResult: false);
     }
 
-    private async Task RunCloudSyncAsync(bool showResult)
+    private async Task RunCloudSyncAsync(bool showResult, bool saveUiSettings = true)
     {
+        await _cloudSyncGate.WaitAsync();
         try
         {
-            SaveCloudSettings();
+            if (saveUiSettings) SaveCloudSettings();
             var settings = _store.LoadSettings();
             if (!settings.S3SyncEnabled) throw new InvalidOperationException("请先启用 S3 同步。 ");
             CloudSyncProgress.IsActive = true; CloudSyncInfo.IsOpen = false;
             var result = await _syncService.SyncAsync(settings, _store.LoadS3SecretKey(), _store.LoadS3SessionToken());
+            ConfigureAutomaticSync();
             LoadDashboard();
             CloudSyncInfo.Severity = InfoBarSeverity.Success; CloudSyncInfo.Title = "同步完成"; CloudSyncInfo.Message = result.Display; CloudSyncInfo.IsOpen = true;
             StatusText.Text = $"云同步完成：{result.Display}";
@@ -1408,7 +1433,50 @@ public sealed partial class MainWindow : Window
             CloudSyncInfo.Severity = InfoBarSeverity.Error; CloudSyncInfo.Title = "同步失败，本地数据未受影响"; CloudSyncInfo.Message = SafeCloudError(ex); CloudSyncInfo.IsOpen = true;
             if (showResult) StatusText.Text = "S3 同步失败，请查看对象存储设置";
         }
-        finally { CloudSyncProgress.IsActive = false; }
+        finally { CloudSyncProgress.IsActive = false; _cloudSyncGate.Release(); }
+    }
+
+    private void ConfigureAutomaticSync()
+    {
+        var settings = _store.LoadSettings();
+        if (settings.S3SyncEnabled && settings.AutoSyncChanges && !string.IsNullOrEmpty(_store.LoadS3SecretKey())) _periodicSyncTimer.Start();
+        else
+        {
+            _periodicSyncTimer.Stop();
+            _cloudSyncDebounce?.Cancel();
+        }
+    }
+
+    private void ScheduleCloudSync()
+    {
+        var settings = _store.LoadSettings();
+        if (!settings.S3SyncEnabled || !settings.AutoSyncChanges || string.IsNullOrEmpty(_store.LoadS3SecretKey())) return;
+        _cloudSyncDebounce?.Cancel();
+        _cloudSyncDebounce?.Dispose();
+        _cloudSyncDebounce = new CancellationTokenSource();
+        _ = RunDebouncedCloudSyncAsync(_cloudSyncDebounce.Token);
+    }
+
+    private async Task RunDebouncedCloudSyncAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+            await RunCloudSyncAsync(showResult: false, saveUiSettings: false);
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async void PeriodicSyncTimerTick(object? sender, object e)
+        => await RunCloudSyncAsync(showResult: false, saveUiSettings: false);
+
+    private void MainWindowClosed(object sender, WindowEventArgs args)
+    {
+        _periodicSyncTimer.Stop();
+        _periodicSyncTimer.Tick -= PeriodicSyncTimerTick;
+        _cloudSyncDebounce?.Cancel();
+        _cloudSyncDebounce?.Dispose();
+        Closed -= MainWindowClosed;
     }
 
     private static string SafeCloudError(Exception exception)
