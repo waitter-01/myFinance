@@ -11,6 +11,13 @@ public sealed class TransactionRecord
     public string Note { get; set; } = "";
     public string Source { get; set; } = "手动录入";
     public string Fingerprint { get; set; } = "";
+    public long? AccountId { get; set; }
+    public long? ToAccountId { get; set; }
+    public string AccountName { get; set; } = "";
+    public string ToAccountName { get; set; } = "";
     public string DateDisplay => OccurredOn.ToString("yyyy-MM-dd HH:mm");
     public string AmountDisplay => $"¥{Amount:N2}";
+    public string AccountDisplay => Direction == "转账" && !string.IsNullOrWhiteSpace(ToAccountName)
+        ? $"{AccountName} → {ToAccountName}"
+        : AccountName;
 }
