@@ -103,10 +103,11 @@ internal static partial class ScreenshotBillParser
         var compactText = WhitespaceRegex().Replace(allText, "");
         var platform = DetectPlatform(compactText);
         if (platform is null)
-            throw new InvalidDataException("无法判断截图来自微信还是支付宝。请使用微信或支付宝的账单列表页原始长截图。");
+            throw new InvalidDataException("无法判断账单来源。请使用微信、支付宝、中信银行或工商银行的账单列表页原始长截图。");
 
         var lines = BuildLines(tokens);
-        var contentTop = FindContentTop(lines, imageHeight);
+        var contentTop = FindContentTop(lines, imageHeight, platform);
+        var isBank = IsBankPlatform(platform);
         var anchors = tokens
             .Where(token => token.X >= imageWidth * 0.64 && token.Y >= contentTop && TryReadAmount(token.Text, out _, out _))
             .Where(token => platform == "支付宝" || HasExplicitSign(token.Text))
@@ -127,9 +128,9 @@ internal static partial class ScreenshotBillParser
             var rowLines = lines.Where(line => line.CenterY >= top && line.CenterY < bottom).ToList();
             if (!TryReadAmount(anchor.Text, out var amount, out var sign)) continue;
 
-            var merchant = FindMerchant(rowLines, anchor, imageWidth);
+            var merchant = isBank ? FindBankMerchant(rowLines, anchor, imageWidth) : FindMerchant(rowLines, anchor, imageWidth);
             var dateText = rowLines.Select(line => line.Text).FirstOrDefault(IsDateText) ?? "";
-            var dateRecognized = TryReadDate(dateText, headerYear, headerMonth, now, out var occurredOn);
+            var dateRecognized = TryReadRowDate(platform, rowLines, imageWidth, dateText, headerYear, headerMonth, now, out var occurredOn);
             var merchantRecognized = !string.IsNullOrWhiteSpace(merchant);
             if (!merchantRecognized) merchant = "⚠ 待核对交易对方";
             if (!dateRecognized)
@@ -139,7 +140,8 @@ internal static partial class ScreenshotBillParser
             var chronologyMismatch = dateRecognized && lastTrustedOccurredOn is not null
                 && occurredOn > lastTrustedOccurredOn.Value.AddMinutes(1);
 
-            var direction = MapDirection(merchant, sign);
+            var rowText = string.Join(' ', rowLines.Select(line => line.Text));
+            var direction = MapDirection(platform, rowText, merchant, sign);
             var category = merchantRecognized ? FindCategory(rowLines, merchant, dateText) : "未分类";
             var note = $"{platform}账单截图识别";
             var record = new TransactionRecord
@@ -153,6 +155,9 @@ internal static partial class ScreenshotBillParser
                 Source = $"{platform}截图 · {source}",
                 RequiresReview = !merchantRecognized || !dateRecognized || chronologyMismatch
             };
+            record.Category = TransactionCategorizer.Suggest(isBank
+                ? new TransactionRecord { Direction = direction, Merchant = $"{merchant} {rowText}", Note = note }
+                : record);
             record.Fingerprint = TransactionFingerprint.Create(record);
             records.Add(record);
             var rawValue = string.Join(" | ", rowLines.Select(line => line.Text));
@@ -202,15 +207,22 @@ internal static partial class ScreenshotBillParser
 
     private static string? DetectPlatform(string text)
     {
+        if ((text.Contains("交易明细") && text.Contains("借记卡")) || text.Contains("中信银行")) return "中信银行";
+        if ((text.Contains("查询明细") && (text.Contains("工银借记卡") || text.Contains("人民币余额"))) || text.Contains("工商银行")) return "工商银行";
         if (text.Contains("支付宝", StringComparison.OrdinalIgnoreCase) || text.Contains("搜索交易记录") || text.Contains("收支分析")) return "支付宝";
         if (text.Contains("微信", StringComparison.OrdinalIgnoreCase) || text.Contains("全部账单") || text.Contains("查找交易") || text.Contains("收支统计")) return "微信";
         return null;
     }
 
-    private static double FindContentTop(IReadOnlyList<OcrVisualLine> lines, int height)
+    private static bool IsBankPlatform(string platform) => platform is "中信银行" or "工商银行";
+
+    private static double FindContentTop(IReadOnlyList<OcrVisualLine> lines, int height, string platform)
     {
-        var header = lines.Where(line => line.Y < height * 0.35).LastOrDefault(line => line.Text.Contains("收支分析") || line.Text.Contains("收支统计") || HeaderMonthRegex().IsMatch(NormalizeOcr(line.Text)));
-        return header is null ? height * 0.2 : Math.Min(height * 0.42, header.Bottom + 25);
+        var limit = platform == "工商银行" ? height * 0.48 : height * 0.38;
+        var header = lines.Where(line => line.Y < limit).LastOrDefault(line =>
+            line.Text.Contains("收支分析") || line.Text.Contains("收支统计") || line.Text == "本月"
+            || HeaderMonthRegex().IsMatch(NormalizeOcr(line.Text)));
+        return header is null ? height * 0.2 : Math.Min(height * 0.52, header.Bottom + 25);
     }
 
     private static string FindMerchant(IReadOnlyList<OcrVisualLine> lines, ScreenshotOcrToken amount, int width)
@@ -225,6 +237,22 @@ internal static partial class ScreenshotBillParser
         var merchant = candidates.FirstOrDefault()?.Text ?? "";
         merchant = AmountInLineRegex().Replace(NormalizeOcr(merchant), "").Trim(' ', '·', '|', '-');
         return merchant;
+    }
+
+    private static string FindBankMerchant(IReadOnlyList<OcrVisualLine> lines, ScreenshotOcrToken amount, int width)
+    {
+        var candidates = lines
+            .Where(line => line.X > width * 0.05 && line.X < width * 0.76)
+            .Where(line => !IsDateText(line.Text) && !IsIgnored(line.Text) && !TryReadAmount(line.Text, out _, out _))
+            .Where(line => !BankAuxiliaryRegex().IsMatch(NormalizeDateOcr(line.Text)))
+            .Where(line => !NormalizeOcr(line.Text).StartsWith("余额", StringComparison.Ordinal))
+            .Where(line => Math.Abs(line.CenterY - amount.CenterY) <= Math.Max(125, amount.Height * 4.2))
+            .Select(line => NormalizeOcr(line.Text).Trim())
+            .Where(text => text.Length >= 2)
+            .OrderByDescending(text => text.Length)
+            .ToList();
+        var merchant = candidates.FirstOrDefault() ?? "";
+        return AmountInLineRegex().Replace(merchant, "").Trim(' ', '·', '|', '-');
     }
 
     private static string FindCategory(IReadOnlyList<OcrVisualLine> lines, string merchant, string dateText)
@@ -242,11 +270,40 @@ internal static partial class ScreenshotBillParser
         };
     }
 
-    private static string MapDirection(string merchant, char sign)
+    private static string MapDirection(string platform, string rowText, string merchant, char sign)
     {
-        if (merchant.Contains("退款") || sign == '+') return "退款";
-        if (merchant.Contains("转账") || merchant.Contains("还款")) return "转账";
+        if (merchant.Contains("退款") || rowText.Contains("退款")) return "退款";
+        if (sign == '+' && IsBankPlatform(platform)) return "收入";
+        if (sign == '+') return "退款";
+        if (merchant.Contains("转账") || merchant.Contains("还款") || rowText.Contains("还款")) return "转账";
         return "支出";
+    }
+
+    private static bool TryReadRowDate(string platform, IReadOnlyList<OcrVisualLine> rowLines, int width, string dateText,
+        int year, int month, DateTime now, out DateTime date)
+    {
+        if (platform == "中信银行")
+        {
+            var fullDate = rowLines.Select(line => NormalizeDateOcr(line.Text)).Select(text => FullDateRegex().Match(text)).FirstOrDefault(match => match.Success);
+            if (fullDate is not null && DateTime.TryParseExact(fullDate.Value, ["yyyy-MM-ddHH:mm:ss", "yyyy-MM-ddHH:mm"],
+                    CultureInfo.InvariantCulture, DateTimeStyles.None, out date)) return true;
+        }
+
+        if (TryReadDate(dateText, year, month, now, out date)) return true;
+
+        if (platform == "工商银行")
+        {
+            var dayText = rowLines.Where(line => line.X < width * 0.16).Select(line => NormalizeOcr(line.Text).Trim()).FirstOrDefault(text => DayOnlyRegex().IsMatch(text));
+            var timeMatch = rowLines.Select(line => TimeWithSecondsRegex().Match(NormalizeDateOcr(line.Text))).FirstOrDefault(match => match.Success);
+            if (dayText is not null && timeMatch is not null && int.TryParse(dayText, out var day) && TimeSpan.TryParse(timeMatch.Value, out var time))
+            {
+                try { date = new DateTime(year, month, day).Add(time); return true; }
+                catch { }
+            }
+        }
+
+        date = default;
+        return false;
     }
 
     private static bool TryReadDate(string value, int year, int month, DateTime now, out DateTime date)
@@ -296,7 +353,8 @@ internal static partial class ScreenshotBillParser
     private static bool IsDateText(string text)
     {
         var normalized = NormalizeDateOcr(text);
-        return RelativeDateRegex().IsMatch(normalized) || ChineseDateRegex().IsMatch(normalized) || NumericDateRegex().IsMatch(normalized);
+        return RelativeDateRegex().IsMatch(normalized) || ChineseDateRegex().IsMatch(normalized)
+            || NumericDateRegex().IsMatch(normalized) || FullDateRegex().IsMatch(normalized);
     }
     private static bool IsIgnored(string text) => IgnoreMerchantWords.Any(word => string.Equals(NormalizeOcr(text).Trim(), word, StringComparison.Ordinal)) || HeaderMonthRegex().IsMatch(NormalizeOcr(text));
     private static bool HasExplicitSign(string text)
@@ -383,4 +441,12 @@ internal static partial class ScreenshotBillParser
     private static partial Regex ShortHeaderMonthRegex();
     [GeneratedRegex(@"\s+")]
     private static partial Regex WhitespaceRegex();
+    [GeneratedRegex(@"20\d{2}[-/.]\d{1,2}[-/.]\d{1,2}[0-2]?\d:[0-5]\d(?::[0-5]\d)?")]
+    private static partial Regex FullDateRegex();
+    [GeneratedRegex(@"(?:工银)?借记卡.*[0-2]?\d:[0-5]\d(?::[0-5]\d)?$")]
+    private static partial Regex BankAuxiliaryRegex();
+    [GeneratedRegex(@"^[0-3]?\d$")]
+    private static partial Regex DayOnlyRegex();
+    [GeneratedRegex(@"[0-2]?\d:[0-5]\d:[0-5]\d")]
+    private static partial Regex TimeWithSecondsRegex();
 }
