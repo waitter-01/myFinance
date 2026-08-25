@@ -201,13 +201,14 @@ public sealed class S3SyncService
     {
         using var command = connection.CreateCommand(); command.CommandText = """
             SELECT t.sync_id,t.updated_at,t.occurred_on,t.direction,t.amount,t.category,t.merchant,t.note,t.source,t.fingerprint,
-              t.subscription_months,COALESCE(a.sync_id,''),COALESCE(ta.sync_id,'')
+              t.subscription_months,COALESCE(a.sync_id,''),COALESCE(ta.sync_id,''),
+              COALESCE(t.recurring_type,''),t.coverage_start,t.next_payment_date,COALESCE(t.is_essential,0)
             FROM transactions t LEFT JOIN accounts a ON a.id=t.account_id LEFT JOIN accounts ta ON ta.id=t.to_account_id
             """;
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
-            var payload = JsonSerializer.Serialize(new { occurredOn=reader.GetString(2), direction=reader.GetString(3), amount=reader.GetDecimal(4), category=reader.GetString(5), merchant=reader.GetString(6), note=reader.GetString(7), source=reader.GetString(8), fingerprint=reader.GetString(9), subscriptionMonths=reader.GetInt32(10), accountSyncId=reader.GetString(11), toAccountSyncId=reader.GetString(12) });
+            var payload = JsonSerializer.Serialize(new { occurredOn=reader.GetString(2), direction=reader.GetString(3), amount=reader.GetDecimal(4), category=reader.GetString(5), merchant=reader.GetString(6), note=reader.GetString(7), source=reader.GetString(8), fingerprint=reader.GetString(9), subscriptionMonths=reader.GetInt32(10), accountSyncId=reader.GetString(11), toAccountSyncId=reader.GetString(12), recurringType=reader.GetString(13), coverageStart=reader.IsDBNull(14)?null:reader.GetString(14), nextPaymentDate=reader.IsDBNull(15)?null:reader.GetString(15), isEssential=reader.GetBoolean(16) });
             yield return new SyncItem("transaction", reader.GetString(0), payload, reader.GetString(1), false);
         }
     }
@@ -268,11 +269,11 @@ public sealed class S3SyncService
                 Add(command,"$name",Text(root,"name")); Add(command,"$target",Decimal(root,"targetAmount")); Add(command,"$saved",Decimal(root,"savedAmount")); Add(command,"$date",NullableText(root,"targetDate") is string date ? date : DBNull.Value); Add(command,"$completed",Bool(root,"isCompleted")?1:0); break;
             case "transaction":
                 command.CommandText = """
-                    INSERT INTO transactions(occurred_on,direction,amount,category,merchant,note,source,fingerprint,account_id,to_account_id,subscription_months,created_at,updated_at,sync_id)
-                    VALUES($occurred,$direction,$amount,$category,$merchant,$note,$source,$fingerprint,(SELECT id FROM accounts WHERE sync_id=$account),(SELECT id FROM accounts WHERE sync_id=$toAccount),$months,$updated,$updated,$id)
-                    ON CONFLICT(sync_id) DO UPDATE SET occurred_on=$occurred,direction=$direction,amount=$amount,category=$category,merchant=$merchant,note=$note,source=$source,account_id=(SELECT id FROM accounts WHERE sync_id=$account),to_account_id=(SELECT id FROM accounts WHERE sync_id=$toAccount),subscription_months=$months,updated_at=$updated
+                    INSERT INTO transactions(occurred_on,direction,amount,category,merchant,note,source,fingerprint,account_id,to_account_id,subscription_months,recurring_type,coverage_start,next_payment_date,is_essential,created_at,updated_at,sync_id)
+                    VALUES($occurred,$direction,$amount,$category,$merchant,$note,$source,$fingerprint,(SELECT id FROM accounts WHERE sync_id=$account),(SELECT id FROM accounts WHERE sync_id=$toAccount),$months,$recurringType,$coverageStart,$nextPayment,$essential,$updated,$updated,$id)
+                    ON CONFLICT(sync_id) DO UPDATE SET occurred_on=$occurred,direction=$direction,amount=$amount,category=$category,merchant=$merchant,note=$note,source=$source,account_id=(SELECT id FROM accounts WHERE sync_id=$account),to_account_id=(SELECT id FROM accounts WHERE sync_id=$toAccount),subscription_months=$months,recurring_type=$recurringType,coverage_start=$coverageStart,next_payment_date=$nextPayment,is_essential=$essential,updated_at=$updated
                     """;
-                Add(command,"$occurred",Text(root,"occurredOn")); Add(command,"$direction",Text(root,"direction")); Add(command,"$amount",Decimal(root,"amount")); Add(command,"$category",Text(root,"category")); Add(command,"$merchant",Text(root,"merchant")); Add(command,"$note",Text(root,"note")); Add(command,"$source",Text(root,"source")); Add(command,"$fingerprint",Text(root,"fingerprint")); Add(command,"$account",Text(root,"accountSyncId")); Add(command,"$toAccount",Text(root,"toAccountSyncId")); Add(command,"$months",Int(root,"subscriptionMonths")); break;
+                Add(command,"$occurred",Text(root,"occurredOn")); Add(command,"$direction",Text(root,"direction")); Add(command,"$amount",Decimal(root,"amount")); Add(command,"$category",Text(root,"category")); Add(command,"$merchant",Text(root,"merchant")); Add(command,"$note",Text(root,"note")); Add(command,"$source",Text(root,"source")); Add(command,"$fingerprint",Text(root,"fingerprint")); Add(command,"$account",TextOrDefault(root,"accountSyncId")); Add(command,"$toAccount",TextOrDefault(root,"toAccountSyncId")); Add(command,"$months",IntOrDefault(root,"subscriptionMonths",1)); Add(command,"$recurringType",TextOrDefault(root,"recurringType")); Add(command,"$coverageStart",NullableText(root,"coverageStart") is string coverageStart ? coverageStart : DBNull.Value); Add(command,"$nextPayment",NullableText(root,"nextPaymentDate") is string nextPayment ? nextPayment : DBNull.Value); Add(command,"$essential",BoolOrDefault(root,"isEssential")?1:0); break;
         }
         Add(command,"$id",item.SyncId); Add(command,"$updated",item.UpdatedAt); command.ExecuteNonQuery();
         using var clear = connection.CreateCommand(); clear.CommandText = "DELETE FROM sync_tombstones WHERE entity_type=$type AND sync_id=$id"; Add(clear,"$type",item.EntityType); Add(clear,"$id",item.SyncId); clear.ExecuteNonQuery();
@@ -291,10 +292,13 @@ public sealed class S3SyncService
     private static int EntityOrder(string type) => type switch { "account" => 0, "category" => 1, "budget" => 2, "savings_goal" => 3, "transaction" => 4, _ => 9 };
     private static void Add(SqliteCommand command, string name, object value) => command.Parameters.AddWithValue(name, value);
     private static string Text(JsonElement root,string name) => root.GetProperty(name).GetString() ?? "";
+    private static string TextOrDefault(JsonElement root,string name) => root.TryGetProperty(name,out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : "";
     private static string? NullableText(JsonElement root,string name) => root.TryGetProperty(name,out var value) && value.ValueKind != JsonValueKind.Null ? value.GetString() : null;
     private static decimal Decimal(JsonElement root,string name) => root.GetProperty(name).GetDecimal();
     private static int Int(JsonElement root,string name) => root.GetProperty(name).GetInt32();
+    private static int IntOrDefault(JsonElement root,string name,int fallback) => root.TryGetProperty(name,out var value) && value.TryGetInt32(out var parsed) ? parsed : fallback;
     private static bool Bool(JsonElement root,string name) => root.GetProperty(name).GetBoolean();
+    private static bool BoolOrDefault(JsonElement root,string name) => root.TryGetProperty(name,out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False && value.GetBoolean();
 
     private sealed class SyncDocument
     {

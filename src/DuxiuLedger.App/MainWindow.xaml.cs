@@ -45,7 +45,7 @@ public sealed partial class MainWindow : Window
         ["Transactions"] = ("全部流水", "搜索、核对和管理本地账单记录"),
         ["Insights"] = ("消费洞察", "看清消费去向、小额支出和可优化空间"),
         ["Budgets"] = ("预算计划", "规划每月支出，控制消费节奏"),
-        ["Subscriptions"] = ("订阅与月卡", "看清自动续费、会员和游戏月卡的长期成本"),
+        ["Subscriptions"] = ("周期性支出", "统一管理房租、订阅、保险和月卡，区分实际付款与月度成本"),
         ["Accounts"] = ("账户管理", "管理现金、银行卡、电子钱包和信用账户"),
         ["Categories"] = ("分类设置", "建立适合自己的收支分类体系"),
         ["Backup"] = ("数据备份", "复制和保护本地账本文件"),
@@ -291,27 +291,37 @@ public sealed partial class MainWindow : Window
     private void LoadSubscriptions(IReadOnlyList<TransactionRecord> allRecords)
     {
         var keywords = _store.LoadSettings().SubscriptionKeywords.Split([',', '，', ';', '；', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        var since = DateTime.Now.Date.AddMonths(-12);
-        var detected = allRecords.Where(row => row.Direction == "支出" && row.OccurredOn >= since).Where(row => row.Category == "订阅消费" || keywords.Any(keyword => $"{row.Merchant} {row.Category} {row.Note}".Contains(keyword, StringComparison.OrdinalIgnoreCase))).ToList();
-        var summaries = detected.GroupBy(row => string.IsNullOrWhiteSpace(row.Merchant) ? "未注明交易对方" : row.Merchant.Trim(), StringComparer.OrdinalIgnoreCase).Select(group =>
+        var since = DateTime.Now.Date.AddMonths(-24);
+        var detected = allRecords.Where(row => row.Direction == "支出" && row.OccurredOn >= since)
+            .Select(row => (Row: row, Type: RecurringExpenseTypes.Infer(row, keywords)))
+            .Where(item => item.Type.Length > 0).ToList();
+        var summaries = detected.GroupBy(item => $"{item.Type}\n{(string.IsNullOrWhiteSpace(item.Row.Merchant) ? "未注明交易对方" : item.Row.Merchant.Trim())}", StringComparer.OrdinalIgnoreCase).Select(group =>
         {
-            var latest = group.OrderByDescending(row => row.OccurredOn).ThenByDescending(row => row.Id).First();
+            var latestItem = group.OrderByDescending(item => item.Row.OccurredOn).ThenByDescending(item => item.Row.Id).First();
+            var latest = latestItem.Row;
             var billingMonths = Math.Max(1, latest.SubscriptionMonths);
+            var coverageStart = (latest.CoverageStart ?? latest.OccurredOn).Date;
             return new SubscriptionSummary
             {
-                Merchant = group.Key,
-                Category = group.GroupBy(row => row.Category).OrderByDescending(item => item.Count()).First().Key,
+                Merchant = string.IsNullOrWhiteSpace(latest.Merchant) ? "未注明交易对方" : latest.Merchant.Trim(),
+                Category = latest.Category,
+                RecurringType = latestItem.Type,
                 PaymentCount = group.Count(),
-                PaidLast12Months = group.Sum(row => row.Amount),
+                PaidLast12Months = group.Where(item => item.Row.OccurredOn >= DateTime.Today.AddMonths(-12)).Sum(item => item.Row.Amount),
                 MonthlyAverage = latest.Amount / billingMonths,
+                LatestAmount = latest.Amount,
                 BillingMonths = billingMonths,
-                LatestPayment = latest.OccurredOn
+                LatestPayment = latest.OccurredOn,
+                CoverageStart = coverageStart,
+                NextPaymentDate = latest.NextPaymentDate ?? coverageStart.AddMonths(billingMonths),
+                IsEssential = latest.IsEssential || latestItem.Type is "房租" or "物业与车位" or "保险保障"
             };
         }).OrderByDescending(item => item.MonthlyAverage).ToList();
         SubscriptionsList.ItemsSource = summaries;
-        SubscriptionCurrentText.Text = $"¥{detected.Where(row => row.OccurredOn.ToString("yyyy-MM") == DateTime.Now.ToString("yyyy-MM")).Sum(row => row.Amount):N2}";
+        SubscriptionCurrentText.Text = $"¥{detected.Where(item => item.Row.OccurredOn.ToString("yyyy-MM") == DateTime.Now.ToString("yyyy-MM")).Sum(item => item.Row.Amount):N2}";
         SubscriptionAverageText.Text = $"¥{summaries.Sum(item => item.MonthlyAverage):N2}";
         SubscriptionCountText.Text = $"{summaries.Count} 项";
+        RecurringUpcomingText.Text = $"¥{summaries.Where(item => item.NextPaymentDate >= DateTime.Today && item.NextPaymentDate <= DateTime.Today.AddDays(90)).Sum(item => item.LatestAmount):N2}";
     }
 
     private void LoadSettings()
@@ -888,7 +898,7 @@ public sealed partial class MainWindow : Window
         if (_transactionQuery.MinimumAmount is not null || _transactionQuery.MaximumAmount is not null) chips.Add(new() { Key = "amount", Label = $"金额：{_transactionQuery.MinimumAmount?.ToString("N2") ?? "0"}～{_transactionQuery.MaximumAmount?.ToString("N2") ?? "不限"}  ×" });
         if (_transactionQuery.Sources.Count > 0) chips.Add(new() { Key = "source", Label = $"来源：{JoinFilterValues(_transactionQuery.Sources)}  ×" });
         if (_transactionQuery.UncategorizedOnly) chips.Add(new() { Key = "uncategorized", Label = "只看未分类  ×" });
-        if (_transactionQuery.SubscriptionOnly) chips.Add(new() { Key = "subscription", Label = "只看订阅消费  ×" });
+        if (_transactionQuery.SubscriptionOnly) chips.Add(new() { Key = "subscription", Label = "只看周期性支出  ×" });
         if (_transactionQuery.UnassignedAccountOnly) chips.Add(new() { Key = "unassigned", Label = "只看未指定账户  ×" });
         TransactionFilterChipsControl.ItemsSource = chips;
         ClearAllTransactionFiltersButton.Visibility = chips.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
@@ -1164,8 +1174,8 @@ public sealed partial class MainWindow : Window
         WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
         var file = await picker.PickSaveFileAsync();
         if (file is null) return;
-        var lines = new List<string> { "交易时间,类型,金额,分类,交易对方,账户,备注,来源,订阅月数" };
-        lines.AddRange(rows.Select(row => string.Join(',', Csv(row.DateDisplay), Csv(row.Direction), row.Amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture), Csv(row.Category), Csv(row.Merchant), Csv(row.AccountDisplay), Csv(row.Note), Csv(row.Source), row.SubscriptionMonths)));
+        var lines = new List<string> { "交易时间,类型,金额,分类,交易对方,账户,备注,来源,周期支出类型,覆盖月数,覆盖开始,下次付款,必要支出" };
+        lines.AddRange(rows.Select(row => string.Join(',', Csv(row.DateDisplay), Csv(row.Direction), row.Amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture), Csv(row.Category), Csv(row.Merchant), Csv(row.AccountDisplay), Csv(row.Note), Csv(row.Source), Csv(row.RecurringType), row.SubscriptionMonths, row.CoverageStart?.ToString("yyyy-MM-dd") ?? "", row.NextPaymentDate?.ToString("yyyy-MM-dd") ?? "", row.IsEssential ? "是" : "否")));
         await File.WriteAllTextAsync(file.Path, "\uFEFF" + string.Join(Environment.NewLine, lines));
         StatusText.Text = $"已导出 {rows.Count} 条{scope}：{file.Path}";
     }

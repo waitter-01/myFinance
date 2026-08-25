@@ -100,6 +100,31 @@ public sealed class TransactionQueryTests
         finally { DeleteDatabase(path); }
     }
 
+    [Fact]
+    public void Store_PersistsRecurringExpenseDetailsAndIncludesThemInFilter()
+    {
+        var path = CreateDatabasePath();
+        try
+        {
+            var store = new LocalStore(path);
+            var rent = Row(new DateTime(2026, 8, 1), "支出", 9000, "住房租金", "房东", "手动录入", months: 3);
+            rent.RecurringType = "房租";
+            rent.CoverageStart = new DateTime(2026, 8, 1);
+            rent.NextPaymentDate = new DateTime(2026, 11, 1);
+            rent.IsEssential = true;
+
+            store.Import([rent]);
+
+            var saved = Assert.Single(store.QueryTransactions(new TransactionQuery { SubscriptionOnly = true }).Rows);
+            Assert.Equal("房租", saved.RecurringType);
+            Assert.Equal(new DateTime(2026, 8, 1), saved.CoverageStart);
+            Assert.Equal(new DateTime(2026, 11, 1), saved.NextPaymentDate);
+            Assert.True(saved.IsEssential);
+            Assert.Equal("房租", RecurringExpenseTypes.Infer(saved));
+        }
+        finally { DeleteDatabase(path); }
+    }
+
     private static TransactionRecord Row(DateTime date, string direction, decimal amount, string category, string merchant, string source, long? accountId = null, int months = 1)
     {
         var row = new TransactionRecord { OccurredOn = date, Direction = direction, Amount = amount, Category = category, Merchant = merchant, Source = source, AccountId = accountId, SubscriptionMonths = months };

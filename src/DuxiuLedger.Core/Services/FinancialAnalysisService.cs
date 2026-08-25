@@ -106,7 +106,7 @@ public sealed class FinancialAnalysisService
         return category.Trim() switch
         {
             "日常餐饮" or "零食饮料" => "餐饮饮品",
-            "居住物业" or "水电燃气" or "通讯网络" or "生活日用" => "居住生活",
+            "居住物业" or "住房租金" or "水电燃气" or "通讯网络" or "生活日用" => "居住生活",
             "交通出行" => "交通出行",
             "数码家电" or "服饰美容" => "购物消费",
             "娱乐休闲" or "游戏消费" or "旅行度假" or "宠物消费" => "休闲娱乐",

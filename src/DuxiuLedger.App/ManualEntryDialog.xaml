@@ -8,7 +8,8 @@
     CloseButtonText="取消"
     DefaultButton="Primary"
     PrimaryButtonClick="OnPrimaryButtonClick">
-  <StackPanel Width="440" Spacing="12">
+  <ScrollViewer Width="470" MaxHeight="620" VerticalScrollBarVisibility="Auto">
+  <StackPanel Width="440" Spacing="12" Margin="0,0,12,0">
     <Grid ColumnSpacing="12">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
       <CalendarDatePicker x:Name="OccurredOnPicker" Header="交易日期" HorizontalAlignment="Stretch" />
@@ -21,9 +22,25 @@
       <ComboBox x:Name="ToAccountBox" Grid.Column="1" Header="转入账户（仅转账）" DisplayMemberPath="Name" HorizontalAlignment="Stretch" IsEnabled="False" />
     </Grid>
     <ComboBox x:Name="CategoryBox" Header="分类" PlaceholderText="选择或输入分类" IsEditable="True" HorizontalAlignment="Stretch" />
-    <NumberBox x:Name="SubscriptionMonthsBox" Header="订阅价格覆盖月数（非订阅保持 1）" Minimum="1" Maximum="120" Value="1" SpinButtonPlacementMode="Compact" />
+    <Expander Header="周期性支出（房租、订阅、保险等）" IsExpanded="False">
+      <StackPanel Spacing="10" Padding="0,8,0,2">
+        <ComboBox x:Name="RecurringTypeBox" Header="周期支出类型" HorizontalAlignment="Stretch" />
+        <Grid ColumnSpacing="12">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+          <NumberBox x:Name="SubscriptionMonthsBox" Header="本次金额覆盖月数" Minimum="1" Maximum="120" Value="1" SpinButtonPlacementMode="Compact" />
+          <CalendarDatePicker x:Name="CoverageStartPicker" Grid.Column="1" Header="费用覆盖开始日期" HorizontalAlignment="Stretch" />
+        </Grid>
+        <Grid ColumnSpacing="12">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+          <CalendarDatePicker x:Name="NextPaymentPicker" Header="下次预计付款日期" PlaceholderText="可不填写" HorizontalAlignment="Stretch" />
+          <CheckBox x:Name="EssentialExpenseCheck" Grid.Column="1" Content="必要支出（通常不可取消）" VerticalAlignment="Bottom" Margin="0,0,0,8" />
+        </Grid>
+        <InfoBar IsOpen="True" IsClosable="False" Severity="Informational" Message="实际付款仍按完整金额计入现金流；周期支出页面会按覆盖月数计算月均成本。" />
+      </StackPanel>
+    </Expander>
     <TextBox x:Name="MerchantBox" Header="交易对方" PlaceholderText="例如：某某超市、视频会员" />
     <TextBox x:Name="NoteBox" Header="备注" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="68" />
     <InfoBar x:Name="ValidationInfo" IsOpen="False" Severity="Error" IsClosable="False" />
   </StackPanel>
+  </ScrollViewer>
 </ContentDialog>

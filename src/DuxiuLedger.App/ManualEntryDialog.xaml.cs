@@ -20,6 +20,9 @@ public sealed partial class ManualEntryDialog : ContentDialog
         if (accounts?.Count > 0) AccountBox.SelectedIndex = 0;
         RefreshCategories();
         CategoryBox.Text = "未分类";
+        RecurringTypeBox.ItemsSource = new[] { "非周期支出" }.Concat(RecurringExpenseTypes.All).ToList();
+        RecurringTypeBox.SelectedIndex = 0;
+        CoverageStartPicker.Date = OccurredOnPicker.Date;
     }
 
     public ManualEntryDialog(TransactionRecord record, IReadOnlyList<AccountRecord> accounts, IReadOnlyList<CategoryRecord> categories) : this(accounts, categories)
@@ -32,6 +35,11 @@ public sealed partial class ManualEntryDialog : ContentDialog
         MerchantBox.Text = record.Merchant;
         NoteBox.Text = record.Note;
         SubscriptionMonthsBox.Value = Math.Max(1, record.SubscriptionMonths);
+        var recurringType = RecurringExpenseTypes.Infer(record);
+        RecurringTypeBox.SelectedItem = string.IsNullOrWhiteSpace(recurringType) ? "非周期支出" : recurringType;
+        CoverageStartPicker.Date = new DateTimeOffset(record.CoverageStart ?? record.OccurredOn);
+        NextPaymentPicker.Date = record.NextPaymentDate is null ? null : new DateTimeOffset(record.NextPaymentDate.Value);
+        EssentialExpenseCheck.IsChecked = record.IsEssential;
         AccountBox.SelectedItem = accounts.FirstOrDefault(account => account.Id == record.AccountId);
         ToAccountBox.SelectedItem = accounts.FirstOrDefault(account => account.Id == record.ToAccountId);
         Result = new TransactionRecord
@@ -71,9 +79,12 @@ public sealed partial class ManualEntryDialog : ContentDialog
             return;
         }
         var subscriptionMonths = double.IsNaN(SubscriptionMonthsBox.Value) ? 1 : (int)SubscriptionMonthsBox.Value;
-        if (string.Equals(CategoryBox.Text.Trim(), "订阅消费", StringComparison.Ordinal) && subscriptionMonths < 1)
+        var recurringType = RecurringTypeBox.SelectedItem?.ToString() ?? "非周期支出";
+        if (recurringType == "非周期支出" && string.Equals(CategoryBox.Text.Trim(), "订阅消费", StringComparison.Ordinal)) recurringType = "数字订阅";
+        if (recurringType == "非周期支出" && string.Equals(CategoryBox.Text.Trim(), "住房租金", StringComparison.Ordinal)) recurringType = "房租";
+        if (recurringType != "非周期支出" && subscriptionMonths < 1)
         {
-            ValidationInfo.Message = "订阅消费必须填写价格覆盖的月数。";
+            ValidationInfo.Message = "周期性支出必须填写本次金额覆盖的月数。";
             ValidationInfo.IsOpen = true;
             args.Cancel = true;
             return;
@@ -92,6 +103,10 @@ public sealed partial class ManualEntryDialog : ContentDialog
         Result.AccountId = account?.Id;
         Result.ToAccountId = direction == "转账" ? toAccount?.Id : null;
         Result.SubscriptionMonths = Math.Max(1, subscriptionMonths);
+        Result.RecurringType = recurringType == "非周期支出" ? "" : recurringType;
+        Result.CoverageStart = Result.RecurringType.Length == 0 ? null : (CoverageStartPicker.Date ?? selectedDate).LocalDateTime.Date;
+        Result.NextPaymentDate = Result.RecurringType.Length == 0 ? null : NextPaymentPicker.Date?.LocalDateTime.Date;
+        Result.IsEssential = Result.RecurringType.Length > 0 && EssentialExpenseCheck.IsChecked == true;
     }
 
     private void DirectionSelectionChanged(object sender, SelectionChangedEventArgs e)

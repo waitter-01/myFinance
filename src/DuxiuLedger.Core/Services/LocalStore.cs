@@ -12,8 +12,11 @@ public sealed class LocalStore
     public string DatabasePath { get; }
     public LocalStore(string? databasePath = null)
     {
+        var dataRootOverride = Environment.GetEnvironmentVariable("DUXIU_DATA_ROOT");
         var folder = databasePath is null
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DuxiuLedger")
+            ? string.IsNullOrWhiteSpace(dataRootOverride)
+                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DuxiuLedger")
+                : Path.GetFullPath(dataRootOverride)
             : Path.GetDirectoryName(Path.GetFullPath(databasePath))!;
         Directory.CreateDirectory(folder);
         DatabasePath = databasePath is null ? Path.Combine(folder, "ledger.db") : Path.GetFullPath(databasePath);
@@ -49,6 +52,7 @@ public sealed class LocalStore
               ('生活日用','支出',1,30,datetime('now'),datetime('now')),
               ('交通出行','支出',1,40,datetime('now'),datetime('now')),
               ('居住物业','支出',1,50,datetime('now'),datetime('now')),
+              ('住房租金','支出',1,55,datetime('now'),datetime('now')),
               ('水电燃气','支出',1,60,datetime('now'),datetime('now')),
               ('通讯网络','支出',1,70,datetime('now'),datetime('now')),
               ('医疗健康','支出',1,80,datetime('now'),datetime('now')),
@@ -85,6 +89,10 @@ public sealed class LocalStore
         EnsureColumn(connection, "transactions", "account_id", "INTEGER");
         EnsureColumn(connection, "transactions", "to_account_id", "INTEGER");
         EnsureColumn(connection, "transactions", "subscription_months", "INTEGER NOT NULL DEFAULT 1");
+        EnsureColumn(connection, "transactions", "recurring_type", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumn(connection, "transactions", "coverage_start", "TEXT");
+        EnsureColumn(connection, "transactions", "next_payment_date", "TEXT");
+        EnsureColumn(connection, "transactions", "is_essential", "INTEGER NOT NULL DEFAULT 0");
         EnsureColumn(connection, "transactions", "updated_at", "TEXT");
         EnsureColumn(connection, "transactions", "sync_id", "TEXT");
         EnsureColumn(connection, "accounts", "sync_id", "TEXT");
@@ -164,7 +172,7 @@ public sealed class LocalStore
             cmd.Parameters.AddWithValue("$maximumAmount", query.MaximumAmount.Value);
         }
         if (query.UncategorizedOnly) where.Add("t.category = '未分类'");
-        if (query.SubscriptionOnly) where.Add("(t.category = '订阅消费' OR COALESCE(t.subscription_months,1) > 1)");
+        if (query.SubscriptionOnly) where.Add("(t.category = '订阅消费' OR COALESCE(t.subscription_months,1) > 1 OR COALESCE(t.recurring_type,'') <> '')");
         if (query.UnassignedAccountOnly) where.Add("t.account_id IS NULL AND t.to_account_id IS NULL");
         var orderBy = query.SortBy switch
         {
@@ -177,7 +185,8 @@ public sealed class LocalStore
         cmd.CommandText = $"""
             SELECT t.id, t.occurred_on, t.direction, t.amount, t.category, t.merchant, t.note,
               t.source, t.fingerprint, t.account_id, t.to_account_id,
-              COALESCE(a.name,''), COALESCE(ta.name,''), COALESCE(t.subscription_months,1)
+              COALESCE(a.name,''), COALESCE(ta.name,''), COALESCE(t.subscription_months,1),
+              COALESCE(t.recurring_type,''), t.coverage_start, t.next_payment_date, COALESCE(t.is_essential,0)
             FROM transactions t
             LEFT JOIN accounts a ON a.id=t.account_id
             LEFT JOIN accounts ta ON ta.id=t.to_account_id
@@ -185,7 +194,7 @@ public sealed class LocalStore
             ORDER BY {orderBy}
             """;
         using var reader = cmd.ExecuteReader(); var rows = new List<TransactionRecord>();
-        while (reader.Read()) rows.Add(new TransactionRecord { Id = reader.GetInt64(0), OccurredOn = DateTime.Parse(reader.GetString(1)), Direction = reader.GetString(2), Amount = reader.GetDecimal(3), Category = reader.GetString(4), Merchant = reader.GetString(5), Note = reader.GetString(6), Source = reader.GetString(7), Fingerprint = reader.GetString(8), AccountId = reader.IsDBNull(9) ? null : reader.GetInt64(9), ToAccountId = reader.IsDBNull(10) ? null : reader.GetInt64(10), AccountName = reader.GetString(11), ToAccountName = reader.GetString(12), SubscriptionMonths = reader.GetInt32(13) });
+        while (reader.Read()) rows.Add(new TransactionRecord { Id = reader.GetInt64(0), OccurredOn = DateTime.Parse(reader.GetString(1)), Direction = reader.GetString(2), Amount = reader.GetDecimal(3), Category = reader.GetString(4), Merchant = reader.GetString(5), Note = reader.GetString(6), Source = reader.GetString(7), Fingerprint = reader.GetString(8), AccountId = reader.IsDBNull(9) ? null : reader.GetInt64(9), ToAccountId = reader.IsDBNull(10) ? null : reader.GetInt64(10), AccountName = reader.GetString(11), ToAccountName = reader.GetString(12), SubscriptionMonths = reader.GetInt32(13), RecurringType = reader.GetString(14), CoverageStart = reader.IsDBNull(15) ? null : DateTime.Parse(reader.GetString(15)), NextPaymentDate = reader.IsDBNull(16) ? null : DateTime.Parse(reader.GetString(16)), IsEssential = reader.GetBoolean(17) });
         return new TransactionQueryResult
         {
             Rows = rows,
@@ -244,7 +253,15 @@ public sealed class LocalStore
     public int Import(IEnumerable<TransactionRecord> rows)
     {
         using var c = Open(); using var tx = c.BeginTransaction(); var count = 0;
-        foreach (var row in rows) { if (string.IsNullOrWhiteSpace(row.Fingerprint)) row.Fingerprint = TransactionFingerprint.Create(row); using var cmd = c.CreateCommand(); cmd.Transaction = tx; cmd.CommandText = "INSERT OR IGNORE INTO transactions(occurred_on,direction,amount,category,merchant,note,source,fingerprint,account_id,to_account_id,subscription_months,created_at,updated_at,sync_id) VALUES($date,$direction,$amount,$category,$merchant,$note,$source,$fingerprint,$account,$toAccount,$months,$created,$created,'transaction:' || $fingerprint)"; cmd.Parameters.AddWithValue("$date", row.OccurredOn.ToString("yyyy-MM-dd HH:mm:ss")); cmd.Parameters.AddWithValue("$direction", row.Direction); cmd.Parameters.AddWithValue("$amount", row.Amount); cmd.Parameters.AddWithValue("$category", row.Category); cmd.Parameters.AddWithValue("$merchant", row.Merchant); cmd.Parameters.AddWithValue("$note", row.Note); cmd.Parameters.AddWithValue("$source", row.Source); cmd.Parameters.AddWithValue("$fingerprint", row.Fingerprint); cmd.Parameters.AddWithValue("$account", (object?)row.AccountId ?? DBNull.Value); cmd.Parameters.AddWithValue("$toAccount", (object?)row.ToAccountId ?? DBNull.Value); cmd.Parameters.AddWithValue("$months", Math.Max(1, row.SubscriptionMonths)); cmd.Parameters.AddWithValue("$created", DateTime.Now.ToString("O")); count += cmd.ExecuteNonQuery(); }
+        foreach (var row in rows)
+        {
+            if (string.IsNullOrWhiteSpace(row.Fingerprint)) row.Fingerprint = TransactionFingerprint.Create(row);
+            using var cmd = c.CreateCommand(); cmd.Transaction = tx;
+            cmd.CommandText = "INSERT OR IGNORE INTO transactions(occurred_on,direction,amount,category,merchant,note,source,fingerprint,account_id,to_account_id,subscription_months,recurring_type,coverage_start,next_payment_date,is_essential,created_at,updated_at,sync_id) VALUES($date,$direction,$amount,$category,$merchant,$note,$source,$fingerprint,$account,$toAccount,$months,$recurringType,$coverageStart,$nextPayment,$essential,$created,$created,'transaction:' || $fingerprint)";
+            AddTransactionParameters(cmd, row);
+            cmd.Parameters.AddWithValue("$created", DateTime.Now.ToString("O"));
+            count += cmd.ExecuteNonQuery();
+        }
         tx.Commit(); return count;
     }
 
@@ -263,22 +280,34 @@ public sealed class LocalStore
         cmd.CommandText = """
             UPDATE transactions SET occurred_on=$date, direction=$direction, amount=$amount,
               category=$category, merchant=$merchant, note=$note, source=$source,
-              account_id=$account, to_account_id=$toAccount, subscription_months=$months, updated_at=$updated
+              account_id=$account, to_account_id=$toAccount, subscription_months=$months,
+              recurring_type=$recurringType, coverage_start=$coverageStart, next_payment_date=$nextPayment,
+              is_essential=$essential, updated_at=$updated
             WHERE id=$id
             """;
         cmd.Parameters.AddWithValue("$id", row.Id);
-        cmd.Parameters.AddWithValue("$date", row.OccurredOn.ToString("yyyy-MM-dd HH:mm:ss"));
-        cmd.Parameters.AddWithValue("$direction", row.Direction);
-        cmd.Parameters.AddWithValue("$amount", row.Amount);
-        cmd.Parameters.AddWithValue("$category", row.Category);
-        cmd.Parameters.AddWithValue("$merchant", row.Merchant);
-        cmd.Parameters.AddWithValue("$note", row.Note);
-        cmd.Parameters.AddWithValue("$source", row.Source);
-        cmd.Parameters.AddWithValue("$account", (object?)row.AccountId ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$toAccount", (object?)row.ToAccountId ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$months", Math.Max(1, row.SubscriptionMonths));
+        AddTransactionParameters(cmd, row);
         cmd.Parameters.AddWithValue("$updated", DateTime.Now.ToString("O"));
         return cmd.ExecuteNonQuery() == 1;
+    }
+
+    private static void AddTransactionParameters(SqliteCommand command, TransactionRecord row)
+    {
+        command.Parameters.AddWithValue("$date", row.OccurredOn.ToString("yyyy-MM-dd HH:mm:ss"));
+        command.Parameters.AddWithValue("$direction", row.Direction);
+        command.Parameters.AddWithValue("$amount", row.Amount);
+        command.Parameters.AddWithValue("$category", row.Category);
+        command.Parameters.AddWithValue("$merchant", row.Merchant);
+        command.Parameters.AddWithValue("$note", row.Note);
+        command.Parameters.AddWithValue("$source", row.Source);
+        command.Parameters.AddWithValue("$fingerprint", row.Fingerprint);
+        command.Parameters.AddWithValue("$account", (object?)row.AccountId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$toAccount", (object?)row.ToAccountId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$months", Math.Max(1, row.SubscriptionMonths));
+        command.Parameters.AddWithValue("$recurringType", row.RecurringType?.Trim() ?? "");
+        command.Parameters.AddWithValue("$coverageStart", row.CoverageStart is null ? DBNull.Value : row.CoverageStart.Value.Date.ToString("yyyy-MM-dd"));
+        command.Parameters.AddWithValue("$nextPayment", row.NextPaymentDate is null ? DBNull.Value : row.NextPaymentDate.Value.Date.ToString("yyyy-MM-dd"));
+        command.Parameters.AddWithValue("$essential", row.IsEssential ? 1 : 0);
     }
 
     public bool Delete(long id)

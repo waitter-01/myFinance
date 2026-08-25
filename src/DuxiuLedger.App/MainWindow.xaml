@@ -35,7 +35,7 @@
             <FontIcon Glyph="" />
           </NavigationViewItem.Icon>
         </NavigationViewItem>
-        <NavigationViewItem Content="订阅与月卡" Tag="Subscriptions">
+        <NavigationViewItem Content="周期性支出" Tag="Subscriptions">
           <NavigationViewItem.Icon>
             <FontIcon Glyph="" />
           </NavigationViewItem.Icon>
@@ -206,7 +206,7 @@
                       <StackPanel Spacing="5">
                         <TextBlock Text="特殊条件" FontWeight="SemiBold" />
                         <CheckBox x:Name="TransactionUncategorizedCheck" Content="只看未分类" />
-                        <CheckBox x:Name="TransactionSubscriptionCheck" Content="只看订阅消费" />
+                        <CheckBox x:Name="TransactionSubscriptionCheck" Content="只看周期性支出" />
                         <CheckBox x:Name="TransactionUnassignedAccountCheck" Content="只看未指定账户" />
                       </StackPanel>
                       <ComboBox x:Name="TransactionSortBox" Header="排序方式" HorizontalAlignment="Stretch">
@@ -696,54 +696,62 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
               </Grid.ColumnDefinitions>
               <Border Style="{StaticResource CardStyle}" Padding="18">
                 <StackPanel>
-                  <TextBlock Text="本月已付" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                  <TextBlock Text="本月实际支付" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                   <TextBlock x:Name="SubscriptionCurrentText" Text="¥0.00" FontSize="24" FontWeight="SemiBold" Margin="0,7,0,0" />
                 </StackPanel>
               </Border>
               <Border Grid.Column="1" Style="{StaticResource CardStyle}" Padding="18">
                 <StackPanel>
-                  <TextBlock Text="当前月均负担" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                  <TextBlock Text="月度分摊成本" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                   <TextBlock x:Name="SubscriptionAverageText" Text="¥0.00" FontSize="24" FontWeight="SemiBold" Margin="0,7,0,0" />
-                  <TextBlock Text="各项目最近价格 ÷ 覆盖月数" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                  <TextBlock Text="最近付款金额 ÷ 覆盖月数" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                 </StackPanel>
               </Border>
               <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="18">
                 <StackPanel>
-                  <TextBlock Text="订阅项目" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                  <TextBlock Text="周期支出项目" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                   <TextBlock x:Name="SubscriptionCountText" Text="0 项" FontSize="24" FontWeight="SemiBold" Margin="0,7,0,0" />
                 </StackPanel>
               </Border>
+              <Border Grid.Column="3" Style="{StaticResource CardStyle}" Padding="18">
+                <StackPanel>
+                  <TextBlock Text="未来 90 天预计付款" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                  <TextBlock x:Name="RecurringUpcomingText" Text="¥0.00" FontSize="24" FontWeight="SemiBold" Margin="0,7,0,0" />
+                  <TextBlock Text="根据下次付款日期估算" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                </StackPanel>
+              </Border>
             </Grid>
-            <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="12">
-              <ListView x:Name="SubscriptionsList" SelectionMode="None">
+            <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="0">
+              <Grid>
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <Grid Padding="16,10" ColumnSpacing="12" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="110" /><ColumnDefinition Width="105" /><ColumnDefinition Width="205" /><ColumnDefinition Width="115" /><ColumnDefinition Width="105" /><ColumnDefinition Width="70" /></Grid.ColumnDefinitions>
+                  <TextBlock Text="项目/收款方" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="类型" FontWeight="SemiBold" /><TextBlock Grid.Column="2" Text="最近付款" FontWeight="SemiBold" /><TextBlock Grid.Column="3" Text="费用覆盖期间" FontWeight="SemiBold" /><TextBlock Grid.Column="4" Text="月均成本" FontWeight="SemiBold" /><TextBlock Grid.Column="5" Text="下次付款" FontWeight="SemiBold" /><TextBlock Grid.Column="6" Text="性质" FontWeight="SemiBold" />
+                </Grid>
+              <ListView x:Name="SubscriptionsList" Grid.Row="1" SelectionMode="None">
+                <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /></Style></ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
                   <DataTemplate x:DataType="models:SubscriptionSummary">
                     <Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="10">
                       <Grid ColumnSpacing="12">
-                        <Grid.ColumnDefinitions>
-                          <ColumnDefinition Width="*" />
-                          <ColumnDefinition Width="110" />
-                          <ColumnDefinition Width="80" />
-                          <ColumnDefinition Width="120" />
-                          <ColumnDefinition Width="110" />
-                          <ColumnDefinition Width="120" />
-                          <ColumnDefinition Width="105" />
-                        </Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="110" /><ColumnDefinition Width="105" /><ColumnDefinition Width="205" /><ColumnDefinition Width="115" /><ColumnDefinition Width="105" /><ColumnDefinition Width="70" /></Grid.ColumnDefinitions>
                         <TextBlock Text="{x:Bind Merchant}" FontWeight="SemiBold" />
-                        <TextBlock Grid.Column="1" Text="{x:Bind Category}" />
-                        <TextBlock Grid.Column="2" Text="{x:Bind PaymentCount}" />
-                        <TextBlock Grid.Column="3" Text="{x:Bind PaidDisplay}" />
-                        <TextBlock Grid.Column="4" Text="{x:Bind BillingCycleDisplay}" />
-                        <TextBlock Grid.Column="5" Text="{x:Bind MonthlyAverageDisplay}" />
-                        <TextBlock Grid.Column="6" Text="{x:Bind LatestPaymentDisplay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Grid.Column="1" Text="{x:Bind RecurringType}" />
+                        <TextBlock Grid.Column="2" Text="{x:Bind LatestAmountDisplay}" />
+                        <TextBlock Grid.Column="3" Text="{x:Bind CoveragePeriodDisplay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Grid.Column="4" Text="{x:Bind MonthlyAverageDisplay}" FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="5" Text="{x:Bind NextPaymentDisplay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Grid.Column="6" Text="{x:Bind EssentialDisplay}" />
                       </Grid>
                     </Border>
                   </DataTemplate>
                 </ListView.ItemTemplate>
               </ListView>
+              </Grid>
             </Border>
           </Grid>
           <Grid x:Name="AccountsPage" Visibility="Collapsed">
@@ -873,8 +881,8 @@
               </Border>
               <Border Style="{StaticResource CardStyle}" Padding="22">
                 <StackPanel Spacing="12">
-                  <TextBlock Text="订阅消费识别" Style="{StaticResource SectionTitleStyle}" />
-                  <TextBlock Text="商户、分类或备注中包含任一关键词时，会计入订阅统计。" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                  <TextBlock Text="订阅服务识别关键词" Style="{StaticResource SectionTitleStyle}" />
+                  <TextBlock Text="用于自动识别数字订阅和会员；房租等其他周期支出可在录入流水时直接选择类型。" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                   <TextBox x:Name="SubscriptionKeywordsBox" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="72" />
                   <Button Content="保存设置" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Left" Click="SaveSettingsClick" />
                 </StackPanel>
