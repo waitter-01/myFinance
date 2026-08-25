@@ -56,10 +56,12 @@ public sealed partial class MainWindow : Window
         RecordCountText.Text = $"共 {allRecords.Count} 条记录 · 本月 {records.Count} 条";
         LoadSubscriptions(allRecords);
         LoadAccounts();
+        LoadCategories();
         StatusText.Text = $"已读取本地账本 · 本月 {records.Count} 条流水";
     }
 
     private void LoadAccounts() => AccountsList.ItemsSource = _store.ListAccounts();
+    private void LoadCategories() => CategoriesList.ItemsSource = _store.ListCategories();
 
     private void LoadSubscriptions(IReadOnlyList<TransactionRecord> allRecords)
     {
@@ -103,9 +105,10 @@ public sealed partial class MainWindow : Window
         TransactionsPage.Visibility = key == "Transactions" ? Visibility.Visible : Visibility.Collapsed;
         SubscriptionsPage.Visibility = key == "Subscriptions" ? Visibility.Visible : Visibility.Collapsed;
         AccountsPage.Visibility = key == "Accounts" ? Visibility.Visible : Visibility.Collapsed;
+        CategoriesPage.Visibility = key == "Categories" ? Visibility.Visible : Visibility.Collapsed;
         SettingsPage.Visibility = key == "Settings" ? Visibility.Visible : Visibility.Collapsed;
         BackupPage.Visibility = key == "Backup" ? Visibility.Visible : Visibility.Collapsed;
-        PlaceholderPage.Visibility = key is "Budgets" or "Categories" ? Visibility.Visible : Visibility.Collapsed;
+        PlaceholderPage.Visibility = key == "Budgets" ? Visibility.Visible : Visibility.Collapsed;
         PlaceholderTitle.Text = $"{page.Title}正在建设";
     }
 
@@ -143,7 +146,7 @@ public sealed partial class MainWindow : Window
 
     private async void AddClick(object sender, RoutedEventArgs e)
     {
-        var dialog = new ManualEntryDialog(_store.ListAccounts()) { XamlRoot = ContentHost.XamlRoot };
+        var dialog = new ManualEntryDialog(_store.ListAccounts(), _store.ListCategories()) { XamlRoot = ContentHost.XamlRoot };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary || dialog.Result is null) return;
         _store.Import([dialog.Result]);
         LoadDashboard();
@@ -154,7 +157,7 @@ public sealed partial class MainWindow : Window
     private async void EditTransactionClick(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: TransactionRecord record }) return;
-        var dialog = new ManualEntryDialog(record, _store.ListAccounts()) { XamlRoot = ContentHost.XamlRoot };
+        var dialog = new ManualEntryDialog(record, _store.ListAccounts(), _store.ListCategories()) { XamlRoot = ContentHost.XamlRoot };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary || dialog.Result is null) return;
         if (!_store.Update(dialog.Result))
         {
@@ -239,6 +242,44 @@ public sealed partial class MainWindow : Window
             StatusText.Text = "账户已删除";
         }
         catch (Exception ex) { await ShowMessage("账户不能删除", ex.Message); }
+    }
+
+    private async void AddCategoryClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new CategoryDialog { XamlRoot = ContentHost.XamlRoot };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary || dialog.Result is null) return;
+        try
+        {
+            _store.SaveCategory(dialog.Result);
+            LoadDashboard(); SelectNavigation("Categories"); StatusText.Text = "分类已添加";
+        }
+        catch (Exception ex) { await ShowMessage("分类保存失败", ex.Message); }
+    }
+
+    private async void EditCategoryClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: CategoryRecord category }) return;
+        var dialog = new CategoryDialog(category) { XamlRoot = ContentHost.XamlRoot };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary || dialog.Result is null) return;
+        try
+        {
+            _store.SaveCategory(dialog.Result);
+            LoadDashboard(); SelectNavigation("Categories"); StatusText.Text = "分类修改已保存";
+        }
+        catch (Exception ex) { await ShowMessage("分类保存失败", ex.Message); }
+    }
+
+    private async void DeleteCategoryClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: CategoryRecord category }) return;
+        var confirm = new ContentDialog { XamlRoot = ContentHost.XamlRoot, Title = "删除这个分类？", Content = $"{category.Name} · {category.Type}\n{category.UsageDisplay}", PrimaryButtonText = "删除", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Close };
+        if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;
+        try
+        {
+            _store.DeleteCategory(category.Id);
+            LoadDashboard(); SelectNavigation("Categories"); StatusText.Text = "分类已删除";
+        }
+        catch (Exception ex) { await ShowMessage("分类不能删除", ex.Message); }
     }
 
     private void SelectNavigation(string key)

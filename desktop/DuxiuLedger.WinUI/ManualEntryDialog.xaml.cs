@@ -5,10 +5,12 @@ namespace DuxiuLedger.WinUI;
 
 public sealed partial class ManualEntryDialog : ContentDialog
 {
+    private readonly IReadOnlyList<CategoryRecord> _categories;
     public TransactionRecord? Result { get; private set; }
 
-    public ManualEntryDialog(IReadOnlyList<AccountRecord>? accounts = null)
+    public ManualEntryDialog(IReadOnlyList<AccountRecord>? accounts = null, IReadOnlyList<CategoryRecord>? categories = null)
     {
+        _categories = categories ?? [];
         InitializeComponent();
         OccurredOnPicker.Date = DateTimeOffset.Now;
         DirectionBox.ItemsSource = new[] { "支出", "收入", "转账", "退款", "报销" };
@@ -16,10 +18,11 @@ public sealed partial class ManualEntryDialog : ContentDialog
         AccountBox.ItemsSource = accounts ?? [];
         ToAccountBox.ItemsSource = accounts ?? [];
         if (accounts?.Count > 0) AccountBox.SelectedIndex = 0;
+        RefreshCategories();
         CategoryBox.Text = "未分类";
     }
 
-    public ManualEntryDialog(TransactionRecord record, IReadOnlyList<AccountRecord> accounts) : this(accounts)
+    public ManualEntryDialog(TransactionRecord record, IReadOnlyList<AccountRecord> accounts, IReadOnlyList<CategoryRecord> categories) : this(accounts, categories)
     {
         Title = "编辑流水";
         OccurredOnPicker.Date = new DateTimeOffset(record.OccurredOn);
@@ -85,5 +88,14 @@ public sealed partial class ManualEntryDialog : ContentDialog
     {
         if (ToAccountBox is null) return;
         ToAccountBox.IsEnabled = DirectionBox.SelectedItem?.ToString() == "转账";
+        RefreshCategories();
+    }
+
+    private void RefreshCategories()
+    {
+        if (CategoryBox is null) return;
+        var direction = DirectionBox.SelectedItem?.ToString();
+        var categoryType = direction == "收入" ? "收入" : direction == "转账" ? "通用" : "支出";
+        CategoryBox.ItemsSource = _categories.Where(category => category.IsActive && (category.Type == categoryType || category.Type == "通用")).Select(category => category.Name).ToList();
     }
 }

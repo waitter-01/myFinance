@@ -20,7 +20,7 @@
       <ComboBox x:Name="AccountBox" Header="账户" DisplayMemberPath="Name" HorizontalAlignment="Stretch" />
       <ComboBox x:Name="ToAccountBox" Grid.Column="1" Header="转入账户（仅转账）" DisplayMemberPath="Name" HorizontalAlignment="Stretch" IsEnabled="False" />
     </Grid>
-    <TextBox x:Name="CategoryBox" Header="分类" PlaceholderText="例如：日常餐饮、娱乐、订阅会员" />
+    <ComboBox x:Name="CategoryBox" Header="分类" PlaceholderText="选择或输入分类" IsEditable="True" HorizontalAlignment="Stretch" />
     <TextBox x:Name="MerchantBox" Header="交易对方" PlaceholderText="例如：某某超市、视频会员" />
     <TextBox x:Name="NoteBox" Header="备注" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="68" />
     <InfoBar x:Name="ValidationInfo" IsOpen="False" Severity="Error" IsClosable="False" />
