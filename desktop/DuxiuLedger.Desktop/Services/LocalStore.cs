@@ -36,7 +36,40 @@ public sealed class LocalStore
               ('银行卡','银行卡',0,1,datetime('now'),datetime('now')),
               ('微信','电子钱包',0,1,datetime('now'),datetime('now')),
               ('支付宝','电子钱包',0,1,datetime('now'),datetime('now')),
+              ('支付宝小荷包','电子钱包',0,1,datetime('now'),datetime('now')),
               ('信用卡','信用卡',0,1,datetime('now'),datetime('now'));
+            CREATE TABLE IF NOT EXISTS categories (
+              id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, type TEXT NOT NULL,
+              is_active INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0,
+              created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(name,type));
+            INSERT OR IGNORE INTO categories(name,type,is_active,sort_order,created_at,updated_at) VALUES
+              ('日常餐饮','支出',1,10,datetime('now'),datetime('now')),
+              ('零食饮料','支出',1,20,datetime('now'),datetime('now')),
+              ('生活日用','支出',1,30,datetime('now'),datetime('now')),
+              ('交通出行','支出',1,40,datetime('now'),datetime('now')),
+              ('居住物业','支出',1,50,datetime('now'),datetime('now')),
+              ('水电燃气','支出',1,60,datetime('now'),datetime('now')),
+              ('通讯网络','支出',1,70,datetime('now'),datetime('now')),
+              ('医疗健康','支出',1,80,datetime('now'),datetime('now')),
+              ('学习教育','支出',1,90,datetime('now'),datetime('now')),
+              ('数码家电','支出',1,100,datetime('now'),datetime('now')),
+              ('服饰美容','支出',1,110,datetime('now'),datetime('now')),
+              ('人情往来','支出',1,120,datetime('now'),datetime('now')),
+              ('娱乐休闲','支出',1,130,datetime('now'),datetime('now')),
+              ('游戏消费','支出',1,140,datetime('now'),datetime('now')),
+              ('旅行度假','支出',1,150,datetime('now'),datetime('now')),
+              ('宠物消费','支出',1,160,datetime('now'),datetime('now')),
+              ('订阅消费','支出',1,170,datetime('now'),datetime('now')),
+              ('小额杂项','支出',1,180,datetime('now'),datetime('now')),
+              ('其他支出','支出',1,190,datetime('now'),datetime('now')),
+              ('工资收入','收入',1,10,datetime('now'),datetime('now')),
+              ('奖金补贴','收入',1,20,datetime('now'),datetime('now')),
+              ('兼职副业','收入',1,30,datetime('now'),datetime('now')),
+              ('投资收益','收入',1,40,datetime('now'),datetime('now')),
+              ('利息收入','收入',1,50,datetime('now'),datetime('now')),
+              ('礼金收入','收入',1,60,datetime('now'),datetime('now')),
+              ('其他收入','收入',1,70,datetime('now'),datetime('now')),
+              ('未分类','通用',1,999,datetime('now'),datetime('now'));
             """;
         command.ExecuteNonQuery();
         EnsureColumn(connection, "transactions", "account_id", "INTEGER");
@@ -169,6 +202,62 @@ public sealed class LocalStore
         used.Parameters.AddWithValue("$id", id);
         if (Convert.ToInt32(used.ExecuteScalar()) > 0) throw new InvalidOperationException("该账户已经关联流水，不能删除。可以将它编辑为停用状态。 ");
         using var cmd = c.CreateCommand(); cmd.CommandText = "DELETE FROM accounts WHERE id=$id"; cmd.Parameters.AddWithValue("$id", id);
+        return cmd.ExecuteNonQuery() == 1;
+    }
+
+    public IReadOnlyList<CategoryRecord> ListCategories(bool includeInactive = true)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = """
+            SELECT c.id,c.name,c.type,c.is_active,c.sort_order,
+              (SELECT COUNT(*) FROM transactions t WHERE t.category=c.name) AS usage_count
+            FROM categories c WHERE $includeInactive=1 OR c.is_active=1
+            ORDER BY CASE c.type WHEN '支出' THEN 0 WHEN '收入' THEN 1 ELSE 2 END, c.sort_order, c.id
+            """;
+        cmd.Parameters.AddWithValue("$includeInactive", includeInactive ? 1 : 0);
+        using var reader = cmd.ExecuteReader(); var rows = new List<CategoryRecord>();
+        while (reader.Read()) rows.Add(new CategoryRecord { Id = reader.GetInt64(0), Name = reader.GetString(1), OriginalName = reader.GetString(1), Type = reader.GetString(2), IsActive = reader.GetBoolean(3), SortOrder = reader.GetInt32(4), UsageCount = reader.GetInt32(5) });
+        return rows;
+    }
+
+    public long SaveCategory(CategoryRecord category)
+    {
+        using var c = Open(); using var tx = c.BeginTransaction();
+        using var cmd = c.CreateCommand(); cmd.Transaction = tx;
+        if (category.Id == 0)
+        {
+            cmd.CommandText = "INSERT INTO categories(name,type,is_active,sort_order,created_at,updated_at) VALUES($name,$type,$active,$sort,$now,$now); SELECT last_insert_rowid();";
+        }
+        else
+        {
+            cmd.CommandText = "UPDATE categories SET name=$name,type=$type,is_active=$active,sort_order=$sort,updated_at=$now WHERE id=$id; SELECT $id;";
+            cmd.Parameters.AddWithValue("$id", category.Id);
+        }
+        cmd.Parameters.AddWithValue("$name", category.Name.Trim());
+        cmd.Parameters.AddWithValue("$type", category.Type);
+        cmd.Parameters.AddWithValue("$active", category.IsActive ? 1 : 0);
+        cmd.Parameters.AddWithValue("$sort", category.SortOrder);
+        cmd.Parameters.AddWithValue("$now", DateTime.Now.ToString("O"));
+        var id = Convert.ToInt64(cmd.ExecuteScalar());
+        if (category.Id > 0 && !string.IsNullOrWhiteSpace(category.OriginalName) && !string.Equals(category.OriginalName, category.Name, StringComparison.Ordinal))
+        {
+            using var rename = c.CreateCommand(); rename.Transaction = tx;
+            rename.CommandText = "UPDATE transactions SET category=$newName WHERE category=$oldName";
+            rename.Parameters.AddWithValue("$newName", category.Name.Trim()); rename.Parameters.AddWithValue("$oldName", category.OriginalName);
+            rename.ExecuteNonQuery();
+        }
+        tx.Commit(); return id;
+    }
+
+    public bool DeleteCategory(long id)
+    {
+        using var c = Open(); using var name = c.CreateCommand();
+        name.CommandText = "SELECT name FROM categories WHERE id=$id"; name.Parameters.AddWithValue("$id", id);
+        var categoryName = name.ExecuteScalar()?.ToString();
+        if (categoryName is null) return false;
+        using var used = c.CreateCommand(); used.CommandText = "SELECT COUNT(*) FROM transactions WHERE category=$name"; used.Parameters.AddWithValue("$name", categoryName);
+        if (Convert.ToInt32(used.ExecuteScalar()) > 0) throw new InvalidOperationException("该分类已经关联流水，不能删除。可以将它编辑为停用状态。 ");
+        using var cmd = c.CreateCommand(); cmd.CommandText = "DELETE FROM categories WHERE id=$id"; cmd.Parameters.AddWithValue("$id", id);
         return cmd.ExecuteNonQuery() == 1;
     }
 
