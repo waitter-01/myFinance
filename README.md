@@ -7,14 +7,14 @@
     <img src="https://img.shields.io/badge/平台-Windows%2010%20%7C%2011-0078D4" alt="Windows">
     <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8">
     <img src="https://img.shields.io/badge/UI-WinUI%203-146C70" alt="WinUI 3">
-    <img src="https://img.shields.io/badge/数据库-SQLite-0F80CC" alt="SQLite">
-    <img src="https://img.shields.io/badge/版本-v0.5.2-6B7280" alt="v0.5.2">
+    <img src="https://img.shields.io/badge/同步-S3%20兼容-0F80CC" alt="S3 compatible">
+    <img src="https://img.shields.io/badge/版本-v0.6.0-6B7280" alt="v0.6.0">
   </p>
 </div>
 
 ## 项目简介
 
-独秀账本是一款面向个人用户的 Windows 桌面记账应用。应用无需服务器和在线账户，账单数据保存在本机 SQLite 数据库中，支持导入 Excel、CSV 以及微信、支付宝常见格式的官方账单。
+独秀账本是一款面向个人用户的 Windows 桌面记账应用。账本默认保存在本机，无需服务器和在线账户；需要多端使用时，可由用户自行配置 S3 或 S3 兼容对象存储。应用支持导入 Excel、CSV 以及微信、支付宝常见格式的官方账单。
 
 项目当前处于早期开发阶段，桌面端是主要开发方向。仓库中的 Next.js 代码是早期 Web 原型，不代表当前推荐的使用方式。
 
@@ -30,23 +30,23 @@
 - 手动录入：填写日期、收支、金额、分类、交易对方和备注后直接保存。
 - 流水维护：支持编辑、删除以及收入、支出、转账、退款和报销类型。
 - 账户管理：管理现金、银行卡、信用卡和电子钱包，并计算账户余额。
-- 导入预览：写入数据库前核对有效流水、重复记录和问题行。
+- 导入预览：写入账本前核对有效流水、重复记录和问题行。
 - 自主设置：可调整小额消费阈值、月度预算、提醒计划和订阅识别关键词。
 - 详细分类：内置餐饮、生活、娱乐、游戏、订阅等分类，并支持新增、编辑和停用。
 - 订阅统计：记录价格覆盖月数，按最近价格和计费周期计算真实月均负担。
 - 消费洞察：汇总小额消费、可选支出、分类与商户排行，并给出下月额度建议。
 - 预算与目标：设置月度总预算、分类预算和储蓄目标，显示使用进度及每月建议储蓄额。
-- 多端同步：可直连 MySQL 进行本地优先双向合并，密码由 Windows 当前用户加密保存。
+- 多端同步：用户可自主配置 AWS S3、Cloudflare R2、MinIO 等 S3 兼容对象存储。
 - 系统提醒：支持每日记账提醒和每周消费总结通知。
 - 流水搜索：按交易对方或备注查找记录。
-- 数据备份：可直接导出 SQLite 数据库备份并打开数据目录。
+- 数据备份：可导出独立的 `.duxiu` 账本备份并打开数据目录。
 - 原生 WinUI 3：使用 Windows App SDK 的 NavigationView、Mica、ContentDialog 和主题控件。
 - 统一字体：中文界面统一使用 Microsoft YaHei UI，支持系统深浅色主题。
 - 独立运行：可发布为真正的单文件 EXE，目标电脑无需安装 .NET Runtime 或 Windows App SDK Runtime。
 
 ## 当前版本
 
-当前版本为 **v0.5.2**，优化宽版圆角导入预览，并增加常见商户自动分类。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本为 **v0.6.0**，移除 MySQL 直连，改为用户自主配置的 S3 兼容对象存储同步。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
 
 版本号采用 `主版本.次版本.修订版本`：
 
@@ -58,19 +58,19 @@
 
 | 模块 | 状态 | 说明 |
 | --- | --- | --- |
-| 本地数据库 | 可用 | SQLite 持久化存储 |
+| 本地账本 | 可用 | 离线保存，重新启动后无需重复导入 |
 | Excel/CSV 导入 | 可用 | 支持标准模板和常见账单表头 |
 | 微信/支付宝长截图 | 基础可用 | 本地 OCR、超长图分段、预览校正和去重 |
 | 微信/支付宝识别 | 基础可用 | 不同版本账单可能需要补充表头规则 |
 | 导入去重 | 可用 | 重复导入不会重复保存 |
 | 流水搜索 | 可用 | 支持交易对方和备注 |
-| 数据备份 | 可用 | 导出数据库文件 |
+| 数据备份 | 可用 | 导出 `.duxiu` 账本备份 |
 | 手动新增流水 | 可用 | 保存后立即刷新总览和流水列表 |
 | 偏好设置 | 可用 | 财务阈值、预算、提醒和订阅关键词持久化保存 |
 | 订阅与月卡统计 | 可用 | 分类/关键词识别、本月实付和按覆盖月数折算的月均负担 |
 | 消费洞察 | 基础可用 | 小额消费、可选支出、分类/商户排行和下月额度建议 |
 | 预算与储蓄目标 | 可用 | 月度总预算、分类预算、超支提示和目标月存建议 |
-| MySQL 多端同步 | 可用 | 本地优先双向合并、删除同步、TLS 和启动同步 |
+| S3 对象同步 | 可用 | 自定义服务地址、本地优先合并、删除同步和启动同步 |
 | Windows 提醒 | 可用 | 每日记账提醒和每周近 7 天支出总结 |
 | 趋势与导出 | 可用 | 近 6 个月趋势和本月 CSV 报告 |
 | 编辑和删除流水 | 可用 | 编辑保留来源和指纹，删除前二次确认 |
@@ -108,7 +108,7 @@ dotnet run --project .\desktop\DuxiuLedger.WinUI\DuxiuLedger.WinUI.csproj -p:Pla
 
 ```text
 desktop\publish\win-x64\DuxiuLedger.exe
-desktop\publish\DuxiuLedger-v0.5.2-win-x64.zip
+desktop\publish\DuxiuLedger-v0.6.0-win-x64.zip
 ```
 
 单文件 EXE 可以单独复制运行，首次启动时会将 WinUI 3 运行依赖释放到临时目录，因此第一次启动可能稍慢。发布目录已被 Git 忽略，不会提交到仓库。
@@ -132,7 +132,7 @@ winget install --id JRSoftware.InnoSetup -e
 生成文件：
 
 ```text
-desktop\publish\installer\DuxiuLedger-Setup-v0.5.2-win-x64.exe
+desktop\publish\installer\DuxiuLedger-Setup-v0.6.0-win-x64.exe
 ```
 
 安装程序默认安装到当前用户的 `%LOCALAPPDATA%\Programs\DuxiuLedger`，不要求管理员权限，并提供开始菜单、可选桌面快捷方式和标准卸载入口。
@@ -148,9 +148,9 @@ desktop\publish\installer\DuxiuLedger-Setup-v0.5.2-win-x64.exe
 5. 使用中文提交版本变更，然后创建并推送 Git 标签：
 
 ```powershell
-git tag -a v0.5.2 -m "版本：发布 v0.5.2"
+git tag -a v0.6.0 -m "版本：发布 v0.6.0"
 git push origin master
-git push origin v0.5.2
+git push origin v0.6.0
 ```
 
 6. 在 GitHub Releases 中使用相同标签创建发行版，并上传单文件 EXE、ZIP 和安装程序。发布说明以 `CHANGELOG.md` 对应版本内容为准。
@@ -175,9 +175,9 @@ git push origin v0.5.2
 
 选填字段包括交易对方、商品说明、分类、订阅月数和备注。归类为“订阅消费”时建议填写价格覆盖的月数，例如年度会员填写 `12`；微信、支付宝官方导出的账单可直接尝试导入，不必先转换为标准模板。
 
-## 数据存储
+## 本地账本与备份
 
-数据库默认位置：
+本地账本文件默认位置：
 
 ```text
 %LOCALAPPDATA%\DuxiuLedger\ledger.db
@@ -189,22 +189,25 @@ git push origin v0.5.2
 %LOCALAPPDATA%\DuxiuLedger\logs\startup-error.log
 ```
 
-卸载或清理应用前，请先在“数据备份”页面导出数据库文件。仅删除 EXE 不会自动删除账本数据。
+卸载或清理应用前，请先在“数据备份”页面导出 `.duxiu` 账本备份。仅删除 EXE 不会自动删除账本数据。
 
-## MySQL 多端同步
+## S3 对象存储同步
 
-在“偏好设置 → MySQL 多端同步”中填写服务器、端口、数据库名、用户名和密码，然后依次点击“保存并测试连接”和“立即双向同步”。首次同步会在指定数据库中自动创建 `duxiu_sync_items` 表。
+在“偏好设置 → S3 对象存储同步”中开启同步并填写配置，然后依次点击“保存并测试连接”和“立即双向同步”。应用会把一个带版本号的 JSON 同步对象保存到用户指定的 Bucket 中，不需要创建数据表。
 
-如果服务器是 MySQL 5.1、5.5 或较早的 5.6/5.7，并且普通模式提示 TLS 或字符集错误，可以勾选“MySQL 5.x 旧版兼容模式”后重新测试。该模式会禁用 TLS 并使用 `utf8`，只应作为无法升级服务器时的临时方案。
+配置字段：
 
-密码只通过 Windows DPAPI 加密保存在当前 Windows 用户配置中，不会写入仓库。更换电脑时需要重新输入密码。应用采用本地优先模式，断网时仍保存到 SQLite，恢复网络后再合并。
+- `Endpoint`：AWS S3 可留空；R2、MinIO 等服务填写控制台提供的完整 HTTPS 地址。
+- `Region`：AWS 填写 Bucket 所在区域；兼容服务按服务商说明填写。
+- `Bucket`：填写已创建的 Bucket 名称。
+- `对象路径`：默认 `duxiu-ledger/sync-v1.json`，同一套账本的所有设备必须保持一致。
+- `Access Key ID`、`Secret Access Key`：填写仅用于该账本对象的访问凭据。
+- `Session Token`：使用临时凭据时填写，否则留空。
+- `Path Style`：MinIO 或明确要求路径风格寻址的服务开启；AWS S3 通常无需开启。
 
-服务器建议：
+Secret Key 和 Session Token 只通过 Windows DPAPI 加密保存在当前 Windows 用户配置中，不会写入仓库、日志或同步对象。更换电脑时需要重新输入凭据。应用采用本地优先模式，断网时仍可记账，恢复网络后再合并。
 
-- 仅向可信来源 IP 开放 MySQL 端口。
-- 开启 MySQL TLS；有可信证书时选择 `VerifyFull`，否则至少使用 `Preferred` 或 `Required`。
-- 应用数据库账户只授予 `myFinance` 数据库所需权限，不要使用 `root`。
-- 定期备份服务器数据库；MySQL 同步不能替代备份。
+建议为应用创建独立凭据，并仅授予目标对象所需的 `GetObject` 和 `PutObject` 权限。S3 同步用于多端合并，不替代定期导出 `.duxiu` 账本备份。
 
 ## 项目结构
 
@@ -226,7 +229,8 @@ myFinance/
 桌面端主要组件：
 
 - `DuxiuLedger.WinUI/MainWindow.xaml`：原生 WinUI 3 主界面和页面导航。
-- `LocalStore.cs`：SQLite 数据持久化和查询。
+- `LocalStore.cs`：本地账本持久化和查询。
+- `S3SyncService.cs`：S3 兼容对象下载、合并和上传。
 - `BillImporter.cs`：Excel、CSV 和账单格式识别。
 - `TransactionRecord.cs`：本地流水数据模型。
 
@@ -235,7 +239,7 @@ myFinance/
 编译桌面项目：
 
 ```powershell
-dotnet build .\desktop\DuxiuLedger.Desktop\DuxiuLedger.Desktop.csproj -c Release
+dotnet build .\desktop\DuxiuLedger.WinUI\DuxiuLedger.WinUI.csproj -c Release -p:Platform=x64
 ```
 
 重新发布：
@@ -249,13 +253,13 @@ dotnet build .\desktop\DuxiuLedger.Desktop\DuxiuLedger.Desktop.csproj -c Release
 1. Release 编译没有错误和警告。
 2. 应用可以正常启动。
 3. 受影响的导航、导入或备份功能完成基本验证。
-4. 没有提交数据库、日志、构建目录或个人账单文件。
+4. 没有提交账本文件、访问密钥、日志、构建目录或个人账单。
 
 ## 路线图
 
 - [x] 原生 WinUI 3 桌面应用框架
 - [x] Mica、NavigationView 与统一中文字体
-- [x] 本地 SQLite 持久化
+- [x] 本地账本持久化
 - [x] Excel、CSV、微信和支付宝账单基础导入
 - [x] 导入去重与数据备份
 - [x] 手动新增流水
@@ -265,11 +269,11 @@ dotnet build .\desktop\DuxiuLedger.Desktop\DuxiuLedger.Desktop.csproj -c Release
 - [x] 收入、支出、转账、退款和报销类型
 - [x] 本地账户管理和流水关联
 - [x] 可编辑详细分类
-- [ ] 自动分类规则
+- [x] 常见商户自动分类建议
 - [x] 消费去向、小额支出和商户排行洞察
 - [x] 月度预算设置和使用进度
 - [x] 储蓄目标与每月建议储蓄额
-- [x] MySQL 本地优先多端同步
+- [x] S3 兼容对象存储多端同步
 - [x] Windows 每日提醒与每周总结
 - [x] 近半年趋势和 CSV 月报导出
 - [x] 导入预览和错误行报告
@@ -313,7 +317,7 @@ dotnet build .\desktop\DuxiuLedger.Desktop\DuxiuLedger.Desktop.csproj -c Release
 
 ## 隐私与安全
 
-- 请勿提交真实账单、数据库文件或个人隐私数据。
+- 请勿提交真实账单、账本文件、S3 密钥或个人隐私数据。
 - 导入文件只在本机读取，当前桌面版不会主动上传账单。
 - 发布来源不明或未经签名的 EXE 可能触发 Windows SmartScreen；请优先自行构建或从可信 Release 下载。
 - 发现安全问题时，请避免在公开 Issue 中粘贴个人账单和敏感日志。
