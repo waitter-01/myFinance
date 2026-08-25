@@ -83,6 +83,30 @@ public sealed class LocalStore
         EnsureColumn(connection, "transactions", "account_id", "INTEGER");
         EnsureColumn(connection, "transactions", "to_account_id", "INTEGER");
         EnsureColumn(connection, "transactions", "subscription_months", "INTEGER NOT NULL DEFAULT 1");
+        EnsureColumn(connection, "transactions", "updated_at", "TEXT");
+        EnsureColumn(connection, "transactions", "sync_id", "TEXT");
+        EnsureColumn(connection, "accounts", "sync_id", "TEXT");
+        EnsureColumn(connection, "categories", "sync_id", "TEXT");
+        EnsureColumn(connection, "budgets", "sync_id", "TEXT");
+        EnsureColumn(connection, "savings_goals", "sync_id", "TEXT");
+        using var syncCommand = connection.CreateCommand();
+        syncCommand.CommandText = """
+            UPDATE transactions SET updated_at=COALESCE(updated_at,created_at,datetime('now'));
+            UPDATE transactions SET sync_id='transaction:' || fingerprint WHERE sync_id IS NULL OR sync_id='';
+            UPDATE accounts SET sync_id='account:' || lower(name) WHERE sync_id IS NULL OR sync_id='';
+            UPDATE categories SET sync_id='category:' || type || ':' || lower(name) WHERE sync_id IS NULL OR sync_id='';
+            UPDATE budgets SET sync_id='budget:' || month || ':' || lower(category) WHERE sync_id IS NULL OR sync_id='';
+            UPDATE savings_goals SET sync_id=lower(hex(randomblob(16))) WHERE sync_id IS NULL OR sync_id='';
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_transactions_sync_id ON transactions(sync_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_accounts_sync_id ON accounts(sync_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_categories_sync_id ON categories(sync_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_budgets_sync_id ON budgets(sync_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_savings_goals_sync_id ON savings_goals(sync_id);
+            CREATE TABLE IF NOT EXISTS sync_tombstones (
+              entity_type TEXT NOT NULL, sync_id TEXT NOT NULL, deleted_at TEXT NOT NULL,
+              PRIMARY KEY(entity_type,sync_id));
+            """;
+        syncCommand.ExecuteNonQuery();
     }
     private SqliteConnection Open() { var c = new SqliteConnection(_connectionString); c.Open(); return c; }
     private static void EnsureColumn(SqliteConnection connection, string table, string column, string definition)
@@ -117,7 +141,7 @@ public sealed class LocalStore
     public int Import(IEnumerable<TransactionRecord> rows)
     {
         using var c = Open(); using var tx = c.BeginTransaction(); var count = 0;
-        foreach (var row in rows) { using var cmd = c.CreateCommand(); cmd.Transaction = tx; cmd.CommandText = "INSERT OR IGNORE INTO transactions(occurred_on,direction,amount,category,merchant,note,source,fingerprint,account_id,to_account_id,subscription_months,created_at) VALUES($date,$direction,$amount,$category,$merchant,$note,$source,$fingerprint,$account,$toAccount,$months,$created)"; cmd.Parameters.AddWithValue("$date", row.OccurredOn.ToString("yyyy-MM-dd HH:mm:ss")); cmd.Parameters.AddWithValue("$direction", row.Direction); cmd.Parameters.AddWithValue("$amount", row.Amount); cmd.Parameters.AddWithValue("$category", row.Category); cmd.Parameters.AddWithValue("$merchant", row.Merchant); cmd.Parameters.AddWithValue("$note", row.Note); cmd.Parameters.AddWithValue("$source", row.Source); cmd.Parameters.AddWithValue("$fingerprint", row.Fingerprint); cmd.Parameters.AddWithValue("$account", (object?)row.AccountId ?? DBNull.Value); cmd.Parameters.AddWithValue("$toAccount", (object?)row.ToAccountId ?? DBNull.Value); cmd.Parameters.AddWithValue("$months", Math.Max(1, row.SubscriptionMonths)); cmd.Parameters.AddWithValue("$created", DateTime.Now.ToString("O")); count += cmd.ExecuteNonQuery(); }
+        foreach (var row in rows) { using var cmd = c.CreateCommand(); cmd.Transaction = tx; cmd.CommandText = "INSERT OR IGNORE INTO transactions(occurred_on,direction,amount,category,merchant,note,source,fingerprint,account_id,to_account_id,subscription_months,created_at,updated_at,sync_id) VALUES($date,$direction,$amount,$category,$merchant,$note,$source,$fingerprint,$account,$toAccount,$months,$created,$created,'transaction:' || $fingerprint)"; cmd.Parameters.AddWithValue("$date", row.OccurredOn.ToString("yyyy-MM-dd HH:mm:ss")); cmd.Parameters.AddWithValue("$direction", row.Direction); cmd.Parameters.AddWithValue("$amount", row.Amount); cmd.Parameters.AddWithValue("$category", row.Category); cmd.Parameters.AddWithValue("$merchant", row.Merchant); cmd.Parameters.AddWithValue("$note", row.Note); cmd.Parameters.AddWithValue("$source", row.Source); cmd.Parameters.AddWithValue("$fingerprint", row.Fingerprint); cmd.Parameters.AddWithValue("$account", (object?)row.AccountId ?? DBNull.Value); cmd.Parameters.AddWithValue("$toAccount", (object?)row.ToAccountId ?? DBNull.Value); cmd.Parameters.AddWithValue("$months", Math.Max(1, row.SubscriptionMonths)); cmd.Parameters.AddWithValue("$created", DateTime.Now.ToString("O")); count += cmd.ExecuteNonQuery(); }
         tx.Commit(); return count;
     }
 
@@ -136,7 +160,7 @@ public sealed class LocalStore
         cmd.CommandText = """
             UPDATE transactions SET occurred_on=$date, direction=$direction, amount=$amount,
               category=$category, merchant=$merchant, note=$note, source=$source,
-              account_id=$account, to_account_id=$toAccount, subscription_months=$months
+              account_id=$account, to_account_id=$toAccount, subscription_months=$months, updated_at=$updated
             WHERE id=$id
             """;
         cmd.Parameters.AddWithValue("$id", row.Id);
@@ -150,12 +174,15 @@ public sealed class LocalStore
         cmd.Parameters.AddWithValue("$account", (object?)row.AccountId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$toAccount", (object?)row.ToAccountId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$months", Math.Max(1, row.SubscriptionMonths));
+        cmd.Parameters.AddWithValue("$updated", DateTime.Now.ToString("O"));
         return cmd.ExecuteNonQuery() == 1;
     }
 
     public bool Delete(long id)
     {
-        using var c = Open(); using var cmd = c.CreateCommand();
+        using var c = Open();
+        RecordTombstone(c, "transaction", GetSyncId(c, "transactions", id));
+        using var cmd = c.CreateCommand();
         cmd.CommandText = "DELETE FROM transactions WHERE id=$id";
         cmd.Parameters.AddWithValue("$id", id);
         return cmd.ExecuteNonQuery() == 1;
@@ -189,7 +216,7 @@ public sealed class LocalStore
         using var c = Open(); using var cmd = c.CreateCommand();
         if (account.Id == 0)
         {
-            cmd.CommandText = "INSERT INTO accounts(name,type,opening_balance,is_active,created_at,updated_at) VALUES($name,$type,$balance,$active,$now,$now); SELECT last_insert_rowid();";
+            cmd.CommandText = "INSERT INTO accounts(name,type,opening_balance,is_active,created_at,updated_at,sync_id) VALUES($name,$type,$balance,$active,$now,$now,lower(hex(randomblob(16)))); SELECT last_insert_rowid();";
         }
         else
         {
@@ -211,6 +238,7 @@ public sealed class LocalStore
         used.CommandText = "SELECT COUNT(*) FROM transactions WHERE account_id=$id OR to_account_id=$id";
         used.Parameters.AddWithValue("$id", id);
         if (Convert.ToInt32(used.ExecuteScalar()) > 0) throw new InvalidOperationException("该账户已经关联流水，不能删除。可以将它编辑为停用状态。 ");
+        RecordTombstone(c, "account", GetSyncId(c, "accounts", id));
         using var cmd = c.CreateCommand(); cmd.CommandText = "DELETE FROM accounts WHERE id=$id"; cmd.Parameters.AddWithValue("$id", id);
         return cmd.ExecuteNonQuery() == 1;
     }
@@ -236,7 +264,7 @@ public sealed class LocalStore
         using var cmd = c.CreateCommand(); cmd.Transaction = tx;
         if (category.Id == 0)
         {
-            cmd.CommandText = "INSERT INTO categories(name,type,is_active,sort_order,created_at,updated_at) VALUES($name,$type,$active,$sort,$now,$now); SELECT last_insert_rowid();";
+            cmd.CommandText = "INSERT INTO categories(name,type,is_active,sort_order,created_at,updated_at,sync_id) VALUES($name,$type,$active,$sort,$now,$now,lower(hex(randomblob(16)))); SELECT last_insert_rowid();";
         }
         else
         {
@@ -267,6 +295,7 @@ public sealed class LocalStore
         if (categoryName is null) return false;
         using var used = c.CreateCommand(); used.CommandText = "SELECT COUNT(*) FROM transactions WHERE category=$name"; used.Parameters.AddWithValue("$name", categoryName);
         if (Convert.ToInt32(used.ExecuteScalar()) > 0) throw new InvalidOperationException("该分类已经关联流水，不能删除。可以将它编辑为停用状态。 ");
+        RecordTombstone(c, "category", GetSyncId(c, "categories", id));
         using var cmd = c.CreateCommand(); cmd.CommandText = "DELETE FROM categories WHERE id=$id"; cmd.Parameters.AddWithValue("$id", id);
         return cmd.ExecuteNonQuery() == 1;
     }
@@ -292,7 +321,7 @@ public sealed class LocalStore
         if (budget.Amount <= 0) throw new InvalidOperationException("预算金额必须大于 0。 ");
         using var c = Open(); using var cmd = c.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO budgets(month,category,amount,created_at,updated_at) VALUES($month,$category,$amount,$now,$now)
+            INSERT INTO budgets(month,category,amount,created_at,updated_at,sync_id) VALUES($month,$category,$amount,$now,$now,'budget:' || $month || ':' || lower($category))
             ON CONFLICT(month,category) DO UPDATE SET amount=$amount,updated_at=$now;
             SELECT id FROM budgets WHERE month=$month AND category=$category;
             """;
@@ -303,7 +332,7 @@ public sealed class LocalStore
 
     public bool DeleteBudget(long id)
     {
-        using var c = Open(); using var cmd = c.CreateCommand(); cmd.CommandText = "DELETE FROM budgets WHERE id=$id"; cmd.Parameters.AddWithValue("$id", id);
+        using var c = Open(); RecordTombstone(c, "budget", GetSyncId(c, "budgets", id)); using var cmd = c.CreateCommand(); cmd.CommandText = "DELETE FROM budgets WHERE id=$id"; cmd.Parameters.AddWithValue("$id", id);
         return cmd.ExecuteNonQuery() == 1;
     }
 
@@ -322,7 +351,7 @@ public sealed class LocalStore
         if (goal.TargetAmount <= 0 || goal.SavedAmount < 0) throw new InvalidOperationException("目标金额必须大于 0，已存金额不能为负数。 ");
         using var c = Open(); using var cmd = c.CreateCommand();
         cmd.CommandText = goal.Id == 0
-            ? "INSERT INTO savings_goals(name,target_amount,saved_amount,target_date,is_completed,created_at,updated_at) VALUES($name,$target,$saved,$date,$completed,$now,$now); SELECT last_insert_rowid();"
+            ? "INSERT INTO savings_goals(name,target_amount,saved_amount,target_date,is_completed,created_at,updated_at,sync_id) VALUES($name,$target,$saved,$date,$completed,$now,$now,lower(hex(randomblob(16)))); SELECT last_insert_rowid();"
             : "UPDATE savings_goals SET name=$name,target_amount=$target,saved_amount=$saved,target_date=$date,is_completed=$completed,updated_at=$now WHERE id=$id; SELECT $id;";
         if (goal.Id > 0) cmd.Parameters.AddWithValue("$id", goal.Id);
         cmd.Parameters.AddWithValue("$name", goal.Name.Trim()); cmd.Parameters.AddWithValue("$target", goal.TargetAmount); cmd.Parameters.AddWithValue("$saved", goal.SavedAmount);
@@ -333,7 +362,7 @@ public sealed class LocalStore
 
     public bool DeleteSavingsGoal(long id)
     {
-        using var c = Open(); using var cmd = c.CreateCommand(); cmd.CommandText = "DELETE FROM savings_goals WHERE id=$id"; cmd.Parameters.AddWithValue("$id", id);
+        using var c = Open(); RecordTombstone(c, "savings_goal", GetSyncId(c, "savings_goals", id)); using var cmd = c.CreateCommand(); cmd.CommandText = "DELETE FROM savings_goals WHERE id=$id"; cmd.Parameters.AddWithValue("$id", id);
         return cmd.ExecuteNonQuery() == 1;
     }
 
@@ -354,6 +383,13 @@ public sealed class LocalStore
         if (values.TryGetValue("weekly_summary_day", out var weeklyDay) && Enum.TryParse<DayOfWeek>(weeklyDay, out var day)) settings.WeeklySummaryDay = day;
         if (values.TryGetValue("weekly_summary_time", out var weeklyTime)) settings.WeeklySummaryTime = weeklyTime;
         if (values.TryGetValue("subscription_keywords", out var keywords)) settings.SubscriptionKeywords = keywords;
+        if (TryBool(values, "mysql_sync_enabled", out var mysqlEnabled)) settings.MySqlSyncEnabled = mysqlEnabled;
+        if (TryBool(values, "sync_on_startup", out var syncOnStartup)) settings.SyncOnStartup = syncOnStartup;
+        if (values.TryGetValue("mysql_host", out var mysqlHost)) settings.MySqlHost = mysqlHost;
+        if (values.TryGetValue("mysql_port", out var mysqlPort) && int.TryParse(mysqlPort, out var port)) settings.MySqlPort = port;
+        if (values.TryGetValue("mysql_database", out var mysqlDatabase)) settings.MySqlDatabase = mysqlDatabase;
+        if (values.TryGetValue("mysql_username", out var mysqlUsername)) settings.MySqlUsername = mysqlUsername;
+        if (values.TryGetValue("mysql_ssl_mode", out var sslMode)) settings.MySqlSslMode = sslMode;
         return settings;
     }
 
@@ -368,7 +404,14 @@ public sealed class LocalStore
             ["weekly_summary_enabled"] = settings.WeeklySummaryEnabled.ToString(),
             ["weekly_summary_day"] = settings.WeeklySummaryDay.ToString(),
             ["weekly_summary_time"] = settings.WeeklySummaryTime,
-            ["subscription_keywords"] = settings.SubscriptionKeywords
+            ["subscription_keywords"] = settings.SubscriptionKeywords,
+            ["mysql_sync_enabled"] = settings.MySqlSyncEnabled.ToString(),
+            ["sync_on_startup"] = settings.SyncOnStartup.ToString(),
+            ["mysql_host"] = settings.MySqlHost,
+            ["mysql_port"] = settings.MySqlPort.ToString(CultureInfo.InvariantCulture),
+            ["mysql_database"] = settings.MySqlDatabase,
+            ["mysql_username"] = settings.MySqlUsername,
+            ["mysql_ssl_mode"] = settings.MySqlSslMode
         };
         using var c = Open(); using var tx = c.BeginTransaction();
         foreach (var pair in values)
@@ -379,6 +422,33 @@ public sealed class LocalStore
             cmd.ExecuteNonQuery();
         }
         tx.Commit();
+    }
+
+    public string LoadMySqlPassword()
+    {
+        using var c = Open(); using var cmd = c.CreateCommand(); cmd.CommandText = "SELECT value FROM app_settings WHERE key='mysql_password'";
+        return CredentialProtector.Unprotect(cmd.ExecuteScalar()?.ToString() ?? "");
+    }
+
+    public void SaveMySqlPassword(string password)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = "INSERT INTO app_settings(key,value,updated_at) VALUES('mysql_password',$value,$updated) ON CONFLICT(key) DO UPDATE SET value=$value,updated_at=$updated";
+        cmd.Parameters.AddWithValue("$value", CredentialProtector.Protect(password)); cmd.Parameters.AddWithValue("$updated", DateTime.Now.ToString("O")); cmd.ExecuteNonQuery();
+    }
+
+    private static string? GetSyncId(SqliteConnection connection, string table, long id)
+    {
+        using var cmd = connection.CreateCommand(); cmd.CommandText = $"SELECT sync_id FROM {table} WHERE id=$id"; cmd.Parameters.AddWithValue("$id", id);
+        return cmd.ExecuteScalar()?.ToString();
+    }
+
+    private static void RecordTombstone(SqliteConnection connection, string entityType, string? syncId)
+    {
+        if (string.IsNullOrWhiteSpace(syncId)) return;
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "INSERT INTO sync_tombstones(entity_type,sync_id,deleted_at) VALUES($type,$id,$now) ON CONFLICT(entity_type,sync_id) DO UPDATE SET deleted_at=$now";
+        cmd.Parameters.AddWithValue("$type", entityType); cmd.Parameters.AddWithValue("$id", syncId); cmd.Parameters.AddWithValue("$now", DateTime.Now.ToString("O")); cmd.ExecuteNonQuery();
     }
 
     private static bool TryDecimal(IReadOnlyDictionary<string, string> values, string key, out decimal result)

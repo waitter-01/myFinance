@@ -13,6 +13,7 @@ public sealed partial class MainWindow : Window
 {
     private readonly LocalStore _store = new();
     private readonly BillImporter _importer = new();
+    private readonly MySqlSyncService _syncService;
     private readonly Dictionary<string, (string Title, string Subtitle)> _pages = new()
     {
         ["Dashboard"] = ("总览", "查看本月财务情况和最近流水"),
@@ -29,6 +30,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _syncService = new MySqlSyncService(_store);
         var version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.3.0";
         AppTitleBar.Subtitle = $"个人财务中心 · v{version}";
         ExtendsContentIntoTitleBar = true;
@@ -36,9 +38,11 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
         AppWindow.Resize(new SizeInt32(1320, 850));
         WeeklySummaryDayBox.ItemsSource = new[] { "星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日" };
+        MySqlSslModeBox.ItemsSource = new[] { "Preferred", "Required", "VerifyCA", "VerifyFull" };
         DataPathText.Text = _store.DatabasePath;
         LoadSettings();
         LoadDashboard();
+        TrySyncOnStartup();
     }
 
     private void LoadDashboard()
@@ -177,6 +181,14 @@ public sealed partial class MainWindow : Window
         WeeklySummaryDayBox.SelectedIndex = settings.WeeklySummaryDay == DayOfWeek.Sunday ? 6 : (int)settings.WeeklySummaryDay - 1;
         WeeklySummaryTimePicker.Time = TimeSpan.Parse(settings.WeeklySummaryTime);
         SubscriptionKeywordsBox.Text = settings.SubscriptionKeywords;
+        MySqlSyncEnabledCheck.IsChecked = settings.MySqlSyncEnabled;
+        SyncOnStartupCheck.IsChecked = settings.SyncOnStartup;
+        MySqlHostBox.Text = settings.MySqlHost;
+        MySqlPortBox.Value = settings.MySqlPort;
+        MySqlDatabaseBox.Text = settings.MySqlDatabase;
+        MySqlUsernameBox.Text = settings.MySqlUsername;
+        MySqlSslModeBox.SelectedItem = settings.MySqlSslMode;
+        MySqlPasswordBox.PlaceholderText = string.IsNullOrEmpty(_store.LoadMySqlPassword()) ? "请输入数据库密码" : "密码已由 Windows 当前用户加密保存";
     }
 
     private void NavigationSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
@@ -435,20 +447,82 @@ public sealed partial class MainWindow : Window
 
     private void SaveSettingsClick(object sender, RoutedEventArgs e)
     {
-        var dayIndex = Math.Max(0, WeeklySummaryDayBox.SelectedIndex);
-        _store.SaveSettings(new AppSettings
-        {
-            SmallExpenseThreshold = (decimal)Math.Max(0, SmallExpenseThresholdBox.Value),
-            MonthlyBudget = (decimal)Math.Max(0, MonthlyBudgetBox.Value),
-            DailyReminderEnabled = DailyReminderCheck.IsChecked == true,
-            DailyReminderTime = DailyReminderTimePicker.Time.ToString(@"hh\:mm"),
-            WeeklySummaryEnabled = WeeklySummaryCheck.IsChecked == true,
-            WeeklySummaryDay = dayIndex == 6 ? DayOfWeek.Sunday : (DayOfWeek)(dayIndex + 1),
-            WeeklySummaryTime = WeeklySummaryTimePicker.Time.ToString(@"hh\:mm"),
-            SubscriptionKeywords = SubscriptionKeywordsBox.Text.Trim()
-        });
+        _store.SaveSettings(CollectSettings());
         LoadDashboard();
         StatusText.Text = "偏好设置已保存";
+    }
+
+    private AppSettings CollectSettings()
+    {
+        var dayIndex = Math.Max(0, WeeklySummaryDayBox.SelectedIndex);
+        return new AppSettings
+        {
+            SmallExpenseThreshold = (decimal)Math.Max(0, SmallExpenseThresholdBox.Value), MonthlyBudget = (decimal)Math.Max(0, MonthlyBudgetBox.Value),
+            DailyReminderEnabled = DailyReminderCheck.IsChecked == true, DailyReminderTime = DailyReminderTimePicker.Time.ToString(@"hh\:mm"),
+            WeeklySummaryEnabled = WeeklySummaryCheck.IsChecked == true, WeeklySummaryDay = dayIndex == 6 ? DayOfWeek.Sunday : (DayOfWeek)(dayIndex + 1), WeeklySummaryTime = WeeklySummaryTimePicker.Time.ToString(@"hh\:mm"),
+            SubscriptionKeywords = SubscriptionKeywordsBox.Text.Trim(), MySqlSyncEnabled = MySqlSyncEnabledCheck.IsChecked == true, SyncOnStartup = SyncOnStartupCheck.IsChecked == true,
+            MySqlHost = MySqlHostBox.Text.Trim(), MySqlPort = (int)Math.Clamp(MySqlPortBox.Value, 1, 65535), MySqlDatabase = MySqlDatabaseBox.Text.Trim(),
+            MySqlUsername = MySqlUsernameBox.Text.Trim(), MySqlSslMode = MySqlSslModeBox.SelectedItem?.ToString() ?? "Preferred"
+        };
+    }
+
+    private void SaveCloudSettings()
+    {
+        _store.SaveSettings(CollectSettings());
+        if (!string.IsNullOrEmpty(MySqlPasswordBox.Password))
+        {
+            _store.SaveMySqlPassword(MySqlPasswordBox.Password);
+            MySqlPasswordBox.Password = "";
+            MySqlPasswordBox.PlaceholderText = "密码已由 Windows 当前用户加密保存";
+        }
+    }
+
+    private async void TestMySqlClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            SaveCloudSettings(); CloudSyncProgress.IsActive = true; CloudSyncInfo.IsOpen = false;
+            await _syncService.TestConnectionAsync(_store.LoadSettings(), _store.LoadMySqlPassword());
+            CloudSyncInfo.Severity = InfoBarSeverity.Success; CloudSyncInfo.Title = "连接成功"; CloudSyncInfo.Message = "MySQL 登录和数据库访问正常。"; CloudSyncInfo.IsOpen = true;
+        }
+        catch (Exception ex) { CloudSyncInfo.Severity = InfoBarSeverity.Error; CloudSyncInfo.Title = "连接失败"; CloudSyncInfo.Message = SafeDatabaseError(ex); CloudSyncInfo.IsOpen = true; }
+        finally { CloudSyncProgress.IsActive = false; }
+    }
+
+    private async void SyncNowClick(object sender, RoutedEventArgs e) => await RunCloudSyncAsync(showResult: true);
+
+    private async void TrySyncOnStartup()
+    {
+        var settings = _store.LoadSettings();
+        if (!settings.MySqlSyncEnabled || !settings.SyncOnStartup || string.IsNullOrEmpty(_store.LoadMySqlPassword())) return;
+        await RunCloudSyncAsync(showResult: false);
+    }
+
+    private async Task RunCloudSyncAsync(bool showResult)
+    {
+        try
+        {
+            SaveCloudSettings();
+            var settings = _store.LoadSettings();
+            if (!settings.MySqlSyncEnabled) throw new InvalidOperationException("请先启用 MySQL 同步。 ");
+            CloudSyncProgress.IsActive = true; CloudSyncInfo.IsOpen = false;
+            var result = await _syncService.SyncAsync(settings, _store.LoadMySqlPassword());
+            LoadDashboard();
+            CloudSyncInfo.Severity = InfoBarSeverity.Success; CloudSyncInfo.Title = "同步完成"; CloudSyncInfo.Message = result.Display; CloudSyncInfo.IsOpen = true;
+            StatusText.Text = $"云同步完成：{result.Display}";
+        }
+        catch (Exception ex)
+        {
+            CloudSyncInfo.Severity = InfoBarSeverity.Error; CloudSyncInfo.Title = "同步失败，本地数据未受影响"; CloudSyncInfo.Message = SafeDatabaseError(ex); CloudSyncInfo.IsOpen = true;
+            if (showResult) StatusText.Text = "MySQL 同步失败，请查看连接设置";
+        }
+        finally { CloudSyncProgress.IsActive = false; }
+    }
+
+    private static string SafeDatabaseError(Exception exception)
+    {
+        var message = exception.Message.Replace("Password", "凭据", StringComparison.OrdinalIgnoreCase);
+        return message.Length > 300 ? message[..300] : message;
     }
 
     private async void BackupClick(object sender, RoutedEventArgs e)
