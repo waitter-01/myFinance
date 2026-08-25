@@ -7,6 +7,7 @@ using Windows.Globalization;
 using Windows.Graphics.Imaging;
 using Windows.Media.Ocr;
 using Windows.Storage;
+using Windows.Storage.Streams;
 
 namespace DuxiuLedger.WinUI;
 
@@ -16,11 +17,16 @@ public sealed class ScreenshotBillImporter
 
     public async Task<ImportPreviewResult> PreviewAsync(string path)
     {
-        var engine = CreateEngine();
         var file = await StorageFile.GetFileFromPathAsync(path);
-        await using var stream = await file.OpenStreamForReadAsync();
-        var randomAccessStream = stream.AsRandomAccessStream();
-        var decoder = await BitmapDecoder.CreateAsync(randomAccessStream);
+        using var stream = await file.OpenReadAsync();
+        return await PreviewAsync(stream, Path.GetFileName(path));
+    }
+
+    public async Task<ImportPreviewResult> PreviewAsync(IRandomAccessStream stream, string source)
+    {
+        var engine = CreateEngine();
+        stream.Seek(0);
+        var decoder = await BitmapDecoder.CreateAsync(stream);
         var width = (int)decoder.PixelWidth;
         var height = (int)decoder.PixelHeight;
         if (width <= 0 || height <= 0) throw new InvalidDataException("图片尺寸无效。");
@@ -57,7 +63,7 @@ public sealed class ScreenshotBillImporter
             if (top + actualHeight >= height) break;
         }
 
-        return ScreenshotBillParser.Parse(tokens, width, height, Path.GetFileName(path), DateTime.Now);
+        return ScreenshotBillParser.Parse(tokens, width, height, source, DateTime.Now);
     }
 
     private static OcrEngine CreateEngine()

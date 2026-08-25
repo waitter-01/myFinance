@@ -4,13 +4,18 @@ using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Windows.Graphics;
+using Windows.ApplicationModel.DataTransfer;
+using Windows.Storage;
+using Windows.Storage.Streams;
 using System.Reflection;
 
 namespace DuxiuLedger.WinUI;
 
 public sealed partial class MainWindow : Window
 {
+    private static readonly HashSet<string> ScreenshotExtensions = new(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff" };
     private readonly LocalStore _store = new();
     private readonly BillImporter _importer = new();
     private readonly ScreenshotBillImporter _screenshotImporter = new();
@@ -304,10 +309,80 @@ public sealed partial class MainWindow : Window
         picker.FileTypeFilter.Add(".jpg");
         picker.FileTypeFilter.Add(".jpeg");
         picker.FileTypeFilter.Add(".bmp");
+        picker.FileTypeFilter.Add(".tif");
+        picker.FileTypeFilter.Add(".tiff");
         WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
         var files = await picker.PickMultipleFilesAsync();
         if (files.Count == 0) return;
 
+        await ImportScreenshotFilesAsync(files.OfType<StorageFile>().ToList());
+    }
+
+    private void ScreenshotDragOver(object sender, DragEventArgs e)
+    {
+        if (!e.DataView.Contains(StandardDataFormats.StorageItems) && !e.DataView.Contains(StandardDataFormats.Bitmap)) return;
+        e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
+        e.DragUIOverride.Caption = "松开后识别账单截图";
+        e.DragUIOverride.IsCaptionVisible = true;
+        e.DragUIOverride.IsContentVisible = true;
+    }
+
+    private async void ScreenshotDrop(object sender, DragEventArgs e)
+    {
+        try
+        {
+            if (e.DataView.Contains(StandardDataFormats.StorageItems))
+            {
+                var items = await e.DataView.GetStorageItemsAsync();
+                var files = items.OfType<StorageFile>().Where(IsSupportedScreenshot).ToList();
+                if (files.Count > 0) { await ImportScreenshotFilesAsync(files); return; }
+            }
+            if (e.DataView.Contains(StandardDataFormats.Bitmap))
+            {
+                var bitmap = await e.DataView.GetBitmapAsync();
+                using var stream = await bitmap.OpenReadAsync();
+                await ImportScreenshotStreamAsync(stream, "拖拽图片.png");
+                return;
+            }
+            StatusText.Text = "拖入的内容不是支持的图片，请使用 PNG、JPG、BMP 或 TIFF";
+        }
+        catch (Exception ex) { await ShowMessage("拖拽图片失败", ex.Message); }
+    }
+
+    private async void PasteScreenshotClick(object sender, RoutedEventArgs e) => await PasteScreenshotAsync();
+
+    private async void PasteScreenshotAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled = true;
+        await PasteScreenshotAsync();
+    }
+
+    private async Task PasteScreenshotAsync()
+    {
+        try
+        {
+            var content = Clipboard.GetContent();
+            if (content.Contains(StandardDataFormats.Bitmap))
+            {
+                var bitmap = await content.GetBitmapAsync();
+                using var stream = await bitmap.OpenReadAsync();
+                await ImportScreenshotStreamAsync(stream, $"剪贴板-{DateTime.Now:yyyyMMdd-HHmmss}.png");
+                return;
+            }
+            if (content.Contains(StandardDataFormats.StorageItems))
+            {
+                var items = await content.GetStorageItemsAsync();
+                var files = items.OfType<StorageFile>().Where(IsSupportedScreenshot).ToList();
+                if (files.Count > 0) { await ImportScreenshotFilesAsync(files); return; }
+            }
+            await ShowMessage("剪贴板中没有图片", "请先复制微信或支付宝账单截图，然后点击“粘贴截图”或按 Ctrl+V。");
+        }
+        catch (Exception ex) { await ShowMessage("读取剪贴板失败", ex.Message); }
+    }
+
+    private async Task ImportScreenshotFilesAsync(IReadOnlyList<StorageFile> files)
+    {
+        if (files.Count == 0) return;
         StatusText.Text = $"正在本地识别 {files.Count} 张账单截图…";
         var previews = new List<ImportPreviewResult>();
         foreach (var file in files)
@@ -322,7 +397,27 @@ public sealed partial class MainWindow : Window
                 });
             }
         }
+        await ShowScreenshotPreviewsAsync(previews);
+    }
 
+    private async Task ImportScreenshotStreamAsync(IRandomAccessStream stream, string source)
+    {
+        StatusText.Text = "正在本地识别粘贴的账单截图…";
+        var previews = new List<ImportPreviewResult>();
+        try { previews.Add(await _screenshotImporter.PreviewAsync(stream, source)); }
+        catch (Exception ex)
+        {
+            previews.Add(new ImportPreviewResult
+            {
+                Source = source,
+                Issues = [new ImportIssue { Source = source, RowNumber = 0, Reason = "截图识别失败", RawValue = ex.Message }]
+            });
+        }
+        await ShowScreenshotPreviewsAsync(previews);
+    }
+
+    private async Task ShowScreenshotPreviewsAsync(IReadOnlyList<ImportPreviewResult> previews)
+    {
         var previewDialog = new ImportPreviewDialog(previews, _store.ListAccounts(), _store.ListCategories(), _store.ExistingFingerprints()) { XamlRoot = ContentHost.XamlRoot };
         if (await previewDialog.ShowAsync() != ContentDialogResult.Primary)
         {
@@ -334,6 +429,8 @@ public sealed partial class MainWindow : Window
         SelectNavigation("Transactions");
         StatusText.Text = $"截图导入完成：新增 {imported} 条，重复 {previewDialog.DuplicateCount} 条，问题记录 {previewDialog.IssueCount} 条";
     }
+
+    private static bool IsSupportedScreenshot(StorageFile file) => ScreenshotExtensions.Contains(Path.GetExtension(file.Name));
 
     private async void AddClick(object sender, RoutedEventArgs e)
     {

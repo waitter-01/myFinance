@@ -12,7 +12,7 @@
     <MicaBackdrop Kind="BaseAlt" />
   </Window.SystemBackdrop>
 
-  <Grid>
+  <Grid AllowDrop="True" DragOver="ScreenshotDragOver" Drop="ScreenshotDrop">
     <Grid.RowDefinitions>
       <RowDefinition Height="48" />
       <RowDefinition Height="*" />
@@ -42,7 +42,7 @@
         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
         <Grid>
           <StackPanel><TextBlock x:Name="PageTitle" Text="总览" Style="{StaticResource PageTitleStyle}" /><TextBlock x:Name="PageSubtitle" Text="查看本月财务情况和最近流水" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,4,0,0" /></StackPanel>
-          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="8"><Button Content="导入表格" Click="ImportClick" /><Button Content="识别账单截图" Click="ScreenshotImportClick" /><Button Content="新增记录" Style="{StaticResource AccentButtonStyle}" Click="AddClick" /></StackPanel>
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="8"><Button Content="导入表格" Click="ImportClick" /><Button Content="识别账单截图" Click="ScreenshotImportClick" /><Button Content="粘贴截图" ToolTipService.ToolTip="从剪贴板粘贴图片，快捷键 Ctrl+V" Click="PasteScreenshotClick"><Button.KeyboardAccelerators><KeyboardAccelerator Key="V" Modifiers="Control" Invoked="PasteScreenshotAcceleratorInvoked" /></Button.KeyboardAccelerators></Button><Button Content="新增记录" Style="{StaticResource AccentButtonStyle}" Click="AddClick" /></StackPanel>
         </Grid>
 
         <Grid x:Name="ContentHost" Grid.Row="1" Margin="0,22,0,0">
