@@ -221,14 +221,11 @@
             <Grid>
               <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
               <Grid ColumnSpacing="8">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="138" /><ColumnDefinition Width="118" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="138" /><ColumnDefinition Width="118" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <AutoSuggestBox x:Name="TransactionsSearchBox" PlaceholderText="搜索商户、备注、分类、账户或来源" QueryIcon="Find" TextChanged="TransactionsSearchTextChanged" QuerySubmitted="TransactionsSearchSubmitted" />
                 <ComboBox x:Name="TransactionDatePresetBox" Grid.Column="1" SelectedIndex="0" SelectionChanged="TransactionDatePresetChanged"><ComboBoxItem Content="全部时间" /><ComboBoxItem Content="本月" /><ComboBoxItem Content="上月" /><ComboBoxItem Content="最近 7 天" /><ComboBoxItem Content="最近 30 天" /><ComboBoxItem Content="本年度" /><ComboBoxItem Content="自定义日期" /></ComboBox>
                 <ComboBox x:Name="TransactionGroupBox" Grid.Column="2" SelectedIndex="1" SelectionChanged="TransactionGroupChanged" ToolTipService.ToolTip="选择流水列表的分隔方式"><ComboBoxItem Content="不分组" /><ComboBoxItem Content="按天分组" /><ComboBoxItem Content="按周分组" /><ComboBoxItem Content="按月分组" /></ComboBox>
-                <Button x:Name="DirectionFilterButton" Grid.Column="3" Content="收支类型" Click="OpenTransactionFiltersClick" />
-                <Button x:Name="CategoryFilterButton" Grid.Column="4" Content="分类" Click="OpenTransactionFiltersClick" />
-                <Button x:Name="AccountFilterButton" Grid.Column="5" Content="账户" Click="OpenTransactionFiltersClick" />
-                <Button x:Name="MoreTransactionFiltersButton" Grid.Column="6" Content="更多筛选" Click="OpenTransactionFiltersClick" />
+                <Button x:Name="AdvancedTransactionFiltersButton" Grid.Column="3" Content="高级筛选" MinWidth="104" Click="OpenTransactionFiltersClick" />
               </Grid>
               <Grid Grid.Row="1" Margin="0,10,0,8" ColumnSpacing="10">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -254,11 +251,29 @@
               <Border Grid.Row="3" Style="{StaticResource CardStyle}" Padding="0">
                 <Grid>
                   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                  <Grid Padding="12,8" ColumnSpacing="10" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                  <Grid Padding="12,7" ColumnSpacing="10" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                    <Grid.Resources>
+                      <Style x:Key="TransactionHeaderSortButtonStyle" TargetType="Button">
+                        <Setter Property="MinHeight" Value="32" />
+                        <Setter Property="HorizontalAlignment" Value="Stretch" />
+                        <Setter Property="HorizontalContentAlignment" Value="Left" />
+                        <Setter Property="Padding" Value="6,0" />
+                        <Setter Property="CornerRadius" Value="6" />
+                        <Setter Property="Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                        <Setter Property="BorderBrush" Value="{ThemeResource ControlStrokeColorDefaultBrush}" />
+                      </Style>
+                    </Grid.Resources>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="4" /><ColumnDefinition Width="130" /><ColumnDefinition Width="74" /><ColumnDefinition Width="104" /><ColumnDefinition Width="116" /><ColumnDefinition Width="116" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="52" /></Grid.ColumnDefinitions>
-                    <Button Grid.Column="1" Content="时间 ↕" Padding="4,2" HorizontalAlignment="Left" Click="SortTransactionsByDateClick" /><TextBlock Grid.Column="2" Text="类型" FontWeight="SemiBold" VerticalAlignment="Center" /><Button Grid.Column="3" Content="金额 ↕" Padding="4,2" HorizontalAlignment="Left" Click="SortTransactionsByAmountClick" /><TextBlock Grid.Column="4" Text="分类" FontWeight="SemiBold" VerticalAlignment="Center" /><TextBlock Grid.Column="5" Text="账户" FontWeight="SemiBold" VerticalAlignment="Center" /><Button Grid.Column="6" Content="商户 ↕" Padding="4,2" HorizontalAlignment="Left" Click="SortTransactionsByMerchantClick" /><TextBlock Grid.Column="7" Text="备注" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Style="{StaticResource TransactionHeaderSortButtonStyle}" Click="SortTransactionsByDateClick"><StackPanel Orientation="Horizontal" Spacing="6"><TextBlock Text="时间" FontWeight="SemiBold" /><FontIcon Glyph="&#xE8CB;" FontSize="11" Opacity="0.65" /></StackPanel></Button>
+                    <TextBlock Grid.Column="2" Text="类型" FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0" />
+                    <Button Grid.Column="3" Style="{StaticResource TransactionHeaderSortButtonStyle}" Click="SortTransactionsByAmountClick"><StackPanel Orientation="Horizontal" Spacing="6"><TextBlock Text="金额" FontWeight="SemiBold" /><FontIcon Glyph="&#xE8CB;" FontSize="11" Opacity="0.65" /></StackPanel></Button>
+                    <TextBlock Grid.Column="4" Text="分类" FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0" />
+                    <TextBlock Grid.Column="5" Text="账户" FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0" />
+                    <Button Grid.Column="6" Style="{StaticResource TransactionHeaderSortButtonStyle}" Click="SortTransactionsByMerchantClick"><StackPanel Orientation="Horizontal" Spacing="6"><TextBlock Text="商户" FontWeight="SemiBold" /><FontIcon Glyph="&#xE8CB;" FontSize="11" Opacity="0.65" /></StackPanel></Button>
+                    <TextBlock Grid.Column="7" Text="备注" FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0" />
                   </Grid>
                   <ListView x:Name="TransactionsList" Grid.Row="1" SelectionMode="None" IsMultiSelectCheckBoxEnabled="True" IsItemClickEnabled="True" ItemClick="TransactionItemClick" SelectionChanged="TransactionsSelectionChanged" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /></Style></ListView.ItemContainerStyle>
                     <ListView.ItemsPanel><ItemsPanelTemplate><ItemsStackPanel AreStickyGroupHeadersEnabled="False" /></ItemsPanelTemplate></ListView.ItemsPanel>
                     <ListView.GroupStyle>
                       <GroupStyle>
@@ -283,13 +298,13 @@
                           <Grid ColumnSpacing="10">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="4" /><ColumnDefinition Width="130" /><ColumnDefinition Width="74" /><ColumnDefinition Width="104" /><ColumnDefinition Width="116" /><ColumnDefinition Width="116" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="52" /></Grid.ColumnDefinitions>
                             <Border Width="3" CornerRadius="2" Background="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionForeground}" />
-                            <TextBlock Grid.Column="1" Text="{x:Bind DateDisplay}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                            <Border Grid.Column="2" Padding="8,3" CornerRadius="10" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionBackground}"><TextBlock Text="{x:Bind Direction}" FontWeight="SemiBold" Foreground="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionForeground}" /></Border>
-                            <TextBlock Grid.Column="3" Text="{x:Bind SignedAmountDisplay}" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionForeground}" />
-                            <Border Grid.Column="4" Padding="8,3" CornerRadius="10" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding Category, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=CategoryBackground}" BorderBrush="{Binding Category, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=CategoryBorder}" BorderThickness="1"><TextBlock Text="{x:Bind Category}" FontSize="12" TextTrimming="CharacterEllipsis" /></Border>
-                            <TextBlock Grid.Column="5" Text="{x:Bind AccountDisplay}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Grid.Column="6" Text="{x:Bind Merchant}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Merchant}" />
-                            <TextBlock Grid.Column="7" Text="{x:Bind Note}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Note}" />
+                            <TextBlock Grid.Column="1" Text="{x:Bind DateDisplay}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="6,0" />
+                            <Border Grid.Column="2" Padding="8,3" Margin="6,0" CornerRadius="10" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionBackground}"><TextBlock Text="{x:Bind Direction}" FontWeight="SemiBold" Foreground="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionForeground}" /></Border>
+                            <TextBlock Grid.Column="3" Text="{x:Bind SignedAmountDisplay}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0" Foreground="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionForeground}" />
+                            <Border Grid.Column="4" Padding="8,3" Margin="6,0" CornerRadius="10" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding Category, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=CategoryBackground}" BorderBrush="{Binding Category, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=CategoryBorder}" BorderThickness="1"><TextBlock Text="{x:Bind Category}" FontSize="12" TextTrimming="CharacterEllipsis" /></Border>
+                            <TextBlock Grid.Column="5" Text="{x:Bind AccountDisplay}" VerticalAlignment="Center" Margin="6,0" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="6" Text="{x:Bind Merchant}" VerticalAlignment="Center" Margin="6,0" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Merchant}" />
+                            <TextBlock Grid.Column="7" Text="{x:Bind Note}" VerticalAlignment="Center" Margin="6,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Note}" />
                             <Button Grid.Column="8" Content="&#xE712;" FontFamily="Segoe Fluent Icons" Tag="{x:Bind}" ToolTipService.ToolTip="更多操作"><Button.Flyout><MenuFlyout><MenuFlyoutItem Text="编辑流水" Tag="{x:Bind}" Click="EditTransactionMenuClick" /><MenuFlyoutItem Text="删除流水" Tag="{x:Bind}" Click="DeleteTransactionMenuClick" /></MenuFlyout></Button.Flyout></Button>
                           </Grid>
                         </Border>

@@ -779,12 +779,10 @@ public sealed partial class MainWindow : Window
         if (_transactionQuery.UnassignedAccountOnly) chips.Add(new() { Key = "unassigned", Label = "只看未指定账户  ×" });
         TransactionFilterChipsControl.ItemsSource = chips;
         ClearAllTransactionFiltersButton.Visibility = chips.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
-        DirectionFilterButton.Content = _transactionQuery.Directions.Count == 0 ? "收支类型" : $"收支类型 · {_transactionQuery.Directions.Count}";
-        CategoryFilterButton.Content = _transactionQuery.Categories.Count == 0 ? "分类" : $"分类 · {_transactionQuery.Categories.Count}";
-        AccountFilterButton.Content = _transactionQuery.AccountIds.Count == 0 ? "账户" : $"账户 · {_transactionQuery.AccountIds.Count}";
-        var moreCount = _transactionQuery.Sources.Count + (_transactionQuery.MinimumAmount is null ? 0 : 1) + (_transactionQuery.MaximumAmount is null ? 0 : 1)
+        var advancedCount = _transactionQuery.Directions.Count + _transactionQuery.Categories.Count + _transactionQuery.AccountIds.Count + _transactionQuery.Sources.Count
+            + (_transactionQuery.MinimumAmount is null ? 0 : 1) + (_transactionQuery.MaximumAmount is null ? 0 : 1)
             + (_transactionQuery.UncategorizedOnly ? 1 : 0) + (_transactionQuery.SubscriptionOnly ? 1 : 0) + (_transactionQuery.UnassignedAccountOnly ? 1 : 0);
-        MoreTransactionFiltersButton.Content = moreCount == 0 ? "更多筛选" : $"更多筛选 · {moreCount}";
+        AdvancedTransactionFiltersButton.Content = advancedCount == 0 ? "高级筛选" : $"高级筛选 · {advancedCount}";
         var savedCount = _store.LoadSavedTransactionFilters().Count;
         SavedFiltersButton.Content = savedCount == 0 ? "常用筛选" : $"常用筛选 · {savedCount}";
     }
