@@ -2,6 +2,23 @@
 
 本项目采用[语义化版本](https://semver.org/lang/zh-CN/)管理版本，版本号格式为 `主版本.次版本.修订版本`。
 
+## [0.5.0] - 2026-08-25
+
+### 新增
+
+- 增加微信、支付宝账单列表长截图批量导入入口，支持 PNG、JPG、JPEG 和 BMP。
+- 使用 Windows 本地中文 OCR，账单截图和识别文字均不会上传到第三方服务器。
+- 超长截图自动分段识别并对重叠区域去重，无需用户预先裁图。
+- 分别解析支付宝和微信列表布局，识别交易时间、商户、金额、支出、转账和退款。
+- 截图导入沿用交易指纹去重，可一次选择多张图片。
+- 导入预览增加金额、方向、分类、商户和时间修正，以及“跳过此条”操作。
+
+### 注意事项
+
+- OCR 结果受截图清晰度、界面版本和系统中文 OCR 组件影响，保存前必须核对预览。
+- 截图边缘未完整显示日期的交易会标记为“交易时间需要手动核对”。
+- 商户名称在原页面已被省略号截断时，应用无法恢复被隐藏的完整文字。
+
 ## [0.4.1] - 2026-08-25
 
 ### 修复
@@ -119,4 +136,5 @@
 [0.3.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.3.0
 [0.4.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.4.0
 [0.4.1]: https://github.com/waitter-01/myFinance/releases/tag/v0.4.1
+[0.5.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.5.0
 [0.1.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.1.0
