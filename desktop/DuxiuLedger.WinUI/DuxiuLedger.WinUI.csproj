@@ -14,6 +14,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>DuxiuLedger</AssemblyName>
+    <Version>0.1.0</Version>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.0</FileVersion>
+    <InformationalVersion>0.1.0</InformationalVersion>
+    <Product>独秀账本</Product>
+    <Authors>waitter-01</Authors>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="ClosedXML" Version="0.105.0" />
@@ -26,7 +32,7 @@
     <Compile Include="..\DuxiuLedger.Desktop\Services\*.cs" Link="Services\%(Filename)%(Extension)" />
     <Content Include="..\DuxiuLedger.Desktop\Assets\duxiu-logo.png" Link="Assets\duxiu-logo.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
-  <Target Name="CopyWinUiMarkupToPublishDirectory" AfterTargets="Publish">
+  <Target Name="CopyWinUiMarkupToPublishDirectory" AfterTargets="Publish" Condition="'$(PublishSingleFile)' != 'true'">
     <ItemGroup>
       <WinUiMarkup Include="$(TargetDir)*.xbf" />
       <WinUiMarkup Include="$(TargetDir)$(AssemblyName).pri" />
