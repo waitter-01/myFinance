@@ -75,7 +75,8 @@ public sealed class ScreenshotBillImporter
         var result = new List<ScreenshotOcrToken>(tokens.Count);
         foreach (var token in tokens)
         {
-            if (token.X < imageWidth * 0.62 || !TryExtractAmount(token.Text, ExplicitSign(token.Text), out var original))
+            if (token.X < imageWidth * 0.62 || !IsStandaloneAmountToken(token.Text)
+                || !TryExtractAmount(token.Text, ExplicitSign(token.Text), out var original))
             {
                 result.Add(token);
                 continue;
@@ -93,7 +94,13 @@ public sealed class ScreenshotBillImporter
                 .ThenByDescending(group => string.Equals(group.Key, original, StringComparison.Ordinal))
                 .First();
             var enhanced = winner.Count() >= 2 ? winner.Key : original;
-            result.Add(token with { Text = enhanced });
+            result.Add(token with
+            {
+                Text = enhanced,
+                RecognitionNote = string.Equals(enhanced, original, StringComparison.Ordinal)
+                    ? token.RecognitionNote
+                    : $"金额经裁剪放大和多轮识别从 {original} 校正为 {enhanced}"
+            });
         }
         return result;
     }
@@ -168,6 +175,13 @@ public sealed class ScreenshotBillImporter
         return true;
     }
 
+    private static bool IsStandaloneAmountToken(string value)
+    {
+        var compact = value.Replace(" ", "");
+        var match = AmountCandidateRegex.Match(compact);
+        return match.Success && match.Index == 0 && match.Length == compact.Length;
+    }
+
     private static OcrEngine CreateEngine()
     {
         var preferredLanguages = new[] { "zh-Hans-CN", "zh-CN" };
@@ -188,7 +202,7 @@ public sealed class ScreenshotBillImporter
     }
 }
 
-internal sealed record ScreenshotOcrToken(string Text, double X, double Y, double Width, double Height)
+internal sealed record ScreenshotOcrToken(string Text, double X, double Y, double Width, double Height, string? RecognitionNote = null)
 {
     public double CenterY => Y + Height / 2;
     public double Right => X + Width;
@@ -226,10 +240,23 @@ internal static partial class ScreenshotBillParser
         for (var index = 0; index < anchors.Count; index++)
         {
             var anchor = anchors[index];
-            var top = index == 0 ? contentTop : (anchors[index - 1].CenterY + anchor.CenterY) / 2;
-            var bottom = index == anchors.Count - 1 ? imageHeight : (anchor.CenterY + anchors[index + 1].CenterY) / 2;
-            var rowLines = lines.Where(line => line.CenterY >= top && line.CenterY < bottom).ToList();
+            var rowLines = GetRowLines(lines, anchors, index, contentTop, imageHeight);
             if (!TryReadAmount(anchor.Text, out var amount, out var sign)) continue;
+            string? amountCorrection = anchor.RecognitionNote;
+            var amountCorrectionReason = amountCorrection is null ? null : "金额经裁剪二次识别校正，请核对";
+            if (platform == "中信银行" && index + 1 < anchors.Count
+                && TryReadBalance(rowLines, out var currentBalance)
+                && TryReadBalance(GetRowLines(lines, anchors, index + 1, contentTop, imageHeight), out var olderBalance))
+            {
+                var inferredAmount = decimal.Abs(currentBalance - olderBalance);
+                var signMatches = sign == '-' ? currentBalance < olderBalance : sign == '+' && currentBalance > olderBalance;
+                if (signMatches && LooksLikeDigitConfusion(amount, inferredAmount))
+                {
+                    amountCorrection = $"金额已由相邻余额差额从 ¥{amount:N2} 校正为 ¥{inferredAmount:N2}";
+                    amountCorrectionReason = "金额已通过相邻余额自动校正，请核对";
+                    amount = inferredAmount;
+                }
+            }
 
             var merchant = isBank ? FindBankMerchant(rowLines, anchor, imageWidth) : FindMerchant(rowLines, anchor, imageWidth);
             var dateText = rowLines.Select(line => line.Text).FirstOrDefault(IsDateText) ?? "";
@@ -246,7 +273,7 @@ internal static partial class ScreenshotBillParser
             var rowText = string.Join(' ', rowLines.Select(line => line.Text));
             var direction = MapDirection(platform, rowText, merchant, sign);
             var category = merchantRecognized ? FindCategory(rowLines, merchant, dateText) : "未分类";
-            var note = $"{platform}账单截图识别";
+            var note = $"{platform}账单截图识别" + (amountCorrection is null ? "" : $" · {amountCorrection}");
             var record = new TransactionRecord
             {
                 OccurredOn = occurredOn,
@@ -256,7 +283,7 @@ internal static partial class ScreenshotBillParser
                 Merchant = merchant,
                 Note = note,
                 Source = $"{platform}截图 · {source}",
-                RequiresReview = !merchantRecognized || !dateRecognized || chronologyMismatch
+                RequiresReview = !merchantRecognized || !dateRecognized || chronologyMismatch || amountCorrection is not null
             };
             record.Category = TransactionCategorizer.Suggest(isBank
                 ? new TransactionRecord { Direction = direction, Merchant = $"{merchant} {rowText}", Note = note }
@@ -300,6 +327,17 @@ internal static partial class ScreenshotBillParser
             else if (dateRecognized)
             {
                 lastTrustedOccurredOn = occurredOn;
+            }
+            if (amountCorrection is not null)
+            {
+                issues.Add(new ImportIssue
+                {
+                    Source = source,
+                    RowNumber = index + 1,
+                    Reason = amountCorrectionReason!,
+                    RawValue = amountCorrection,
+                    Record = record
+                });
             }
         }
 
@@ -356,6 +394,35 @@ internal static partial class ScreenshotBillParser
             .ToList();
         var merchant = candidates.FirstOrDefault() ?? "";
         return AmountInLineRegex().Replace(merchant, "").Trim(' ', '·', '|', '-');
+    }
+
+    private static List<OcrVisualLine> GetRowLines(IReadOnlyList<OcrVisualLine> lines, IReadOnlyList<ScreenshotOcrToken> anchors,
+        int index, double contentTop, int imageHeight)
+    {
+        var anchor = anchors[index];
+        var top = index == 0 ? contentTop : (anchors[index - 1].CenterY + anchor.CenterY) / 2;
+        var bottom = index == anchors.Count - 1 ? imageHeight : (anchor.CenterY + anchors[index + 1].CenterY) / 2;
+        return lines.Where(line => line.CenterY >= top && line.CenterY < bottom).ToList();
+    }
+
+    private static bool TryReadBalance(IReadOnlyList<OcrVisualLine> lines, out decimal balance)
+    {
+        balance = 0;
+        var match = lines.Select(line => BalanceRegex().Match(NormalizeAmount(line.Text).Replace(" ", ""))).FirstOrDefault(item => item.Success);
+        return match is not null && decimal.TryParse(match.Groups[1].Value.Replace(",", ""), NumberStyles.Number,
+            CultureInfo.InvariantCulture, out balance);
+    }
+
+    private static bool LooksLikeDigitConfusion(decimal ocrAmount, decimal inferredAmount)
+    {
+        if (ocrAmount == inferredAmount || inferredAmount <= 0) return false;
+        var left = ocrAmount.ToString("0.00", CultureInfo.InvariantCulture);
+        var right = inferredAmount.ToString("0.00", CultureInfo.InvariantCulture);
+        if (left.Length != right.Length) return false;
+        var differences = left.Zip(right).Where(pair => pair.First != pair.Second).ToList();
+        if (differences.Count != 1) return false;
+        var pair = $"{differences[0].First}{differences[0].Second}";
+        return pair is "35" or "53" or "68" or "86" or "38" or "83" or "58" or "85" or "01" or "10" or "17" or "71";
     }
 
     private static string FindCategory(IReadOnlyList<OcrVisualLine> lines, string merchant, string dateText)
@@ -552,4 +619,6 @@ internal static partial class ScreenshotBillParser
     private static partial Regex DayOnlyRegex();
     [GeneratedRegex(@"[0-2]?\d:[0-5]\d:[0-5]\d")]
     private static partial Regex TimeWithSecondsRegex();
+    [GeneratedRegex(@"余额[¥￥]?([0-9][0-9,]*\.[0-9]{2})")]
+    private static partial Regex BalanceRegex();
 }

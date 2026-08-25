@@ -96,4 +96,38 @@ public sealed class ScreenshotBillParserTests
         Assert.Equal("收入", result.Records[1].Direction);
         Assert.Equal("工资收入", result.Records[1].Category);
     }
+
+    [Fact]
+    public void Parse_CorrectsCiticThreeMisreadAsFiveUsingAdjacentBalances()
+    {
+        var tokens = new List<ScreenshotOcrToken>
+        {
+            new("交易明细", 280, 120, 180, 40), new("借记卡4054", 290, 260, 180, 36), new("本月", 60, 390, 80, 34),
+            new("支付宝-Sapphire Enter", 65, 520, 390, 42), new("2026-08-24 13:31:34", 65, 575, 330, 34), new("-¥5.75", 760, 520, 170, 42), new("余额961.93", 760, 575, 160, 34),
+            new("支付宝-东莞市海莫智选", 65, 690, 390, 42), new("2026-08-24 11:03:33", 65, 745, 330, 34), new("-¥159.00", 760, 690, 170, 42), new("余额965.68", 760, 745, 160, 34)
+        };
+
+        var result = ScreenshotBillParser.Parse(tokens, 1000, 1000, "中信纠错.png", new DateTime(2026, 8, 25));
+
+        Assert.Equal(3.75m, result.Records[0].Amount);
+        Assert.True(result.Records[0].RequiresReview);
+        Assert.Contains("从 ¥5.75 校正为 ¥3.75", result.Records[0].Note);
+        Assert.Contains(result.Issues, issue => issue.Record == result.Records[0] && issue.Reason.Contains("余额自动校正"));
+    }
+
+    [Fact]
+    public void Parse_DoesNotReplaceAmountWhenBalanceDifferenceIsNotTypicalDigitConfusion()
+    {
+        var tokens = new List<ScreenshotOcrToken>
+        {
+            new("交易明细", 280, 120, 180, 40), new("借记卡4054", 290, 260, 180, 36), new("本月", 60, 390, 80, 34),
+            new("商户一", 65, 520, 220, 42), new("2026-08-24 13:31:34", 65, 575, 330, 34), new("-¥20.00", 760, 520, 170, 42), new("余额900.00", 760, 575, 160, 34),
+            new("商户二", 65, 690, 220, 42), new("2026-08-24 11:03:33", 65, 745, 330, 34), new("-¥100.00", 760, 690, 170, 42), new("余额950.00", 760, 745, 160, 34)
+        };
+
+        var result = ScreenshotBillParser.Parse(tokens, 1000, 1000, "中信保守校验.png", new DateTime(2026, 8, 25));
+
+        Assert.Equal(20m, result.Records[0].Amount);
+        Assert.DoesNotContain("余额差额", result.Records[0].Note);
+    }
 }
