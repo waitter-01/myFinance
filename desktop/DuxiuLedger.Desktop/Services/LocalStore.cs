@@ -9,11 +9,13 @@ public sealed class LocalStore
 {
     private readonly string _connectionString;
     public string DatabasePath { get; }
-    public LocalStore()
+    public LocalStore(string? databasePath = null)
     {
-        var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DuxiuLedger");
+        var folder = databasePath is null
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DuxiuLedger")
+            : Path.GetDirectoryName(Path.GetFullPath(databasePath))!;
         Directory.CreateDirectory(folder);
-        DatabasePath = Path.Combine(folder, "ledger.db");
+        DatabasePath = databasePath is null ? Path.Combine(folder, "ledger.db") : Path.GetFullPath(databasePath);
         _connectionString = $"Data Source={DatabasePath}";
         using var connection = Open();
         using var command = connection.CreateCommand();
@@ -43,6 +45,33 @@ public sealed class LocalStore
         using var c = Open(); using var tx = c.BeginTransaction(); var count = 0;
         foreach (var row in rows) { using var cmd = c.CreateCommand(); cmd.Transaction = tx; cmd.CommandText = "INSERT OR IGNORE INTO transactions(occurred_on,direction,amount,category,merchant,note,source,fingerprint,created_at) VALUES($date,$direction,$amount,$category,$merchant,$note,$source,$fingerprint,$created)"; cmd.Parameters.AddWithValue("$date", row.OccurredOn.ToString("yyyy-MM-dd HH:mm:ss")); cmd.Parameters.AddWithValue("$direction", row.Direction); cmd.Parameters.AddWithValue("$amount", row.Amount); cmd.Parameters.AddWithValue("$category", row.Category); cmd.Parameters.AddWithValue("$merchant", row.Merchant); cmd.Parameters.AddWithValue("$note", row.Note); cmd.Parameters.AddWithValue("$source", row.Source); cmd.Parameters.AddWithValue("$fingerprint", row.Fingerprint); cmd.Parameters.AddWithValue("$created", DateTime.Now.ToString("O")); count += cmd.ExecuteNonQuery(); }
         tx.Commit(); return count;
+    }
+
+    public bool Update(TransactionRecord row)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = """
+            UPDATE transactions SET occurred_on=$date, direction=$direction, amount=$amount,
+              category=$category, merchant=$merchant, note=$note, source=$source
+            WHERE id=$id
+            """;
+        cmd.Parameters.AddWithValue("$id", row.Id);
+        cmd.Parameters.AddWithValue("$date", row.OccurredOn.ToString("yyyy-MM-dd HH:mm:ss"));
+        cmd.Parameters.AddWithValue("$direction", row.Direction);
+        cmd.Parameters.AddWithValue("$amount", row.Amount);
+        cmd.Parameters.AddWithValue("$category", row.Category);
+        cmd.Parameters.AddWithValue("$merchant", row.Merchant);
+        cmd.Parameters.AddWithValue("$note", row.Note);
+        cmd.Parameters.AddWithValue("$source", row.Source);
+        return cmd.ExecuteNonQuery() == 1;
+    }
+
+    public bool Delete(long id)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = "DELETE FROM transactions WHERE id=$id";
+        cmd.Parameters.AddWithValue("$id", id);
+        return cmd.ExecuteNonQuery() == 1;
     }
 
     public AppSettings LoadSettings()

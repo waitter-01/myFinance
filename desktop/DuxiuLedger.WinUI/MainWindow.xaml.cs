@@ -138,6 +138,44 @@ public sealed partial class MainWindow : Window
         StatusText.Text = "手动流水已保存到本地数据库";
     }
 
+    private async void EditTransactionClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: TransactionRecord record }) return;
+        var dialog = new ManualEntryDialog(record) { XamlRoot = ContentHost.XamlRoot };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary || dialog.Result is null) return;
+        if (!_store.Update(dialog.Result))
+        {
+            await ShowMessage("保存失败", "没有找到要编辑的流水，它可能已经被删除。 ");
+            return;
+        }
+        LoadDashboard();
+        SelectNavigation("Transactions");
+        StatusText.Text = "流水修改已保存";
+    }
+
+    private async void DeleteTransactionClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: TransactionRecord record }) return;
+        var confirm = new ContentDialog
+        {
+            XamlRoot = ContentHost.XamlRoot,
+            Title = "删除这条流水？",
+            Content = $"{record.DateDisplay} · {record.Merchant}\n{record.Direction} {record.AmountDisplay}\n\n删除后只能通过数据库备份恢复。",
+            PrimaryButtonText = "删除",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Close
+        };
+        if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;
+        if (!_store.Delete(record.Id))
+        {
+            await ShowMessage("删除失败", "没有找到这条流水，它可能已经被删除。 ");
+            return;
+        }
+        LoadDashboard();
+        SelectNavigation("Transactions");
+        StatusText.Text = "流水已删除";
+    }
+
     private void SelectNavigation(string key)
     {
         var item = NavView.MenuItems.OfType<NavigationViewItem>().FirstOrDefault(menuItem => menuItem.Tag?.ToString() == key);
