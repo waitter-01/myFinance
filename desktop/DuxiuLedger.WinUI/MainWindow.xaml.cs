@@ -447,9 +447,21 @@ public sealed partial class MainWindow : Window
 
     private void SaveSettingsClick(object sender, RoutedEventArgs e)
     {
-        _store.SaveSettings(CollectSettings());
-        LoadDashboard();
-        StatusText.Text = "偏好设置已保存";
+        try
+        {
+            var settings = CollectSettings();
+            _store.SaveSettings(settings);
+            ReminderScheduler.Update(settings);
+            LoadDashboard();
+            StatusText.Text = "偏好设置和 Windows 提醒计划已保存";
+        }
+        catch (Exception ex) { _ = ShowMessage("设置保存失败", ex.Message); }
+    }
+
+    private async void TestNotificationClick(object sender, RoutedEventArgs e)
+    {
+        try { new NotificationService().Show("独秀账本提醒测试", "通知功能工作正常。每天记一笔，钱的去向会越来越清楚。 "); StatusText.Text = "测试通知已发送"; }
+        catch (Exception ex) { await ShowMessage("通知发送失败", ex.Message); }
     }
 
     private AppSettings CollectSettings()
