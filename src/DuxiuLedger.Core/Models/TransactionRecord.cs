@@ -16,6 +16,7 @@ public sealed class TransactionRecord
     public string AccountName { get; set; } = "";
     public string ToAccountName { get; set; } = "";
     public int SubscriptionMonths { get; set; } = 1;
+    public bool RequiresReview { get; set; }
     public string DateDisplay => OccurredOn.ToString("yyyy-MM-dd HH:mm");
     public string AmountDisplay => $"¥{Amount:N2}";
     public string SignedAmountDisplay => Direction switch
@@ -28,4 +29,5 @@ public sealed class TransactionRecord
         ? $"{AccountName} → {ToAccountName}"
         : AccountName;
     public string SubscriptionMonthsDisplay => $"{Math.Max(1, SubscriptionMonths)} 个月";
+    public string PreviewSourceDisplay => RequiresReview ? $"⚠ 待核对 · {Source}" : Source;
 }

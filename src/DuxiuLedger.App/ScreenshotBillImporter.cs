@@ -129,31 +129,15 @@ internal static partial class ScreenshotBillParser
             var merchant = FindMerchant(rowLines, anchor, imageWidth);
             var dateText = rowLines.Select(line => line.Text).FirstOrDefault(IsDateText) ?? "";
             var dateRecognized = TryReadDate(dateText, headerYear, headerMonth, now, out var occurredOn);
-            if (string.IsNullOrWhiteSpace(merchant))
-            {
-                issues.Add(new ImportIssue
-                {
-                    Source = source,
-                    RowNumber = index + 1,
-                    Reason = "无法识别交易对方",
-                    RawValue = string.Join(" | ", rowLines.Select(line => line.Text))
-                });
-                continue;
-            }
+            var merchantRecognized = !string.IsNullOrWhiteSpace(merchant);
+            if (!merchantRecognized) merchant = "⚠ 待核对交易对方";
             if (!dateRecognized)
             {
                 occurredOn = new DateTime(headerYear, headerMonth, 1);
-                issues.Add(new ImportIssue
-                {
-                    Source = source,
-                    RowNumber = index + 1,
-                    Reason = "交易时间需要手动核对",
-                    RawValue = string.IsNullOrWhiteSpace(dateText) ? string.Join(" | ", rowLines.Select(line => line.Text)) : dateText
-                });
             }
 
             var direction = MapDirection(merchant, sign);
-            var category = FindCategory(rowLines, merchant, dateText);
+            var category = merchantRecognized ? FindCategory(rowLines, merchant, dateText) : "未分类";
             var note = $"{platform}账单截图识别";
             var record = new TransactionRecord
             {
@@ -163,10 +147,34 @@ internal static partial class ScreenshotBillParser
                 Category = category,
                 Merchant = merchant,
                 Note = note,
-                Source = $"{platform}截图 · {source}"
+                Source = $"{platform}截图 · {source}",
+                RequiresReview = !merchantRecognized || !dateRecognized
             };
             record.Fingerprint = TransactionFingerprint.Create(record);
             records.Add(record);
+            var rawValue = string.Join(" | ", rowLines.Select(line => line.Text));
+            if (!merchantRecognized)
+            {
+                issues.Add(new ImportIssue
+                {
+                    Source = source,
+                    RowNumber = index + 1,
+                    Reason = "交易对方需要手动核对",
+                    RawValue = rawValue,
+                    Record = record
+                });
+            }
+            if (!dateRecognized)
+            {
+                issues.Add(new ImportIssue
+                {
+                    Source = source,
+                    RowNumber = index + 1,
+                    Reason = "交易时间需要手动核对",
+                    RawValue = string.IsNullOrWhiteSpace(dateText) ? rawValue : dateText,
+                    Record = record
+                });
+            }
         }
 
         if (records.Count == 0 && issues.Count == 0)

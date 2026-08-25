@@ -14,5 +14,8 @@ public sealed class ImportIssue
     public int RowNumber { get; set; }
     public string Reason { get; set; } = "";
     public string RawValue { get; set; } = "";
+    public TransactionRecord? Record { get; set; }
     public string RowDisplay => $"第 {RowNumber} 行";
+    public bool CanReview => Record is not null;
+    public string ReviewActionText => CanReview ? "定位并修改" : "仅查看详情";
 }
