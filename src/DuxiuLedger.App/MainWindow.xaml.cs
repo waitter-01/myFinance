@@ -4,6 +4,7 @@ using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Input;
 using Windows.Graphics;
 using Windows.ApplicationModel.DataTransfer;
@@ -23,6 +24,13 @@ public sealed partial class MainWindow : Window
     private readonly FinancialAnalysisService _analysisService = new();
     private AnalysisPeriodKind _analysisPeriod = AnalysisPeriodKind.Month;
     private DateTime _analysisAnchor = DateTime.Today;
+    private TransactionQuery _transactionQuery = new();
+    private readonly CollectionViewSource _transactionGroupsSource = new() { IsSourceGrouped = true };
+    private readonly List<TransactionFilterOption> _transactionCategoryOptions = [];
+    private readonly List<TransactionFilterOption> _transactionAccountOptions = [];
+    private readonly List<TransactionFilterOption> _transactionSourceOptions = [];
+    private CancellationTokenSource? _transactionSearchDebounce;
+    private bool _transactionFiltersReady;
     private bool _isInitialized;
     private readonly Dictionary<string, (string Title, string Subtitle)> _pages = new()
     {
@@ -52,6 +60,7 @@ public sealed partial class MainWindow : Window
         WeeklySummaryDayBox.ItemsSource = new[] { "星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日" };
         DataPathText.Text = _store.DatabasePath;
         LoadSettings();
+        InitializeTransactionFilters();
         _isInitialized = true;
         LoadDashboard();
         TrySyncOnStartup();
@@ -69,7 +78,7 @@ public sealed partial class MainWindow : Window
         ExpenseText.Text = $"¥{expense:N2}";
         BalanceText.Text = $"¥{income - expense:N2}";
         RecentList.ItemsSource = allRecords.Take(10).ToList();
-        TransactionsList.ItemsSource = allRecords;
+        if (_transactionFiltersReady) ApplyTransactionQuery();
         RecordCountText.Text = $"共 {allRecords.Count} 条记录 · 本月 {records.Count} 条";
         LoadSubscriptions(allRecords);
         LoadInsights(allRecords);
@@ -460,6 +469,22 @@ public sealed partial class MainWindow : Window
     private async void EditTransactionClick(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: TransactionRecord record }) return;
+        await EditTransactionAsync(record);
+    }
+
+    private async void EditTransactionMenuClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: TransactionRecord record }) return;
+        await EditTransactionAsync(record);
+    }
+
+    private async void TransactionItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is TransactionRecord record) await EditTransactionAsync(record);
+    }
+
+    private async Task EditTransactionAsync(TransactionRecord record)
+    {
         var dialog = new ManualEntryDialog(record, _store.ListAccounts(), _store.ListCategories()) { XamlRoot = ContentHost.XamlRoot };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary || dialog.Result is null) return;
         if (!_store.Update(dialog.Result))
@@ -475,6 +500,17 @@ public sealed partial class MainWindow : Window
     private async void DeleteTransactionClick(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: TransactionRecord record }) return;
+        await DeleteTransactionAsync(record);
+    }
+
+    private async void DeleteTransactionMenuClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: TransactionRecord record }) return;
+        await DeleteTransactionAsync(record);
+    }
+
+    private async Task DeleteTransactionAsync(TransactionRecord record)
+    {
         var confirm = new ContentDialog
         {
             XamlRoot = ContentHost.XamlRoot,
@@ -597,12 +633,267 @@ public sealed partial class MainWindow : Window
         await dialog.ShowAsync();
     }
 
-    private void SearchClick(object sender, RoutedEventArgs e)
+    private void InitializeTransactionFilters()
     {
-        var search = SearchBox.Text.Trim();
-        var rows = _store.List(search);
-        TransactionsList.ItemsSource = rows;
-        StatusText.Text = $"搜索到 {rows.Count} 条记录";
+        TransactionSortBox.SelectedIndex = 0;
+        RefreshTransactionFilterOptions();
+        _transactionFiltersReady = true;
+    }
+
+    private void RefreshTransactionFilterOptions()
+    {
+        SyncTransactionOptions(_transactionCategoryOptions, _store.ListCategories().Where(item => item.IsActive).Select(item => (item.Name, item.Name)));
+        SyncTransactionOptions(_transactionAccountOptions, _store.ListAccounts().Where(item => item.IsActive).Select(item => (item.Id.ToString(), item.Name)));
+        SyncTransactionOptions(_transactionSourceOptions, _store.ListTransactionSources().Select(item => (item, item)));
+        FilterTransactionOptionLists();
+    }
+
+    private static void SyncTransactionOptions(List<TransactionFilterOption> target, IEnumerable<(string Key, string Display)> values)
+    {
+        var selected = target.Where(item => item.IsSelected).Select(item => item.Key).ToHashSet(StringComparer.Ordinal);
+        target.Clear();
+        target.AddRange(values.DistinctBy(item => item.Key).Select(item => new TransactionFilterOption { Key = item.Key, Display = item.Display, IsSelected = selected.Contains(item.Key) }));
+    }
+
+    private void FilterTransactionOptionLists()
+    {
+        var categorySearch = TransactionCategorySearchBox.Text.Trim();
+        var accountSearch = TransactionAccountSearchBox.Text.Trim();
+        TransactionCategoryFilterList.ItemsSource = _transactionCategoryOptions.Where(item => item.Display.Contains(categorySearch, StringComparison.OrdinalIgnoreCase)).ToList();
+        TransactionAccountFilterList.ItemsSource = _transactionAccountOptions.Where(item => item.Display.Contains(accountSearch, StringComparison.OrdinalIgnoreCase)).ToList();
+        TransactionSourceFilterList.ItemsSource = _transactionSourceOptions;
+    }
+
+    private void ApplyTransactionQuery()
+    {
+        RefreshTransactionFilterOptions();
+        var result = _store.QueryTransactions(_transactionQuery);
+        IReadOnlyList<TransactionDateGroup> groups = _transactionQuery.SortBy is TransactionSortOption.DateAscending or TransactionSortOption.DateDescending
+            ? result.Rows.GroupBy(row => row.OccurredOn.Date).Select(group => new TransactionDateGroup(group.Key, group)).ToList()
+            : [new TransactionDateGroup(TransactionSortLabel(_transactionQuery.SortBy), result.Rows)];
+        _transactionGroupsSource.Source = groups;
+        TransactionsList.ItemsSource = _transactionGroupsSource.View;
+        TransactionsList.Visibility = result.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        TransactionsEmptyState.Visibility = result.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        FilteredTransactionCountText.Text = $"找到 {result.Count} 笔";
+        FilteredExpenseText.Text = $"净支出 ¥{result.NetExpense:N2}";
+        FilteredIncomeText.Text = $"收入 ¥{result.Income:N2}";
+        FilteredRefundText.Text = result.Refunds > 0 ? $"退款/报销 ¥{result.Refunds:N2}" : "无退款/报销";
+        FilteredBalanceText.Text = result.Balance >= 0 ? $"筛选结余 ¥{result.Balance:N2}" : $"筛选净流出 ¥{Math.Abs(result.Balance):N2}";
+        UpdateTransactionFilterPresentation();
+        StatusText.Text = $"当前筛选显示 {result.Count} 条流水 · 净支出 ¥{result.NetExpense:N2}";
+    }
+
+    private static string TransactionSortLabel(TransactionSortOption sort) => sort switch
+    {
+        TransactionSortOption.AmountDescending => "按金额从高到低",
+        TransactionSortOption.AmountAscending => "按金额从低到高",
+        TransactionSortOption.MerchantAscending => "按商户名称排序",
+        _ => "筛选结果"
+    };
+
+    private void UpdateTransactionFilterPresentation()
+    {
+        var chips = new List<TransactionFilterChip>();
+        if (!string.IsNullOrWhiteSpace(_transactionQuery.SearchText)) chips.Add(new() { Key = "search", Label = $"关键词：{_transactionQuery.SearchText}  ×" });
+        if (_transactionQuery.StartDate is not null || _transactionQuery.EndDate is not null)
+        {
+            var start = _transactionQuery.StartDate?.ToString("yyyy-MM-dd") ?? "最早";
+            var end = _transactionQuery.EndDate?.ToString("yyyy-MM-dd") ?? "今天";
+            chips.Add(new() { Key = "date", Label = $"{start} 至 {end}  ×" });
+        }
+        if (_transactionQuery.Directions.Count > 0) chips.Add(new() { Key = "direction", Label = $"类型：{string.Join('、', _transactionQuery.Directions)}  ×" });
+        if (_transactionQuery.Categories.Count > 0) chips.Add(new() { Key = "category", Label = $"分类：{JoinFilterValues(_transactionQuery.Categories)}  ×" });
+        if (_transactionQuery.AccountIds.Count > 0)
+        {
+            var names = _transactionAccountOptions.Where(item => _transactionQuery.AccountIds.Contains(long.Parse(item.Key))).Select(item => item.Display);
+            chips.Add(new() { Key = "account", Label = $"账户：{JoinFilterValues(names)}  ×" });
+        }
+        if (_transactionQuery.MinimumAmount is not null || _transactionQuery.MaximumAmount is not null) chips.Add(new() { Key = "amount", Label = $"金额：{_transactionQuery.MinimumAmount?.ToString("N2") ?? "0"}～{_transactionQuery.MaximumAmount?.ToString("N2") ?? "不限"}  ×" });
+        if (_transactionQuery.Sources.Count > 0) chips.Add(new() { Key = "source", Label = $"来源：{JoinFilterValues(_transactionQuery.Sources)}  ×" });
+        if (_transactionQuery.UncategorizedOnly) chips.Add(new() { Key = "uncategorized", Label = "只看未分类  ×" });
+        if (_transactionQuery.SubscriptionOnly) chips.Add(new() { Key = "subscription", Label = "只看订阅消费  ×" });
+        if (_transactionQuery.UnassignedAccountOnly) chips.Add(new() { Key = "unassigned", Label = "只看未指定账户  ×" });
+        TransactionFilterChipsControl.ItemsSource = chips;
+        ClearAllTransactionFiltersButton.Visibility = chips.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        DirectionFilterButton.Content = _transactionQuery.Directions.Count == 0 ? "收支类型" : $"收支类型 · {_transactionQuery.Directions.Count}";
+        CategoryFilterButton.Content = _transactionQuery.Categories.Count == 0 ? "分类" : $"分类 · {_transactionQuery.Categories.Count}";
+        AccountFilterButton.Content = _transactionQuery.AccountIds.Count == 0 ? "账户" : $"账户 · {_transactionQuery.AccountIds.Count}";
+        var moreCount = _transactionQuery.Sources.Count + (_transactionQuery.MinimumAmount is null ? 0 : 1) + (_transactionQuery.MaximumAmount is null ? 0 : 1)
+            + (_transactionQuery.UncategorizedOnly ? 1 : 0) + (_transactionQuery.SubscriptionOnly ? 1 : 0) + (_transactionQuery.UnassignedAccountOnly ? 1 : 0);
+        MoreTransactionFiltersButton.Content = moreCount == 0 ? "更多筛选" : $"更多筛选 · {moreCount}";
+    }
+
+    private static string JoinFilterValues(IEnumerable<string> values)
+    {
+        var list = values.ToList();
+        return list.Count <= 3 ? string.Join('、', list) : $"{string.Join('、', list.Take(2))} 等 {list.Count} 项";
+    }
+
+    private async void TransactionsSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        if (!_transactionFiltersReady || args.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
+        _transactionSearchDebounce?.Cancel();
+        var debounce = _transactionSearchDebounce = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(300, debounce.Token);
+            _transactionQuery.SearchText = sender.Text.Trim();
+            ApplyTransactionQuery();
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private void TransactionsSearchSubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    {
+        if (!_transactionFiltersReady) return;
+        _transactionSearchDebounce?.Cancel();
+        _transactionQuery.SearchText = args.QueryText.Trim();
+        ApplyTransactionQuery();
+    }
+
+    private void TransactionDatePresetChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_transactionFiltersReady) return;
+        var today = DateTime.Today;
+        (_transactionQuery.StartDate, _transactionQuery.EndDate) = TransactionDatePresetBox.SelectedIndex switch
+        {
+            1 => (new DateTime(today.Year, today.Month, 1), new DateTime(today.Year, today.Month, 1).AddMonths(1).AddDays(-1)),
+            2 => (new DateTime(today.Year, today.Month, 1).AddMonths(-1), new DateTime(today.Year, today.Month, 1).AddDays(-1)),
+            3 => (today.AddDays(-6), today),
+            4 => (today.AddDays(-29), today),
+            5 => (new DateTime(today.Year, 1, 1), new DateTime(today.Year, 12, 31)),
+            6 => (_transactionQuery.StartDate, _transactionQuery.EndDate),
+            _ => (null, null)
+        };
+        if (TransactionDatePresetBox.SelectedIndex == 6)
+        {
+            TransactionFilterSplitOpen();
+            return;
+        }
+        TransactionStartDatePicker.Date = _transactionQuery.StartDate;
+        TransactionEndDatePicker.Date = _transactionQuery.EndDate;
+        ApplyTransactionQuery();
+    }
+
+    private void OpenTransactionFiltersClick(object sender, RoutedEventArgs e) => TransactionFilterSplitOpen();
+    private void TransactionFilterSplitOpen() => TransactionsPage.IsPaneOpen = true;
+    private void CloseTransactionFiltersClick(object sender, RoutedEventArgs e) => TransactionsPage.IsPaneOpen = false;
+
+    private void TransactionCategorySearchChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_transactionFiltersReady) FilterTransactionOptionLists();
+    }
+
+    private void TransactionAccountSearchChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_transactionFiltersReady) FilterTransactionOptionLists();
+    }
+
+    private void ApplyTransactionFiltersClick(object sender, RoutedEventArgs e)
+    {
+        _transactionQuery.StartDate = TransactionStartDatePicker.Date?.DateTime.Date;
+        _transactionQuery.EndDate = TransactionEndDatePicker.Date?.DateTime.Date;
+        if (_transactionQuery.StartDate > _transactionQuery.EndDate) (_transactionQuery.StartDate, _transactionQuery.EndDate) = (_transactionQuery.EndDate, _transactionQuery.StartDate);
+        _transactionQuery.Directions = SelectedDirections();
+        _transactionQuery.Categories = _transactionCategoryOptions.Where(item => item.IsSelected).Select(item => item.Key).ToList();
+        _transactionQuery.AccountIds = _transactionAccountOptions.Where(item => item.IsSelected).Select(item => long.Parse(item.Key)).ToList();
+        _transactionQuery.Sources = _transactionSourceOptions.Where(item => item.IsSelected).Select(item => item.Key).ToList();
+        _transactionQuery.MinimumAmount = double.IsNaN(TransactionMinimumAmountBox.Value) ? null : (decimal)Math.Max(0, TransactionMinimumAmountBox.Value);
+        _transactionQuery.MaximumAmount = double.IsNaN(TransactionMaximumAmountBox.Value) ? null : (decimal)Math.Max(0, TransactionMaximumAmountBox.Value);
+        if (_transactionQuery.MinimumAmount > _transactionQuery.MaximumAmount) (_transactionQuery.MinimumAmount, _transactionQuery.MaximumAmount) = (_transactionQuery.MaximumAmount, _transactionQuery.MinimumAmount);
+        _transactionQuery.UncategorizedOnly = TransactionUncategorizedCheck.IsChecked == true;
+        _transactionQuery.SubscriptionOnly = TransactionSubscriptionCheck.IsChecked == true;
+        _transactionQuery.UnassignedAccountOnly = TransactionUnassignedAccountCheck.IsChecked == true;
+        _transactionQuery.SortBy = (TransactionSortOption)Math.Max(0, TransactionSortBox.SelectedIndex);
+        if (_transactionQuery.StartDate is not null || _transactionQuery.EndDate is not null)
+        {
+            _transactionFiltersReady = false;
+            TransactionDatePresetBox.SelectedIndex = 6;
+            _transactionFiltersReady = true;
+        }
+        TransactionStartDatePicker.Date = _transactionQuery.StartDate;
+        TransactionEndDatePicker.Date = _transactionQuery.EndDate;
+        TransactionMinimumAmountBox.Value = _transactionQuery.MinimumAmount is null ? double.NaN : (double)_transactionQuery.MinimumAmount.Value;
+        TransactionMaximumAmountBox.Value = _transactionQuery.MaximumAmount is null ? double.NaN : (double)_transactionQuery.MaximumAmount.Value;
+        TransactionsPage.IsPaneOpen = false;
+        ApplyTransactionQuery();
+    }
+
+    private IReadOnlyList<string> SelectedDirections()
+    {
+        var values = new List<string>();
+        if (FilterExpenseCheck.IsChecked == true) values.Add("支出");
+        if (FilterIncomeCheck.IsChecked == true) values.Add("收入");
+        if (FilterTransferCheck.IsChecked == true) values.Add("转账");
+        if (FilterRefundCheck.IsChecked == true) values.Add("退款");
+        if (FilterReimbursementCheck.IsChecked == true) values.Add("报销");
+        return values;
+    }
+
+    private void ResetTransactionFiltersClick(object sender, RoutedEventArgs e) => ResetTransactionFilters();
+
+    private void ResetTransactionFilters()
+    {
+        _transactionFiltersReady = false;
+        _transactionSearchDebounce?.Cancel();
+        _transactionQuery = new TransactionQuery();
+        TransactionsSearchBox.Text = "";
+        TransactionDatePresetBox.SelectedIndex = 0;
+        TransactionStartDatePicker.Date = null;
+        TransactionEndDatePicker.Date = null;
+        FilterExpenseCheck.IsChecked = FilterIncomeCheck.IsChecked = FilterTransferCheck.IsChecked = FilterRefundCheck.IsChecked = FilterReimbursementCheck.IsChecked = false;
+        foreach (var option in _transactionCategoryOptions.Concat(_transactionAccountOptions).Concat(_transactionSourceOptions)) option.IsSelected = false;
+        TransactionMinimumAmountBox.Value = double.NaN;
+        TransactionMaximumAmountBox.Value = double.NaN;
+        TransactionUncategorizedCheck.IsChecked = TransactionSubscriptionCheck.IsChecked = TransactionUnassignedAccountCheck.IsChecked = false;
+        TransactionSortBox.SelectedIndex = 0;
+        TransactionCategorySearchBox.Text = "";
+        TransactionAccountSearchBox.Text = "";
+        _transactionFiltersReady = true;
+        TransactionsPage.IsPaneOpen = false;
+        FilterTransactionOptionLists();
+        ApplyTransactionQuery();
+    }
+
+    private void RemoveTransactionFilterChipClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: TransactionFilterChip chip }) return;
+        switch (chip.Key)
+        {
+            case "search": _transactionQuery.SearchText = ""; TransactionsSearchBox.Text = ""; break;
+            case "date": _transactionQuery.StartDate = _transactionQuery.EndDate = null; TransactionStartDatePicker.Date = TransactionEndDatePicker.Date = null; TransactionDatePresetBox.SelectedIndex = 0; break;
+            case "direction": _transactionQuery.Directions = []; FilterExpenseCheck.IsChecked = FilterIncomeCheck.IsChecked = FilterTransferCheck.IsChecked = FilterRefundCheck.IsChecked = FilterReimbursementCheck.IsChecked = false; break;
+            case "category": _transactionQuery.Categories = []; foreach (var option in _transactionCategoryOptions) option.IsSelected = false; break;
+            case "account": _transactionQuery.AccountIds = []; foreach (var option in _transactionAccountOptions) option.IsSelected = false; break;
+            case "amount": _transactionQuery.MinimumAmount = _transactionQuery.MaximumAmount = null; TransactionMinimumAmountBox.Value = TransactionMaximumAmountBox.Value = double.NaN; break;
+            case "source": _transactionQuery.Sources = []; foreach (var option in _transactionSourceOptions) option.IsSelected = false; break;
+            case "uncategorized": _transactionQuery.UncategorizedOnly = false; TransactionUncategorizedCheck.IsChecked = false; break;
+            case "subscription": _transactionQuery.SubscriptionOnly = false; TransactionSubscriptionCheck.IsChecked = false; break;
+            case "unassigned": _transactionQuery.UnassignedAccountOnly = false; TransactionUnassignedAccountCheck.IsChecked = false; break;
+        }
+        ApplyTransactionQuery();
+    }
+
+    private void SortTransactionsByDateClick(object sender, RoutedEventArgs e)
+    {
+        _transactionQuery.SortBy = _transactionQuery.SortBy == TransactionSortOption.DateDescending ? TransactionSortOption.DateAscending : TransactionSortOption.DateDescending;
+        TransactionSortBox.SelectedIndex = (int)_transactionQuery.SortBy;
+        ApplyTransactionQuery();
+    }
+
+    private void SortTransactionsByAmountClick(object sender, RoutedEventArgs e)
+    {
+        _transactionQuery.SortBy = _transactionQuery.SortBy == TransactionSortOption.AmountDescending ? TransactionSortOption.AmountAscending : TransactionSortOption.AmountDescending;
+        TransactionSortBox.SelectedIndex = (int)_transactionQuery.SortBy;
+        ApplyTransactionQuery();
+    }
+
+    private void SortTransactionsByMerchantClick(object sender, RoutedEventArgs e)
+    {
+        _transactionQuery.SortBy = TransactionSortOption.MerchantAscending;
+        TransactionSortBox.SelectedIndex = (int)_transactionQuery.SortBy;
+        ApplyTransactionQuery();
     }
 
     private void SaveSettingsClick(object sender, RoutedEventArgs e)
