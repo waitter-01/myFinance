@@ -37,7 +37,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         _syncService = new S3SyncService(_store);
-        var version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.5.2";
+        var version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.6.0";
         AppTitleBar.Subtitle = $"个人财务中心 · v{version}";
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);

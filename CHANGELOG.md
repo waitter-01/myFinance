@@ -2,6 +2,27 @@
 
 本项目采用[语义化版本](https://semver.org/lang/zh-CN/)管理版本，版本号格式为 `主版本.次版本.修订版本`。
 
+## [0.6.0] - 2026-08-25
+
+### 新增
+
+- 增加用户自主配置的 S3 对象存储同步，支持 AWS S3 以及提供 S3 兼容接口的 Cloudflare R2、MinIO 等服务。
+- 支持自定义 Endpoint、Region、Bucket、对象路径、Access Key、Secret Key、临时 Session Token 和 Path Style。
+- 使用带版本号的 JSON 同步对象保存流水、账户、分类、预算、储蓄目标和删除记录，并按最后更新时间双向合并。
+- S3 Secret Key 和 Session Token 通过 Windows DPAPI 加密保存在当前 Windows 用户配置中。
+
+### 变更
+
+- 完全移除 MySQL 驱动、直连同步服务和相关用户设置，应用不再要求用户安装、维护或开放数据库服务器。
+- 启动时自动清理旧版保存的 MySQL 地址、用户名和加密密码等配置。
+- 保持本地优先：无网络时仍可正常记账，恢复连接后再与用户指定的 S3 对象合并。
+- 数据备份统一使用 `.duxiu` 账本备份文件，界面不再要求用户理解底层存储实现。
+
+### 升级说明
+
+- v0.6.0 不会自动读取旧 MySQL 服务器中的云端内容；本机已有账本不受影响，配置 S3 后首次同步会把本机内容上传到指定对象。
+- 每台新电脑都需要单独填写 S3 凭据，普通设置和同步数据不会包含明文 Secret Key。
+
 ## [0.5.2] - 2026-08-25
 
 ### 新增
@@ -160,6 +181,7 @@
 - 提醒时间可以保存，但 Windows 系统通知尚未接入。
 - 云同步、账户管理、资产负债和多端客户端尚未实现。
 
+[0.6.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.6.0
 [0.2.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.2.0
 [0.3.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.3.0
 [0.4.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.4.0
