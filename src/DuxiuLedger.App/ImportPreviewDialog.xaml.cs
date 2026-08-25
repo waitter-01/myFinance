@@ -66,6 +66,7 @@ public sealed partial class ImportPreviewDialog : ContentDialog
         EditDirectionBox.ItemsSource = new[] { "支出", "收入", "转账", "退款", "报销" };
         EditCategoryBox.ItemsSource = categories.Where(category => category.IsActive).Select(category => category.Name).Distinct().ToList();
         UpdateCounts();
+        if (_duplicates.Count > 0) ImportTabs.SelectedItem = DuplicateTab;
     }
 
     private void RecordsSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -112,6 +113,7 @@ public sealed partial class ImportPreviewDialog : ContentDialog
             _duplicates.Add(duplicate);
             RecordsList.SelectedItem = null;
             UpdateCounts();
+            ImportTabs.SelectedItem = DuplicateTab;
             return;
         }
 
@@ -137,7 +139,11 @@ public sealed partial class ImportPreviewDialog : ContentDialog
         _duplicates.Remove(selected);
         DuplicateList.SelectedItem = null;
         UpdateCounts();
+        ImportTabs.SelectedItem = _duplicates.Count > 0 ? DuplicateTab : PendingTab;
     }
+
+    private void ShowDuplicatesClick(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+        => ImportTabs.SelectedItem = DuplicateTab;
 
     private void OnPrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
     {
@@ -150,6 +156,7 @@ public sealed partial class ImportPreviewDialog : ContentDialog
     {
         ValidCountText.Text = $"{_candidates.Count} 条";
         DuplicateCountText.Text = $"{_duplicates.Count} 条";
+        DuplicateSummaryButton.IsEnabled = _duplicates.Count > 0;
         IsPrimaryButtonEnabled = _candidates.Count > 0;
     }
 }

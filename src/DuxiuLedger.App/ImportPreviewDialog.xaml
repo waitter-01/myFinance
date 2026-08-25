@@ -23,7 +23,7 @@
       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
       <Border Style="{StaticResource CardStyle}" CornerRadius="10" Padding="14"><StackPanel><TextBlock Text="文件" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="FileCountText" FontSize="22" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
       <Border Grid.Column="1" Style="{StaticResource CardStyle}" CornerRadius="10" Padding="14"><StackPanel><TextBlock Text="待导入" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="ValidCountText" FontSize="22" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
-      <Border Grid.Column="2" Style="{StaticResource CardStyle}" CornerRadius="10" Padding="14"><StackPanel><TextBlock Text="疑似重复" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="DuplicateCountText" FontSize="22" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
+      <Border Grid.Column="2" Style="{StaticResource CardStyle}" CornerRadius="10" Padding="14"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="疑似重复" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="DuplicateCountText" FontSize="22" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel><Button x:Name="DuplicateSummaryButton" Grid.Column="1" Content="查看并处理 →" VerticalAlignment="Center" Click="ShowDuplicatesClick" /></Grid></Border>
       <Border Grid.Column="3" Style="{StaticResource CardStyle}" CornerRadius="10" Padding="14"><StackPanel><TextBlock Text="问题行" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="IssueCountText" FontSize="22" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
     </Grid>
     <Grid Grid.Row="1" Margin="0,12,0,10" ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="280" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><ComboBox x:Name="AccountBox" Header="导入到账户" DisplayMemberPath="Name" /><InfoBar Grid.Column="1" IsOpen="True" IsClosable="False" Severity="Informational" Message="疑似重复记录默认不会导入；请在“疑似重复”页核对，确为两笔交易时可选择仍然导入。" /></Grid>
@@ -38,11 +38,38 @@
         <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="6" VerticalAlignment="Bottom"><Button x:Name="ApplyEditButton" Content="应用修正" Click="ApplyEditClick" IsEnabled="False" /><Button x:Name="RemoveRowButton" Content="跳过此条" Click="RemoveRowClick" IsEnabled="False" /></StackPanel>
       </Grid>
     </Border>
-    <TabView Grid.Row="3" IsAddTabButtonVisible="False" CornerRadius="10">
-      <TabViewItem Header="待导入流水" IsClosable="False">
-        <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions><Grid Padding="12,8" ColumnSpacing="12" Background="{ThemeResource SubtleFillColorSecondaryBrush}"><Grid.ColumnDefinitions><ColumnDefinition Width="145" /><ColumnDefinition Width="65" /><ColumnDefinition Width="105" /><ColumnDefinition Width="120" /><ColumnDefinition Width="*" /><ColumnDefinition Width="205" /></Grid.ColumnDefinitions><TextBlock Text="交易时间" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="类型" FontWeight="SemiBold" /><TextBlock Grid.Column="2" Text="金额" FontWeight="SemiBold" /><TextBlock Grid.Column="3" Text="分类" FontWeight="SemiBold" /><TextBlock Grid.Column="4" Text="交易对方" FontWeight="SemiBold" /><TextBlock Grid.Column="5" Text="来源" FontWeight="SemiBold" /></Grid><ListView x:Name="RecordsList" Grid.Row="1" SelectionMode="Single" SelectionChanged="RecordsSelectionChanged"><ListView.ItemTemplate><DataTemplate x:DataType="models:TransactionRecord"><Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="12,10"><Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="145" /><ColumnDefinition Width="65" /><ColumnDefinition Width="105" /><ColumnDefinition Width="120" /><ColumnDefinition Width="*" /><ColumnDefinition Width="205" /></Grid.ColumnDefinitions><TextBlock Text="{x:Bind DateDisplay}" /><TextBlock Grid.Column="1" Text="{x:Bind Direction}" /><TextBlock Grid.Column="2" Text="{x:Bind AmountDisplay}" FontWeight="SemiBold" /><TextBlock Grid.Column="3" Text="{x:Bind Category}" TextTrimming="CharacterEllipsis" /><TextBlock Grid.Column="4" Text="{x:Bind Merchant}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Merchant}" /><TextBlock Grid.Column="5" Text="{x:Bind Source}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Source}" /></Grid></Border></DataTemplate></ListView.ItemTemplate></ListView></Grid>
+    <TabView x:Name="ImportTabs" Grid.Row="3" IsAddTabButtonVisible="False" CornerRadius="10">
+      <TabViewItem x:Name="PendingTab" Header="待导入流水" IsClosable="False">
+        <Grid>
+          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+          <Grid Padding="12,8" ColumnSpacing="12" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="145" /><ColumnDefinition Width="76" /><ColumnDefinition Width="105" /><ColumnDefinition Width="120" /><ColumnDefinition Width="*" /><ColumnDefinition Width="194" /></Grid.ColumnDefinitions>
+            <TextBlock Text="交易时间" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="类型" FontWeight="SemiBold" /><TextBlock Grid.Column="2" Text="金额" FontWeight="SemiBold" /><TextBlock Grid.Column="3" Text="分类" FontWeight="SemiBold" /><TextBlock Grid.Column="4" Text="交易对方" FontWeight="SemiBold" /><TextBlock Grid.Column="5" Text="来源" FontWeight="SemiBold" />
+          </Grid>
+          <ListView x:Name="RecordsList" Grid.Row="1" SelectionMode="Single" SelectionChanged="RecordsSelectionChanged">
+            <ListView.ItemTemplate>
+              <DataTemplate x:DataType="models:TransactionRecord">
+                <Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="12,9">
+                  <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="145" /><ColumnDefinition Width="76" /><ColumnDefinition Width="105" /><ColumnDefinition Width="120" /><ColumnDefinition Width="*" /><ColumnDefinition Width="194" /></Grid.ColumnDefinitions>
+                    <TextBlock Text="{x:Bind DateDisplay}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <Border Grid.Column="1" Padding="8,3" CornerRadius="10" HorizontalAlignment="Left" Background="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionBackground}">
+                      <TextBlock Text="{x:Bind Direction}" FontWeight="SemiBold" Foreground="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionForeground}" />
+                    </Border>
+                    <TextBlock Grid.Column="2" Text="{x:Bind SignedAmountDisplay}" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionForeground}" />
+                    <Border Grid.Column="3" Padding="8,3" CornerRadius="10" HorizontalAlignment="Left" Background="{Binding Category, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=CategoryBackground}" BorderBrush="{Binding Category, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=CategoryBorder}" BorderThickness="1">
+                      <TextBlock Text="{x:Bind Category}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                    </Border>
+                    <TextBlock Grid.Column="4" Text="{x:Bind Merchant}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Merchant}" />
+                    <TextBlock Grid.Column="5" Text="{x:Bind Source}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Source}" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ListView.ItemTemplate>
+          </ListView>
+        </Grid>
       </TabViewItem>
-      <TabViewItem Header="疑似重复" IsClosable="False">
+      <TabViewItem x:Name="DuplicateTab" Header="疑似重复（需要确认）" IsClosable="False">
         <Grid>
           <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
           <Grid Padding="12" ColumnSpacing="12" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
