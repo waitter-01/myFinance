@@ -159,13 +159,14 @@
               </Grid>
             </Border>
           </Grid>
-          <SplitView x:Name="TransactionsPage" Visibility="Collapsed" PanePlacement="Right" DisplayMode="Overlay" OpenPaneLength="370" CompactPaneLength="0">
+          <SplitView x:Name="TransactionsPage" Visibility="Collapsed" PanePlacement="Right" DisplayMode="Overlay" OpenPaneLength="394" CompactPaneLength="0" PaneBackground="Transparent">
             <SplitView.Pane>
-              <Border Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1,0,0,0" Padding="20">
+              <Border Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="16" Padding="20" Margin="10,8,10,8" Translation="0,0,24">
+                <Border.Shadow><ThemeShadow /></Border.Shadow>
                 <Grid>
                   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                   <Grid>
-                    <StackPanel><TextBlock Text="筛选流水" FontSize="20" FontWeight="SemiBold" /><TextBlock Text="同一组内多选为“或者”，不同组之间为“并且”" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" /></StackPanel>
+                    <StackPanel Spacing="3"><TextBlock Text="高级筛选" FontSize="18" FontWeight="SemiBold" /><TextBlock Text="同组条件为“或者”，不同组之间为“并且”" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" /></StackPanel>
                     <Button Content="&#xE711;" FontFamily="Segoe Fluent Icons" HorizontalAlignment="Right" VerticalAlignment="Top" ToolTipService.ToolTip="关闭筛选" Click="CloseTransactionFiltersClick" />
                   </Grid>
                   <ScrollViewer Grid.Row="1" Margin="0,18,0,12">
@@ -252,7 +253,23 @@
                     <Button Grid.Column="1" Content="时间 ↕" Padding="4,2" HorizontalAlignment="Left" Click="SortTransactionsByDateClick" /><TextBlock Grid.Column="2" Text="类型" FontWeight="SemiBold" VerticalAlignment="Center" /><Button Grid.Column="3" Content="金额 ↕" Padding="4,2" HorizontalAlignment="Left" Click="SortTransactionsByAmountClick" /><TextBlock Grid.Column="4" Text="分类" FontWeight="SemiBold" VerticalAlignment="Center" /><TextBlock Grid.Column="5" Text="账户" FontWeight="SemiBold" VerticalAlignment="Center" /><Button Grid.Column="6" Content="商户 ↕" Padding="4,2" HorizontalAlignment="Left" Click="SortTransactionsByMerchantClick" /><TextBlock Grid.Column="7" Text="备注" FontWeight="SemiBold" VerticalAlignment="Center" />
                   </Grid>
                   <ListView x:Name="TransactionsList" Grid.Row="1" SelectionMode="None" IsItemClickEnabled="True" ItemClick="TransactionItemClick" ScrollViewer.VerticalScrollBarVisibility="Auto">
-                    <ListView.GroupStyle><GroupStyle><GroupStyle.HeaderTemplate><DataTemplate><Grid Padding="12,9,12,6" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"><TextBlock Text="{Binding DateLabel}" FontWeight="SemiBold" /><TextBlock Text="{Binding Summary}" HorizontalAlignment="Right" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></Grid></DataTemplate></GroupStyle.HeaderTemplate></GroupStyle></ListView.GroupStyle>
+                    <ListView.ItemsPanel><ItemsPanelTemplate><ItemsStackPanel AreStickyGroupHeadersEnabled="False" /></ItemsPanelTemplate></ListView.ItemsPanel>
+                    <ListView.GroupStyle>
+                      <GroupStyle>
+                        <GroupStyle.HeaderContainerStyle>
+                          <Style TargetType="ListViewHeaderItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="MinHeight" Value="38" /></Style>
+                        </GroupStyle.HeaderContainerStyle>
+                        <GroupStyle.HeaderTemplate>
+                          <DataTemplate>
+                            <Grid Padding="12,9" MinHeight="38" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                              <TextBlock Text="{Binding DateLabel}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                              <TextBlock Grid.Column="1" Text="{Binding Summary}" FontSize="12" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="16,0,0,0" />
+                            </Grid>
+                          </DataTemplate>
+                        </GroupStyle.HeaderTemplate>
+                      </GroupStyle>
+                    </ListView.GroupStyle>
                     <ListView.ItemTemplate>
                       <DataTemplate x:DataType="models:TransactionRecord">
                         <Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="12,10">
