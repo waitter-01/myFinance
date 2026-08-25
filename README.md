@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8">
     <img src="https://img.shields.io/badge/UI-WinUI%203-146C70" alt="WinUI 3">
     <img src="https://img.shields.io/badge/同步-S3%20兼容-0F80CC" alt="S3 compatible">
-    <img src="https://img.shields.io/badge/版本-v0.7.0-6B7280" alt="v0.7.0">
+    <img src="https://img.shields.io/badge/版本-v0.8.0-6B7280" alt="v0.8.0">
   </p>
 </div>
 
@@ -34,7 +34,9 @@
 - 自主设置：可调整小额消费阈值、月度预算、提醒计划和订阅识别关键词。
 - 详细分类：内置餐饮、生活、娱乐、游戏、订阅等分类，并支持新增、编辑和停用。
 - 订阅统计：记录价格覆盖月数，按最近价格和计费周期计算真实月均负担。
-- 消费洞察：汇总小额消费、可选支出、分类与商户排行，并给出下月额度建议。
+- 周月年分析：按周度、月度或年度查看收入、净支出、结余、储蓄率和同期变化。
+- 原生趋势图表：展示分周期收支柱状图、分类占比、商户排行和最大单笔消费。
+- 财务行动建议：总结钱的主要去向、小额与可优化消费变化，并给出建议支出上限。
 - 预算与目标：设置月度总预算、分类预算和储蓄目标，显示使用进度及每月建议储蓄额。
 - 多端同步：用户可自主配置 AWS S3、Cloudflare R2、MinIO 等 S3 兼容对象存储。
 - 系统提醒：支持每日记账提醒和每周消费总结通知。
@@ -46,7 +48,7 @@
 
 ## 当前版本
 
-当前版本为 **v0.7.0**，完成桌面单项目化、App/Core 分层和仓库目录重组。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本为 **v0.8.0**，重点完善周度、月度、年度图表与财务分析总结。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
 
 版本号采用 `主版本.次版本.修订版本`：
 
@@ -68,11 +70,11 @@
 | 手动新增流水 | 可用 | 保存后立即刷新总览和流水列表 |
 | 偏好设置 | 可用 | 财务阈值、预算、提醒和订阅关键词持久化保存 |
 | 订阅与月卡统计 | 可用 | 分类/关键词识别、本月实付和按覆盖月数折算的月均负担 |
-| 消费洞察 | 基础可用 | 小额消费、可选支出、分类/商户排行和下月额度建议 |
+| 消费洞察 | 可用 | 周/月/年切换、收支与储蓄指标、分类/商户排行和行动建议 |
 | 预算与储蓄目标 | 可用 | 月度总预算、分类预算、超支提示和目标月存建议 |
 | S3 对象同步 | 可用 | 自定义服务地址、本地优先合并、删除同步和启动同步 |
 | Windows 提醒 | 可用 | 每日记账提醒和每周近 7 天支出总结 |
-| 趋势与导出 | 可用 | 近 6 个月趋势和本月 CSV 报告 |
+| 趋势与导出 | 可用 | 原生收支趋势图，周度、月度和年度 CSV 分析报告 |
 | 编辑和删除流水 | 可用 | 编辑保留来源和指纹，删除前二次确认 |
 | 完整交易类型 | 可用 | 支出、收入、转账、退款和报销 |
 | 账户管理 | 可用 | 期初余额、动态余额、停用和流水关联 |
@@ -108,7 +110,7 @@ dotnet run --project .\src\DuxiuLedger.App\DuxiuLedger.App.csproj -p:Platform=x6
 
 ```text
 artifacts\win-x64\DuxiuLedger.exe
-artifacts\DuxiuLedger-v0.7.0-win-x64.zip
+artifacts\DuxiuLedger-v0.8.0-win-x64.zip
 ```
 
 单文件 EXE 可以单独复制运行，首次启动时会将 WinUI 3 运行依赖释放到临时目录，因此第一次启动可能稍慢。发布目录已被 Git 忽略，不会提交到仓库。
@@ -132,7 +134,7 @@ winget install --id JRSoftware.InnoSetup -e
 生成文件：
 
 ```text
-artifacts\installer\DuxiuLedger-Setup-v0.7.0-win-x64.exe
+artifacts\installer\DuxiuLedger-Setup-v0.8.0-win-x64.exe
 ```
 
 安装程序默认安装到当前用户的 `%LOCALAPPDATA%\Programs\DuxiuLedger`，不要求管理员权限，并提供开始菜单、可选桌面快捷方式和标准卸载入口。
@@ -148,9 +150,9 @@ artifacts\installer\DuxiuLedger-Setup-v0.7.0-win-x64.exe
 5. 使用中文提交版本变更，然后创建并推送 Git 标签：
 
 ```powershell
-git tag -a v0.7.0 -m "版本：发布 v0.7.0"
+git tag -a v0.8.0 -m "版本：发布 v0.8.0"
 git push origin master
-git push origin v0.7.0
+git push origin v0.8.0
 ```
 
 6. 在 GitHub Releases 中使用相同标签创建发行版，并上传单文件 EXE、ZIP 和安装程序。发布说明以 `CHANGELOG.md` 对应版本内容为准。
