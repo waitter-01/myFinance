@@ -2,6 +2,19 @@
 
 本项目采用[语义化版本](https://semver.org/lang/zh-CN/)管理版本，版本号格式为 `主版本.次版本.修订版本`。
 
+## [0.5.1] - 2026-08-25
+
+### 新增
+
+- 支持把一张或多张账单图片直接拖入应用窗口识别。
+- 支持从剪贴板粘贴图片或已复制的图片文件识别。
+- 增加“粘贴截图”按钮和 `Ctrl+V` 快捷键。
+- 截图文件选择和拖拽新增 TIFF 格式支持。
+
+### 改进
+
+- 文件选择、拖拽和剪贴板统一使用同一套本地 OCR、预览校正、指纹去重和确认保存流程。
+
 ## [0.5.0] - 2026-08-25
 
 ### 新增
@@ -137,4 +150,5 @@
 [0.4.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.4.0
 [0.4.1]: https://github.com/waitter-01/myFinance/releases/tag/v0.4.1
 [0.5.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.5.0
+[0.5.1]: https://github.com/waitter-01/myFinance/releases/tag/v0.5.1
 [0.1.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.1.0
