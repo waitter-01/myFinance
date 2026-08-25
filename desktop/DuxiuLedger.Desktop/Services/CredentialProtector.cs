@@ -5,7 +5,7 @@ namespace DuxiuLedger.Desktop.Services;
 
 public static class CredentialProtector
 {
-    private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("DuxiuLedger.MySql.v1");
+    private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("DuxiuLedger.CloudCredentials.v1");
 
     public static string Protect(string plainText)
     {

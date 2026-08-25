@@ -106,6 +106,7 @@ public sealed class LocalStore
             CREATE TABLE IF NOT EXISTS sync_tombstones (
               entity_type TEXT NOT NULL, sync_id TEXT NOT NULL, deleted_at TEXT NOT NULL,
               PRIMARY KEY(entity_type,sync_id));
+            DELETE FROM app_settings WHERE key LIKE 'mysql_%';
             """;
         syncCommand.ExecuteNonQuery();
     }
@@ -385,14 +386,14 @@ public sealed class LocalStore
         if (values.TryGetValue("weekly_summary_time", out var weeklyTime)) settings.WeeklySummaryTime = weeklyTime;
         if (values.TryGetValue("subscription_keywords", out var keywords)) settings.SubscriptionKeywords = keywords;
         if (values.TryGetValue("optional_categories", out var optionalCategories)) settings.OptionalCategories = optionalCategories;
-        if (TryBool(values, "mysql_sync_enabled", out var mysqlEnabled)) settings.MySqlSyncEnabled = mysqlEnabled;
+        if (TryBool(values, "s3_sync_enabled", out var s3Enabled)) settings.S3SyncEnabled = s3Enabled;
         if (TryBool(values, "sync_on_startup", out var syncOnStartup)) settings.SyncOnStartup = syncOnStartup;
-        if (values.TryGetValue("mysql_host", out var mysqlHost)) settings.MySqlHost = mysqlHost;
-        if (values.TryGetValue("mysql_port", out var mysqlPort) && int.TryParse(mysqlPort, out var port)) settings.MySqlPort = port;
-        if (values.TryGetValue("mysql_database", out var mysqlDatabase)) settings.MySqlDatabase = mysqlDatabase;
-        if (values.TryGetValue("mysql_username", out var mysqlUsername)) settings.MySqlUsername = mysqlUsername;
-        if (values.TryGetValue("mysql_ssl_mode", out var sslMode)) settings.MySqlSslMode = sslMode;
-        if (TryBool(values, "mysql_legacy_mode", out var legacyMode)) settings.MySqlLegacyMode = legacyMode;
+        if (values.TryGetValue("s3_endpoint", out var endpoint)) settings.S3Endpoint = endpoint;
+        if (values.TryGetValue("s3_region", out var region)) settings.S3Region = region;
+        if (values.TryGetValue("s3_bucket", out var bucket)) settings.S3Bucket = bucket;
+        if (values.TryGetValue("s3_object_key", out var objectKey)) settings.S3ObjectKey = objectKey;
+        if (values.TryGetValue("s3_access_key_id", out var accessKeyId)) settings.S3AccessKeyId = accessKeyId;
+        if (TryBool(values, "s3_force_path_style", out var forcePathStyle)) settings.S3ForcePathStyle = forcePathStyle;
         return settings;
     }
 
@@ -409,14 +410,14 @@ public sealed class LocalStore
             ["weekly_summary_time"] = settings.WeeklySummaryTime,
             ["subscription_keywords"] = settings.SubscriptionKeywords,
             ["optional_categories"] = settings.OptionalCategories,
-            ["mysql_sync_enabled"] = settings.MySqlSyncEnabled.ToString(),
+            ["s3_sync_enabled"] = settings.S3SyncEnabled.ToString(),
             ["sync_on_startup"] = settings.SyncOnStartup.ToString(),
-            ["mysql_host"] = settings.MySqlHost,
-            ["mysql_port"] = settings.MySqlPort.ToString(CultureInfo.InvariantCulture),
-            ["mysql_database"] = settings.MySqlDatabase,
-            ["mysql_username"] = settings.MySqlUsername,
-            ["mysql_ssl_mode"] = settings.MySqlSslMode,
-            ["mysql_legacy_mode"] = settings.MySqlLegacyMode.ToString()
+            ["s3_endpoint"] = settings.S3Endpoint,
+            ["s3_region"] = settings.S3Region,
+            ["s3_bucket"] = settings.S3Bucket,
+            ["s3_object_key"] = settings.S3ObjectKey,
+            ["s3_access_key_id"] = settings.S3AccessKeyId,
+            ["s3_force_path_style"] = settings.S3ForcePathStyle.ToString()
         };
         using var c = Open(); using var tx = c.BeginTransaction();
         foreach (var pair in values)
@@ -429,17 +430,31 @@ public sealed class LocalStore
         tx.Commit();
     }
 
-    public string LoadMySqlPassword()
+    public string LoadS3SecretKey()
     {
-        using var c = Open(); using var cmd = c.CreateCommand(); cmd.CommandText = "SELECT value FROM app_settings WHERE key='mysql_password'";
+        using var c = Open(); using var cmd = c.CreateCommand(); cmd.CommandText = "SELECT value FROM app_settings WHERE key='s3_secret_key'";
         return CredentialProtector.Unprotect(cmd.ExecuteScalar()?.ToString() ?? "");
     }
 
-    public void SaveMySqlPassword(string password)
+    public string LoadS3SessionToken()
     {
-        using var c = Open(); using var cmd = c.CreateCommand();
-        cmd.CommandText = "INSERT INTO app_settings(key,value,updated_at) VALUES('mysql_password',$value,$updated) ON CONFLICT(key) DO UPDATE SET value=$value,updated_at=$updated";
-        cmd.Parameters.AddWithValue("$value", CredentialProtector.Protect(password)); cmd.Parameters.AddWithValue("$updated", DateTime.Now.ToString("O")); cmd.ExecuteNonQuery();
+        using var c = Open(); using var cmd = c.CreateCommand(); cmd.CommandText = "SELECT value FROM app_settings WHERE key='s3_session_token'";
+        return CredentialProtector.Unprotect(cmd.ExecuteScalar()?.ToString() ?? "");
+    }
+
+    public void SaveS3Credentials(string secretKey, string sessionToken)
+    {
+        using var c = Open(); using var tx = c.BeginTransaction();
+        SaveSecret("s3_secret_key", secretKey);
+        SaveSecret("s3_session_token", sessionToken);
+        tx.Commit();
+
+        void SaveSecret(string key, string value)
+        {
+            using var cmd = c.CreateCommand(); cmd.Transaction = tx;
+            cmd.CommandText = "INSERT INTO app_settings(key,value,updated_at) VALUES($key,$value,$updated) ON CONFLICT(key) DO UPDATE SET value=$value,updated_at=$updated";
+            cmd.Parameters.AddWithValue("$key", key); cmd.Parameters.AddWithValue("$value", CredentialProtector.Protect(value)); cmd.Parameters.AddWithValue("$updated", DateTime.Now.ToString("O")); cmd.ExecuteNonQuery();
+        }
     }
 
     private static string? GetSyncId(SqliteConnection connection, string table, long id)

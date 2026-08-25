@@ -1,83 +1,141 @@
 using System.Globalization;
+using System.Net;
+using System.Text;
 using System.Text.Json;
-using Microsoft.Data.Sqlite;
-using MySqlConnector;
+using Amazon;
+using Amazon.Runtime;
+using Amazon.S3;
+using Amazon.S3.Model;
 using DuxiuLedger.Desktop.Models;
+using Microsoft.Data.Sqlite;
 
 namespace DuxiuLedger.Desktop.Services;
 
-public sealed class MySqlSyncService
+public sealed class S3SyncService
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
     private readonly LocalStore _store;
-    public MySqlSyncService(LocalStore store) => _store = store;
 
-    public async Task<string> TestConnectionAsync(AppSettings settings, string password, CancellationToken cancellationToken = default)
+    public S3SyncService(LocalStore store) => _store = store;
+
+    public async Task<string> TestConnectionAsync(AppSettings settings, string secretKey, string sessionToken, CancellationToken cancellationToken = default)
     {
-        await using var connection = new MySqlConnection(BuildConnectionString(settings, password));
-        await connection.OpenAsync(cancellationToken);
-        await using var command = connection.CreateCommand(); command.CommandText = "SELECT 1";
-        await command.ExecuteScalarAsync(cancellationToken);
-        return connection.ServerVersion;
+        Validate(settings, secretKey);
+        using var client = CreateClient(settings, secretKey, sessionToken);
+        var document = await ReadRemoteDocumentAsync(client, settings, cancellationToken);
+        if (document is null)
+            await WriteRemoteDocumentAsync(client, settings, new SyncDocument(), cancellationToken);
+        return $"{settings.S3Bucket.Trim()}/{NormalizeObjectKey(settings.S3ObjectKey)}";
     }
 
-    public async Task<SyncResult> SyncAsync(AppSettings settings, string password, CancellationToken cancellationToken = default)
+    public async Task<SyncResult> SyncAsync(AppSettings settings, string secretKey, string sessionToken, CancellationToken cancellationToken = default)
     {
+        Validate(settings, secretKey);
+        using var client = CreateClient(settings, secretKey, sessionToken);
+        var remoteDocument = await ReadRemoteDocumentAsync(client, settings, cancellationToken) ?? new SyncDocument();
+        var merged = remoteDocument.Items.ToDictionary(ItemKey, StringComparer.Ordinal);
         var result = new SyncResult();
-        await using var remote = new MySqlConnection(BuildConnectionString(settings, password));
-        await remote.OpenAsync(cancellationToken);
-        await EnsureRemoteSchemaAsync(remote, settings.MySqlLegacyMode, cancellationToken);
 
-        foreach (var item in ReadLocalItems())
+        foreach (var localItem in ReadLocalItems())
         {
-            await UpsertRemoteAsync(remote, item, cancellationToken);
-            result.Uploaded++;
-        }
-
-        var remoteItems = await ReadRemoteItemsAsync(remote, cancellationToken);
-        foreach (var item in remoteItems.OrderBy(item => EntityOrder(item.EntityType)))
-        {
-            if (ApplyRemoteItem(item))
+            var key = ItemKey(localItem);
+            if (!merged.TryGetValue(key, out var remoteItem) || IsNewer(localItem, remoteItem))
             {
-                if (item.IsDeleted) result.Deleted++; else result.Downloaded++;
+                merged[key] = localItem;
+                result.Uploaded++;
             }
         }
+
+        foreach (var item in merged.Values.OrderBy(item => EntityOrder(item.EntityType)))
+        {
+            if (!ApplyRemoteItem(item)) continue;
+            if (item.IsDeleted) result.Deleted++; else result.Downloaded++;
+        }
+
+        foreach (var localItem in ReadLocalItems())
+        {
+            var key = ItemKey(localItem);
+            if (!merged.TryGetValue(key, out var current) || IsNewer(localItem, current)) merged[key] = localItem;
+        }
+
+        var output = new SyncDocument
+        {
+            UpdatedAt = DateTime.UtcNow.ToString("O"),
+            Items = merged.Values.OrderBy(item => EntityOrder(item.EntityType)).ThenBy(item => item.SyncId, StringComparer.Ordinal).ToList()
+        };
+        await WriteRemoteDocumentAsync(client, settings, output, cancellationToken);
         return result;
     }
 
-    private static string BuildConnectionString(AppSettings settings, string password)
+    private static IAmazonS3 CreateClient(AppSettings settings, string secretKey, string sessionToken)
     {
-        if (string.IsNullOrWhiteSpace(settings.MySqlHost) || string.IsNullOrWhiteSpace(settings.MySqlDatabase) || string.IsNullOrWhiteSpace(settings.MySqlUsername)) throw new InvalidOperationException("MySQL 主机、数据库名和用户名不能为空。 ");
-        if (string.IsNullOrEmpty(password)) throw new InvalidOperationException("请先输入并保存 MySQL 密码。 ");
-        if (!Enum.TryParse<MySqlSslMode>(settings.MySqlSslMode, true, out var sslMode)) sslMode = MySqlSslMode.Preferred;
-        if (settings.MySqlLegacyMode) sslMode = MySqlSslMode.Disabled;
-        return new MySqlConnectionStringBuilder
+        AWSCredentials credentials = string.IsNullOrWhiteSpace(sessionToken)
+            ? new BasicAWSCredentials(settings.S3AccessKeyId.Trim(), secretKey)
+            : new SessionAWSCredentials(settings.S3AccessKeyId.Trim(), secretKey, sessionToken);
+        var region = string.IsNullOrWhiteSpace(settings.S3Region) ? "us-east-1" : settings.S3Region.Trim();
+        var config = new AmazonS3Config
         {
-            Server = settings.MySqlHost.Trim(), Port = (uint)Math.Clamp(settings.MySqlPort, 1, 65535), Database = settings.MySqlDatabase.Trim(),
-            UserID = settings.MySqlUsername.Trim(), Password = password, SslMode = sslMode, ConnectionTimeout = 10,
-            DefaultCommandTimeout = 30, CharacterSet = settings.MySqlLegacyMode ? "utf8" : "utf8mb4", AllowUserVariables = false
-        }.ConnectionString;
+            ForcePathStyle = settings.S3ForcePathStyle,
+            Timeout = TimeSpan.FromSeconds(30),
+            MaxErrorRetry = 2
+        };
+        if (string.IsNullOrWhiteSpace(settings.S3Endpoint))
+        {
+            config.RegionEndpoint = RegionEndpoint.GetBySystemName(region);
+        }
+        else
+        {
+            config.ServiceURL = settings.S3Endpoint.Trim().TrimEnd('/');
+            config.AuthenticationRegion = region;
+        }
+        return new AmazonS3Client(credentials, config);
     }
 
-    private static async Task EnsureRemoteSchemaAsync(MySqlConnection connection, bool legacyMode, CancellationToken cancellationToken)
+    private static void Validate(AppSettings settings, string secretKey)
     {
-        await using var command = connection.CreateCommand();
-        command.CommandText = """
-            CREATE TABLE IF NOT EXISTS duxiu_sync_items (
-              entity_type VARCHAR(32) NOT NULL,
-              sync_id VARCHAR(160) NOT NULL,
-              payload LONGTEXT NULL,
-              updated_at VARCHAR(40) NOT NULL,
-              is_deleted TINYINT(1) NOT NULL DEFAULT 0,
-              PRIMARY KEY(entity_type,sync_id)
-            ) CHARACTER SET __CHARSET__ COLLATE __COLLATION__;
-            """.Replace("__CHARSET__", legacyMode ? "utf8" : "utf8mb4").Replace("__COLLATION__", legacyMode ? "utf8_general_ci" : "utf8mb4_unicode_ci");
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(settings.S3Bucket)) throw new InvalidOperationException("Bucket 不能为空。");
+        if (string.IsNullOrWhiteSpace(settings.S3ObjectKey)) throw new InvalidOperationException("对象路径不能为空。");
+        if (string.IsNullOrWhiteSpace(settings.S3AccessKeyId)) throw new InvalidOperationException("Access Key ID 不能为空。");
+        if (string.IsNullOrWhiteSpace(secretKey)) throw new InvalidOperationException("请先输入并保存 Secret Access Key。");
+        if (!string.IsNullOrWhiteSpace(settings.S3Endpoint) && !Uri.TryCreate(settings.S3Endpoint.Trim(), UriKind.Absolute, out _))
+            throw new InvalidOperationException("Endpoint 必须是完整的 http:// 或 https:// 地址。");
+    }
+
+    private static async Task<SyncDocument?> ReadRemoteDocumentAsync(IAmazonS3 client, AppSettings settings, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await client.GetObjectAsync(settings.S3Bucket.Trim(), NormalizeObjectKey(settings.S3ObjectKey), cancellationToken);
+            using var reader = new StreamReader(response.ResponseStream, Encoding.UTF8);
+            var json = await reader.ReadToEndAsync(cancellationToken);
+            if (string.IsNullOrWhiteSpace(json)) return new SyncDocument();
+            return JsonSerializer.Deserialize<SyncDocument>(json, JsonOptions)
+                ?? throw new InvalidDataException("S3同步文件内容无效。");
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound || ex.ErrorCode is "NoSuchKey" or "NotFound")
+        {
+            return null;
+        }
+    }
+
+    private static async Task WriteRemoteDocumentAsync(IAmazonS3 client, AppSettings settings, SyncDocument document, CancellationToken cancellationToken)
+    {
+        var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(document, JsonOptions));
+        using var stream = new MemoryStream(bytes, writable: false);
+        var request = new PutObjectRequest
+        {
+            BucketName = settings.S3Bucket.Trim(),
+            Key = NormalizeObjectKey(settings.S3ObjectKey),
+            InputStream = stream,
+            ContentType = "application/json",
+            AutoCloseStream = false
+        };
+        await client.PutObjectAsync(request, cancellationToken);
     }
 
     private IEnumerable<SyncItem> ReadLocalItems()
     {
-        var cs = $"Data Source={_store.DatabasePath}";
-        using var connection = new SqliteConnection(cs); connection.Open();
+        using var connection = new SqliteConnection($"Data Source={_store.DatabasePath}"); connection.Open();
         foreach (var item in ReadTransactions(connection)) yield return item;
         foreach (var item in ReadAccounts(connection)) yield return item;
         foreach (var item in ReadCategories(connection)) yield return item;
@@ -125,30 +183,6 @@ public sealed class MySqlSyncService
     {
         using var command = connection.CreateCommand(); command.CommandText = "SELECT sync_id,updated_at,name,target_amount,saved_amount,target_date,is_completed FROM savings_goals"; using var reader = command.ExecuteReader();
         while (reader.Read()) yield return new SyncItem("savings_goal", reader.GetString(0), JsonSerializer.Serialize(new { name=reader.GetString(2), targetAmount=reader.GetDecimal(3), savedAmount=reader.GetDecimal(4), targetDate=reader.IsDBNull(5)?null:reader.GetString(5), isCompleted=reader.GetBoolean(6) }), reader.GetString(1), false);
-    }
-
-    private static async Task UpsertRemoteAsync(MySqlConnection connection, SyncItem item, CancellationToken cancellationToken)
-    {
-        await using var command = connection.CreateCommand();
-        command.CommandText = """
-            INSERT INTO duxiu_sync_items(entity_type,sync_id,payload,updated_at,is_deleted)
-            VALUES(@type,@id,@payload,@updated,@deleted)
-            ON DUPLICATE KEY UPDATE
-              payload=IF(updated_at < VALUES(updated_at),VALUES(payload),payload),
-              is_deleted=IF(updated_at < VALUES(updated_at),VALUES(is_deleted),is_deleted),
-              updated_at=IF(updated_at < VALUES(updated_at),VALUES(updated_at),updated_at)
-            """;
-        command.Parameters.AddWithValue("@type", item.EntityType); command.Parameters.AddWithValue("@id", item.SyncId);
-        command.Parameters.AddWithValue("@payload", (object?)item.Payload ?? DBNull.Value); command.Parameters.AddWithValue("@updated", item.UpdatedAt); command.Parameters.AddWithValue("@deleted", item.IsDeleted);
-        await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
-    private static async Task<List<SyncItem>> ReadRemoteItemsAsync(MySqlConnection connection, CancellationToken cancellationToken)
-    {
-        await using var command = connection.CreateCommand(); command.CommandText = "SELECT entity_type,sync_id,payload,updated_at,is_deleted FROM duxiu_sync_items";
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken); var rows = new List<SyncItem>();
-        while (await reader.ReadAsync(cancellationToken)) rows.Add(new SyncItem(reader.GetString(0), reader.GetString(1), reader.IsDBNull(2)?null:reader.GetString(2), reader.GetString(3), reader.GetBoolean(4)));
-        return rows;
     }
 
     private bool ApplyRemoteItem(SyncItem item)
@@ -200,6 +234,9 @@ public sealed class MySqlSyncService
         Add(command,"$type",item.EntityType); Add(command,"$id",item.SyncId); Add(command,"$updated",item.UpdatedAt); command.ExecuteNonQuery();
     }
 
+    private static bool IsNewer(SyncItem candidate, SyncItem current) => string.CompareOrdinal(candidate.UpdatedAt, current.UpdatedAt) > 0;
+    private static string ItemKey(SyncItem item) => $"{item.EntityType}\n{item.SyncId}";
+    private static string NormalizeObjectKey(string value) => value.Trim().TrimStart('/');
     private static int EntityOrder(string type) => type switch { "account" => 0, "category" => 1, "budget" => 2, "savings_goal" => 3, "transaction" => 4, _ => 9 };
     private static void Add(SqliteCommand command, string name, object value) => command.Parameters.AddWithValue(name, value);
     private static string Text(JsonElement root,string name) => root.GetProperty(name).GetString() ?? "";
@@ -207,5 +244,13 @@ public sealed class MySqlSyncService
     private static decimal Decimal(JsonElement root,string name) => root.GetProperty(name).GetDecimal();
     private static int Int(JsonElement root,string name) => root.GetProperty(name).GetInt32();
     private static bool Bool(JsonElement root,string name) => root.GetProperty(name).GetBoolean();
-    private sealed record SyncItem(string EntityType,string SyncId,string? Payload,string UpdatedAt,bool IsDeleted);
+
+    private sealed class SyncDocument
+    {
+        public int SchemaVersion { get; set; } = 1;
+        public string UpdatedAt { get; set; } = DateTime.UtcNow.ToString("O");
+        public List<SyncItem> Items { get; set; } = [];
+    }
+
+    private sealed record SyncItem(string EntityType, string SyncId, string? Payload, string UpdatedAt, bool IsDeleted);
 }
