@@ -1,5 +1,0 @@
-import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { deleteTransaction, updateTransaction } from "@/modules/transactions/transaction-service";
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) { const session = await auth(); if (!session?.user?.id) return NextResponse.json({ error: "未登录" }, { status: 401 }); try { return NextResponse.json({ data: await updateTransaction(session.user.id, (await params).id, await request.json()) }); } catch (error) { return NextResponse.json({ error: error instanceof Error && error.message === "NOT_FOUND" ? "记录不存在" : "请求无效" }, { status: error instanceof Error && error.message === "NOT_FOUND" ? 404 : 400 }); } }
-export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) { const session = await auth(); if (!session?.user?.id) return NextResponse.json({ error: "未登录" }, { status: 401 }); try { await deleteTransaction(session.user.id, (await params).id); return NextResponse.json({ ok: true }); } catch { return NextResponse.json({ error: "记录不存在" }, { status: 404 }); } }
