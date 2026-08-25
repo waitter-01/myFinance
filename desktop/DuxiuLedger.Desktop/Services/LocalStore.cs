@@ -34,7 +34,7 @@ public sealed class LocalStore
     public IReadOnlyList<TransactionRecord> List(string? search = null)
     {
         using var c = Open(); using var cmd = c.CreateCommand();
-        cmd.CommandText = "SELECT id, occurred_on, direction, amount, category, merchant, note, source, fingerprint FROM transactions WHERE $search = '' OR merchant LIKE $like OR note LIKE $like ORDER BY occurred_on DESC, id DESC";
+        cmd.CommandText = "SELECT id, occurred_on, direction, amount, category, merchant, note, source, fingerprint FROM transactions WHERE $search = '' OR merchant LIKE $like OR note LIKE $like OR category LIKE $like ORDER BY occurred_on DESC, id DESC";
         cmd.Parameters.AddWithValue("$search", search ?? ""); cmd.Parameters.AddWithValue("$like", $"%{search}%");
         using var reader = cmd.ExecuteReader(); var rows = new List<TransactionRecord>();
         while (reader.Read()) rows.Add(new TransactionRecord { Id = reader.GetInt64(0), OccurredOn = DateTime.Parse(reader.GetString(1)), Direction = reader.GetString(2), Amount = reader.GetDecimal(3), Category = reader.GetString(4), Merchant = reader.GetString(5), Note = reader.GetString(6), Source = reader.GetString(7), Fingerprint = reader.GetString(8) });

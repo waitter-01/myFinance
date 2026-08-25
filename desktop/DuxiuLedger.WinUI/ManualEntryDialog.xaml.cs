@@ -11,7 +11,7 @@ public sealed partial class ManualEntryDialog : ContentDialog
     {
         InitializeComponent();
         OccurredOnPicker.Date = DateTimeOffset.Now;
-        DirectionBox.ItemsSource = new[] { "支出", "收入" };
+        DirectionBox.ItemsSource = new[] { "支出", "收入", "转账", "退款", "报销" };
         DirectionBox.SelectedIndex = 0;
         CategoryBox.Text = "未分类";
     }

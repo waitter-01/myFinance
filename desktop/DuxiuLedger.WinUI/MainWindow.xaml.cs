@@ -45,7 +45,8 @@ public sealed partial class MainWindow : Window
         var allRecords = _store.List().ToList();
         var records = allRecords.Where(row => row.OccurredOn.ToString("yyyy-MM") == currentMonth).ToList();
         var income = records.Where(row => row.Direction == "收入").Sum(row => row.Amount);
-        var expense = records.Where(row => row.Direction == "支出").Sum(row => row.Amount);
+        var expense = records.Where(row => row.Direction == "支出").Sum(row => row.Amount)
+            - records.Where(row => row.Direction is "退款" or "报销").Sum(row => row.Amount);
         IncomeText.Text = $"¥{income:N2}";
         ExpenseText.Text = $"¥{expense:N2}";
         BalanceText.Text = $"¥{income - expense:N2}";

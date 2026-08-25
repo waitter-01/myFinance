@@ -38,8 +38,17 @@ public sealed class BillImporter
         if (headerIndex < 0) throw new InvalidDataException("无法识别账单表头。请使用微信、支付宝官方导出的账单文件，或提供包含日期和金额列的表格。");
         var headers = rows[headerIndex]; int date = Find(headers, "时间", "日期", "交易时间"), amount = Find(headers, "金额", "收支金额", "金额(元)"), type = Find(headers, "收支", "交易类型", "类型"), merchant = Find(headers, "交易对方", "商户", "商品", "备注"), note = Find(headers, "备注", "商品说明", "描述");
         var result = new List<TransactionRecord>();
-        foreach (var values in rows.Skip(headerIndex + 1)) { if (values.Count <= Math.Max(date, amount)) continue; if (!TryDate(values[date], out var when) || !TryAmount(values[amount], out var money) || money == 0) continue; var kind = type >= 0 && values.Count > type ? values[type] : ""; var direction = kind.Contains("收入") || kind.Contains("转入") || kind.Contains("退款") ? "收入" : "支出"; var merchantText = merchant >= 0 && values.Count > merchant ? values[merchant] : ""; var noteText = note >= 0 && values.Count > note ? values[note] : ""; var fingerprint = Hash($"{when:O}|{direction}|{money.ToString(CultureInfo.InvariantCulture)}|{merchantText}|{noteText}"); result.Add(new TransactionRecord { OccurredOn = when, Direction = direction, Amount = Math.Abs(money), Merchant = merchantText, Note = noteText, Source = source, Fingerprint = fingerprint }); }
+        foreach (var values in rows.Skip(headerIndex + 1)) { if (values.Count <= Math.Max(date, amount)) continue; if (!TryDate(values[date], out var when) || !TryAmount(values[amount], out var money) || money == 0) continue; var kind = type >= 0 && values.Count > type ? values[type] : ""; var direction = MapTransactionType(kind); var merchantText = merchant >= 0 && values.Count > merchant ? values[merchant] : ""; var noteText = note >= 0 && values.Count > note ? values[note] : ""; var fingerprint = Hash($"{when:O}|{direction}|{money.ToString(CultureInfo.InvariantCulture)}|{merchantText}|{noteText}"); result.Add(new TransactionRecord { OccurredOn = when, Direction = direction, Amount = Math.Abs(money), Merchant = merchantText, Note = noteText, Source = source, Fingerprint = fingerprint }); }
         return result;
+    }
+    private static string MapTransactionType(string value)
+    {
+        if (Contains(value, "退款", "退回")) return "退款";
+        if (Contains(value, "报销")) return "报销";
+        if (Contains(value, "转账", "转入", "转出")) return "转账";
+        if (Contains(value, "收入", "入账", "收款")) return "收入";
+        if (Contains(value, "支出", "付款")) return "支出";
+        return "支出";
     }
     private static bool Contains(string value, params string[] keys) => keys.Any(k => value.Contains(k, StringComparison.OrdinalIgnoreCase));
     private static int Find(List<string> headers, params string[] keys) => headers.FindIndex(h => Contains(h, keys));
