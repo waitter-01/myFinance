@@ -41,6 +41,8 @@ public sealed partial class MainWindow : Window
         AppTitleBar.Subtitle = $"个人财务中心 · v{version}";
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "duxiu-logo.ico");
+        if (File.Exists(iconPath)) AppWindow.SetIcon(iconPath);
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
         AppWindow.Resize(new SizeInt32(1320, 850));
         WeeklySummaryDayBox.ItemsSource = new[] { "星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日" };
