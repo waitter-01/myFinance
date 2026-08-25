@@ -59,7 +59,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         _syncService = new S3SyncService(_store);
-        var version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.11.0";
+        var version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.12.0";
         AppTitleBar.Subtitle = $"个人财务中心 · v{version}";
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
@@ -537,7 +537,7 @@ public sealed partial class MainWindow : Window
                 var files = items.OfType<StorageFile>().Where(IsSupportedScreenshot).ToList();
                 if (files.Count > 0) { await ImportScreenshotFilesAsync(files); return; }
             }
-            await ShowMessage("剪贴板中没有图片", "请先复制微信或支付宝账单截图，然后点击“粘贴截图”或按 Ctrl+V。");
+            await ShowMessage("剪贴板中没有图片", "请先复制微信、支付宝或银行账单截图，然后点击“粘贴截图”或按 Ctrl+V。");
         }
         catch (Exception ex) { await ShowMessage("读取剪贴板失败", ex.Message); }
     }
