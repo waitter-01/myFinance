@@ -10,13 +10,14 @@ public sealed partial class ImportPreviewDialog : ContentDialog
 {
     private readonly ObservableCollection<TransactionRecord> _candidates;
     private readonly ObservableCollection<ImportDuplicateItem> _duplicates;
+    private readonly ObservableCollection<ImportIssue> _issues;
     private readonly IReadOnlyList<TransactionRecord> _existingRecords;
     private readonly TransactionDuplicateDetector _duplicateDetector = new();
 
     public IReadOnlyList<TransactionRecord> RowsToImport => _candidates;
     public int DuplicateCount => _duplicates.Count;
     public int DetectedDuplicateCount { get; }
-    public int IssueCount { get; }
+    public int IssueCount => _issues.Count;
 
     public ImportPreviewDialog(
         IReadOnlyList<ImportPreviewResult> previews,
@@ -51,13 +52,11 @@ public sealed partial class ImportPreviewDialog : ContentDialog
         _candidates = new ObservableCollection<TransactionRecord>(candidates);
         _duplicates = new ObservableCollection<ImportDuplicateItem>(duplicates);
         DetectedDuplicateCount = duplicates.Count;
-        var issues = previews.SelectMany(preview => preview.Issues).ToList();
-        IssueCount = issues.Count;
+        _issues = new ObservableCollection<ImportIssue>(previews.SelectMany(preview => preview.Issues));
         FileCountText.Text = $"{previews.Count} 个";
-        IssueCountText.Text = $"{issues.Count} 条";
         RecordsList.ItemsSource = _candidates;
         DuplicateList.ItemsSource = _duplicates;
-        IssuesList.ItemsSource = issues;
+        IssuesList.ItemsSource = _issues;
 
         var choices = new List<AccountRecord> { new() { Id = 0, Name = "暂不指定账户", Type = "" } };
         choices.AddRange(accounts.Where(account => account.IsActive));
@@ -67,6 +66,7 @@ public sealed partial class ImportPreviewDialog : ContentDialog
         EditCategoryBox.ItemsSource = categories.Where(category => category.IsActive).Select(category => category.Name).Distinct().ToList();
         UpdateCounts();
         if (_duplicates.Count > 0) ImportTabs.SelectedItem = DuplicateTab;
+        else if (_issues.Count > 0) ImportTabs.SelectedItem = IssuesTab;
     }
 
     private void RecordsSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -104,7 +104,9 @@ public sealed partial class ImportPreviewDialog : ContentDialog
         selected.Amount = Math.Round((decimal)EditAmountBox.Value, 2);
         selected.Category = string.IsNullOrWhiteSpace(EditCategoryBox.Text) ? "未分类" : EditCategoryBox.Text.Trim();
         selected.Merchant = EditMerchantBox.Text.Trim();
+        selected.RequiresReview = false;
         selected.Fingerprint = TransactionFingerprint.Create(selected);
+        RemoveResolvedIssues(selected);
         var index = _candidates.IndexOf(selected);
         var duplicate = _duplicateDetector.FindMatch(selected, _existingRecords.Concat(_candidates.Where(row => !ReferenceEquals(row, selected))));
         if (duplicate is not null)
@@ -127,6 +129,7 @@ public sealed partial class ImportPreviewDialog : ContentDialog
     {
         if (RecordsList.SelectedItem is not TransactionRecord selected) return;
         _candidates.Remove(selected);
+        RemoveResolvedIssues(selected);
         UpdateCounts();
         RecordsList.SelectedItem = null;
     }
@@ -145,6 +148,29 @@ public sealed partial class ImportPreviewDialog : ContentDialog
     private void ShowDuplicatesClick(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
         => ImportTabs.SelectedItem = DuplicateTab;
 
+    private void ShowIssuesClick(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+        => ImportTabs.SelectedItem = IssuesTab;
+
+    private void ReviewIssueClick(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ImportIssue issue } || issue.Record is null) return;
+        var duplicate = _duplicates.FirstOrDefault(item => ReferenceEquals(item.Incoming, issue.Record));
+        if (duplicate is not null)
+        {
+            ImportTabs.SelectedItem = DuplicateTab;
+            DuplicateList.SelectedItem = duplicate;
+            DuplicateList.ScrollIntoView(duplicate);
+            return;
+        }
+
+        if (!_candidates.Contains(issue.Record)) return;
+        ImportTabs.SelectedItem = PendingTab;
+        RecordsList.SelectedItem = issue.Record;
+        RecordsList.ScrollIntoView(issue.Record);
+        if (issue.Reason.Contains("时间")) EditDateBox.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        else EditMerchantBox.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+    }
+
     private void OnPrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
     {
         var account = AccountBox.SelectedItem as AccountRecord;
@@ -156,7 +182,15 @@ public sealed partial class ImportPreviewDialog : ContentDialog
     {
         ValidCountText.Text = $"{_candidates.Count} 条";
         DuplicateCountText.Text = $"{_duplicates.Count} 条";
+        IssueCountText.Text = $"{_issues.Count} 条";
         DuplicateSummaryButton.IsEnabled = _duplicates.Count > 0;
-        IsPrimaryButtonEnabled = _candidates.Count > 0;
+        IssueSummaryButton.IsEnabled = _issues.Count > 0;
+        var hasUnresolvedCandidate = _issues.Any(issue => issue.Record is not null && _candidates.Contains(issue.Record));
+        IsPrimaryButtonEnabled = _candidates.Count > 0 && !hasUnresolvedCandidate;
+    }
+
+    private void RemoveResolvedIssues(TransactionRecord record)
+    {
+        foreach (var issue in _issues.Where(item => ReferenceEquals(item.Record, record)).ToList()) _issues.Remove(issue);
     }
 }

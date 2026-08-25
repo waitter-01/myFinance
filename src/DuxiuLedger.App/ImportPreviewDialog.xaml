@@ -24,7 +24,7 @@
       <Border Style="{StaticResource CardStyle}" CornerRadius="10" Padding="14"><StackPanel><TextBlock Text="文件" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="FileCountText" FontSize="22" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
       <Border Grid.Column="1" Style="{StaticResource CardStyle}" CornerRadius="10" Padding="14"><StackPanel><TextBlock Text="待导入" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="ValidCountText" FontSize="22" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
       <Border Grid.Column="2" Style="{StaticResource CardStyle}" CornerRadius="10" Padding="14"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="疑似重复" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="DuplicateCountText" FontSize="22" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel><Button x:Name="DuplicateSummaryButton" Grid.Column="1" Content="查看并处理 →" VerticalAlignment="Center" Click="ShowDuplicatesClick" /></Grid></Border>
-      <Border Grid.Column="3" Style="{StaticResource CardStyle}" CornerRadius="10" Padding="14"><StackPanel><TextBlock Text="问题行" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="IssueCountText" FontSize="22" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
+      <Border Grid.Column="3" Style="{StaticResource CardStyle}" CornerRadius="10" Padding="14"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="需要核对" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="IssueCountText" FontSize="22" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel><Button x:Name="IssueSummaryButton" Grid.Column="1" Content="查看并修正 →" VerticalAlignment="Center" Click="ShowIssuesClick" /></Grid></Border>
     </Grid>
     <Grid Grid.Row="1" Margin="0,12,0,10" ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="280" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><ComboBox x:Name="AccountBox" Header="导入到账户" DisplayMemberPath="Name" /><InfoBar Grid.Column="1" IsOpen="True" IsClosable="False" Severity="Informational" Message="疑似重复记录默认不会导入；请在“疑似重复”页核对，确为两笔交易时可选择仍然导入。" /></Grid>
     <Border Grid.Row="2" Style="{StaticResource CardStyle}" CornerRadius="10" Padding="12" Margin="0,0,0,10">
@@ -61,7 +61,7 @@
                       <TextBlock Text="{x:Bind Category}" FontSize="12" TextTrimming="CharacterEllipsis" />
                     </Border>
                     <TextBlock Grid.Column="4" Text="{x:Bind Merchant}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Merchant}" />
-                    <TextBlock Grid.Column="5" Text="{x:Bind Source}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Source}" />
+                    <TextBlock Grid.Column="5" Text="{x:Bind PreviewSourceDisplay}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind PreviewSourceDisplay}" />
                   </Grid>
                 </Border>
               </DataTemplate>
@@ -95,8 +95,27 @@
           </ListView>
         </Grid>
       </TabViewItem>
-      <TabViewItem Header="问题与跳过" IsClosable="False">
-        <ListView x:Name="IssuesList" SelectionMode="None"><ListView.ItemTemplate><DataTemplate x:DataType="models:ImportIssue"><Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="12,10"><Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="90" /><ColumnDefinition Width="200" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><TextBlock Text="{x:Bind Source}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Source}" /><TextBlock Grid.Column="1" Text="{x:Bind RowDisplay}" /><TextBlock Grid.Column="2" Text="{x:Bind Reason}" /><TextBlock Grid.Column="3" Text="{x:Bind RawValue}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" /></Grid></Border></DataTemplate></ListView.ItemTemplate></ListView>
+      <TabViewItem x:Name="IssuesTab" Header="需要核对（可修改）" IsClosable="False">
+        <Grid>
+          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+          <InfoBar IsOpen="True" IsClosable="False" Severity="Warning" Title="识别结果需要人工核对" Message="点击“定位并修改”后修正或跳过该条；待导入流水中的问题处理完成前，“确认导入”会暂时不可用。" />
+          <ListView x:Name="IssuesList" Grid.Row="1" SelectionMode="None">
+            <ListView.ItemTemplate>
+              <DataTemplate x:DataType="models:ImportIssue">
+                <Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="12,10">
+                  <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="180" /><ColumnDefinition Width="80" /><ColumnDefinition Width="190" /><ColumnDefinition Width="*" /><ColumnDefinition Width="120" /></Grid.ColumnDefinitions>
+                    <TextBlock Text="{x:Bind Source}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Source}" />
+                    <TextBlock Grid.Column="1" Text="{x:Bind RowDisplay}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Text="{x:Bind Reason}" VerticalAlignment="Center" FontWeight="SemiBold" />
+                    <TextBlock Grid.Column="3" Text="{x:Bind RawValue}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                    <Button Grid.Column="4" Content="{x:Bind ReviewActionText}" Tag="{x:Bind}" IsEnabled="{x:Bind CanReview}" HorizontalAlignment="Right" VerticalAlignment="Center" Click="ReviewIssueClick" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ListView.ItemTemplate>
+          </ListView>
+        </Grid>
       </TabViewItem>
     </TabView>
   </Grid>
