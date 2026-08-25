@@ -2,6 +2,21 @@
 
 本项目采用[语义化版本](https://semver.org/lang/zh-CN/)管理版本，版本号格式为 `主版本.次版本.修订版本`。
 
+## [0.7.0] - 2026-08-25
+
+### 架构调整
+
+- 仓库调整为 Windows 桌面应用单一主项目，移除暂停维护的 Next.js、Prisma、Docker、Ubuntu 部署和 Web 测试代码。
+- 移除旧 WPF 回退界面，将仍在使用的模型、导入、存储、分类和 S3 同步逻辑迁入独立 `DuxiuLedger.Core` 项目。
+- WinUI 3 主程序迁入 `src/DuxiuLedger.App`，通过正式项目引用依赖 `src/DuxiuLedger.Core`，不再跨项目链接源码文件。
+- 增加根目录 `DuxiuLedger.sln`，Visual Studio 和命令行均可一次加载、构建完整项目。
+- Logo、Excel 模板、安装定义、构建脚本和产物分别整理到 `assets`、`templates`、`installer`、`scripts` 和 `artifacts`。
+
+### 兼容性
+
+- 本次调整只改变源码仓库结构，不改变本地账本位置、账本格式、S3 同步对象或用户设置，升级无需迁移数据。
+- 发布与安装脚本已适配新目录，并继续支持自包含单文件 EXE 和 Inno Setup 安装程序。
+
 ## [0.6.4] - 2026-08-25
 
 ### 改进
@@ -24,7 +39,7 @@
 
 ### 工程化
 
-- 增加 `desktop/generate-app-icon.ps1`，可从现有 PNG Logo 重复生成标准多尺寸 ICO。
+- 增加 `scripts/generate-app-icon.ps1`，可从现有 PNG Logo 重复生成标准多尺寸 ICO。
 
 ## [0.6.2] - 2026-08-25
 
@@ -228,6 +243,7 @@
 - 提醒时间可以保存，但 Windows 系统通知尚未接入。
 - 云同步、账户管理、资产负债和多端客户端尚未实现。
 
+[0.7.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.7.0
 [0.6.4]: https://github.com/waitter-01/myFinance/releases/tag/v0.6.4
 [0.6.3]: https://github.com/waitter-01/myFinance/releases/tag/v0.6.3
 [0.6.2]: https://github.com/waitter-01/myFinance/releases/tag/v0.6.2

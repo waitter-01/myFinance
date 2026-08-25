@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="desktop/DuxiuLedger.Desktop/Assets/duxiu-logo.png" width="112" alt="独秀账本 Logo">
+  <img src="assets/duxiu-logo.png" width="112" alt="独秀账本 Logo">
   <h1>独秀账本</h1>
   <p>本地优先、轻量易用的 Windows 个人财务账本</p>
 
@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8">
     <img src="https://img.shields.io/badge/UI-WinUI%203-146C70" alt="WinUI 3">
     <img src="https://img.shields.io/badge/同步-S3%20兼容-0F80CC" alt="S3 compatible">
-    <img src="https://img.shields.io/badge/版本-v0.6.4-6B7280" alt="v0.6.4">
+    <img src="https://img.shields.io/badge/版本-v0.7.0-6B7280" alt="v0.7.0">
   </p>
 </div>
 
@@ -16,7 +16,7 @@
 
 独秀账本是一款面向个人用户的 Windows 桌面记账应用。账本默认保存在本机，无需服务器和在线账户；需要多端使用时，可由用户自行配置 S3 或 S3 兼容对象存储。应用支持导入 Excel、CSV 以及微信、支付宝常见格式的官方账单。
 
-项目当前处于早期开发阶段，桌面端是主要开发方向。仓库中的 Next.js 代码是早期 Web 原型，不代表当前推荐的使用方式。
+项目当前处于早期开发阶段，以原生 WinUI 3 桌面应用为唯一主线。业务逻辑与界面项目已经分离，便于继续扩展、测试和维护。
 
 ## 功能特性
 
@@ -46,7 +46,7 @@
 
 ## 当前版本
 
-当前版本为 **v0.6.4**，完善 Inno Setup 6/7 自定义目录发现并正式生成统一图标的安装程序。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本为 **v0.7.0**，完成桌面单项目化、App/Core 分层和仓库目录重组。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
 
 版本号采用 `主版本.次版本.修订版本`：
 
@@ -93,7 +93,7 @@
 ```powershell
 git clone https://github.com/waitter-01/myFinance.git
 cd myFinance
-dotnet run --project .\desktop\DuxiuLedger.WinUI\DuxiuLedger.WinUI.csproj -p:Platform=x64
+dotnet run --project .\src\DuxiuLedger.App\DuxiuLedger.App.csproj -p:Platform=x64
 ```
 
 ### 生成独立 EXE
@@ -101,14 +101,14 @@ dotnet run --project .\desktop\DuxiuLedger.WinUI\DuxiuLedger.WinUI.csproj -p:Pla
 在仓库根目录执行：
 
 ```powershell
-.\desktop\publish-win-x64.ps1
+.\scripts\publish-win-x64.ps1
 ```
 
 生成文件位于：
 
 ```text
-desktop\publish\win-x64\DuxiuLedger.exe
-desktop\publish\DuxiuLedger-v0.6.4-win-x64.zip
+artifacts\win-x64\DuxiuLedger.exe
+artifacts\DuxiuLedger-v0.7.0-win-x64.zip
 ```
 
 单文件 EXE 可以单独复制运行，首次启动时会将 WinUI 3 运行依赖释放到临时目录，因此第一次启动可能稍慢。发布目录已被 Git 忽略，不会提交到仓库。
@@ -126,13 +126,13 @@ winget install --id JRSoftware.InnoSetup -e
 然后在仓库根目录执行：
 
 ```powershell
-.\desktop\build-installer.ps1
+.\scripts\build-installer.ps1
 ```
 
 生成文件：
 
 ```text
-desktop\publish\installer\DuxiuLedger-Setup-v0.6.4-win-x64.exe
+artifacts\installer\DuxiuLedger-Setup-v0.7.0-win-x64.exe
 ```
 
 安装程序默认安装到当前用户的 `%LOCALAPPDATA%\Programs\DuxiuLedger`，不要求管理员权限，并提供开始菜单、可选桌面快捷方式和标准卸载入口。
@@ -141,16 +141,16 @@ desktop\publish\installer\DuxiuLedger-Setup-v0.6.4-win-x64.exe
 
 每次发布版本时按以下顺序操作：
 
-1. 修改 `desktop/DuxiuLedger.WinUI/DuxiuLedger.WinUI.csproj` 中的 `Version`、`AssemblyVersion`、`FileVersion` 和 `InformationalVersion`。
+1. 修改 `src/DuxiuLedger.App/DuxiuLedger.App.csproj` 中的 `Version`、`AssemblyVersion`、`FileVersion` 和 `InformationalVersion`。
 2. 在 `CHANGELOG.md` 顶部增加新版本、发布日期、新增内容、修复内容和已知限制。
 3. 更新 README 顶部版本徽章以及文档中的安装包文件名。
-4. 执行 `desktop/publish-win-x64.ps1` 和 `desktop/build-installer.ps1`，验证 EXE 与安装程序。
+4. 执行 `scripts/publish-win-x64.ps1` 和 `scripts/build-installer.ps1`，验证 EXE 与安装程序。
 5. 使用中文提交版本变更，然后创建并推送 Git 标签：
 
 ```powershell
-git tag -a v0.6.4 -m "版本：发布 v0.6.4"
+git tag -a v0.7.0 -m "版本：发布 v0.7.0"
 git push origin master
-git push origin v0.6.4
+git push origin v0.7.0
 ```
 
 6. 在 GitHub Releases 中使用相同标签创建发行版，并上传单文件 EXE、ZIP 和安装程序。发布说明以 `CHANGELOG.md` 对应版本内容为准。
@@ -163,7 +163,7 @@ git push origin v0.6.4
 
 标准 Excel 模板位于：
 
-[下载独秀账本 Excel 导入模板](desktop/templates/独秀账本-Excel导入模板.xlsx)
+[下载独秀账本 Excel 导入模板](templates/独秀账本-Excel导入模板.xlsx)
 
 模板必填字段：
 
@@ -214,40 +214,38 @@ Secret Key 和 Session Token 只通过 Windows DPAPI 加密保存在当前 Windo
 
 ```text
 myFinance/
-├── desktop/
-│   ├── DuxiuLedger.WinUI/      # 当前 WinUI 3 桌面应用源码
-│   ├── DuxiuLedger.Desktop/    # 保留的 WPF 回退版本与共享业务源码
-│   ├── templates/              # Excel 导入模板
-│   ├── installer/              # Inno Setup 安装程序定义
-│   ├── publish-win-x64.ps1     # Windows 单文件 EXE 发布脚本
-│   ├── build-installer.ps1     # 安装程序自动构建脚本
-│   ├── generate-app-icon.ps1   # 从 PNG 生成 Windows 多尺寸 ICO
-│   └── README.md               # 桌面端补充说明
-├── src/                        # 早期 Next.js Web 原型
-├── prisma/                     # Web 原型数据库模型
+├── src/
+│   ├── DuxiuLedger.App/        # WinUI 3 界面、对话框和 Windows 集成
+│   └── DuxiuLedger.Core/       # 模型、导入、存储、分类和 S3 同步
+├── assets/                     # PNG 与 Windows 多尺寸 ICO
+├── templates/                  # Excel 导入模板
+├── installer/                  # Inno Setup 安装定义
+├── scripts/                    # 构建、发布、安装和图标生成脚本
+├── artifacts/                  # 本地发布产物，不提交 Git
+├── DuxiuLedger.sln             # Visual Studio 解决方案
 └── README.md
 ```
 
 桌面端主要组件：
 
-- `DuxiuLedger.WinUI/MainWindow.xaml`：原生 WinUI 3 主界面和页面导航。
-- `LocalStore.cs`：本地账本持久化和查询。
-- `S3SyncService.cs`：S3 兼容对象下载、合并和上传。
-- `BillImporter.cs`：Excel、CSV 和账单格式识别。
-- `TransactionRecord.cs`：本地流水数据模型。
+- `src/DuxiuLedger.App/MainWindow.xaml`：原生 WinUI 3 主界面和页面导航。
+- `src/DuxiuLedger.Core/Services/LocalStore.cs`：本地账本持久化和查询。
+- `src/DuxiuLedger.Core/Services/S3SyncService.cs`：S3 兼容对象下载、合并和上传。
+- `src/DuxiuLedger.Core/Services/BillImporter.cs`：Excel、CSV 和账单格式识别。
+- `src/DuxiuLedger.Core/Models/TransactionRecord.cs`：本地流水数据模型。
 
 ## 开发与验证
 
 编译桌面项目：
 
 ```powershell
-dotnet build .\desktop\DuxiuLedger.WinUI\DuxiuLedger.WinUI.csproj -c Release -p:Platform=x64
+dotnet build .\DuxiuLedger.sln -c Release -p:Platform=x64
 ```
 
 重新发布：
 
 ```powershell
-.\desktop\publish-win-x64.ps1
+.\scripts\publish-win-x64.ps1
 ```
 
 提交前至少确认：
