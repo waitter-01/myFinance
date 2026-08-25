@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8">
     <img src="https://img.shields.io/badge/UI-WinUI%203-146C70" alt="WinUI 3">
     <img src="https://img.shields.io/badge/数据库-SQLite-0F80CC" alt="SQLite">
-    <img src="https://img.shields.io/badge/版本-v0.2.0-6B7280" alt="v0.2.0">
+    <img src="https://img.shields.io/badge/版本-v0.3.0-6B7280" alt="v0.3.0">
   </p>
 </div>
 
@@ -30,7 +30,9 @@
 - 账户管理：管理现金、银行卡、信用卡和电子钱包，并计算账户余额。
 - 导入预览：写入数据库前核对有效流水、重复记录和问题行。
 - 自主设置：可调整小额消费阈值、月度预算、提醒计划和订阅识别关键词。
-- 订阅统计：自动归集会员、续费和游戏月卡，按近 12 个月付款折算月均成本。
+- 详细分类：内置餐饮、生活、娱乐、游戏、订阅等分类，并支持新增、编辑和停用。
+- 订阅统计：记录价格覆盖月数，按最近价格和计费周期计算真实月均负担。
+- 消费洞察：汇总小额消费、可选支出、分类与商户排行，并给出下月额度建议。
 - 流水搜索：按交易对方或备注查找记录。
 - 数据备份：可直接导出 SQLite 数据库备份并打开数据目录。
 - 原生 WinUI 3：使用 Windows App SDK 的 NavigationView、Mica、ContentDialog 和主题控件。
@@ -39,7 +41,7 @@
 
 ## 当前版本
 
-当前版本为 **v0.2.0**，重点完善流水准确性、账户管理和导入核对。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本为 **v0.3.0**，已进入第二阶段，重点完善详细分类、订阅计费周期和消费去向分析。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
 
 版本号采用 `主版本.次版本.修订版本`：
 
@@ -59,13 +61,14 @@
 | 数据备份 | 可用 | 导出数据库文件 |
 | 手动新增流水 | 可用 | 保存后立即刷新总览和流水列表 |
 | 偏好设置 | 可用 | 财务阈值、预算、提醒和订阅关键词持久化保存 |
-| 订阅与月卡统计 | 可用 | 关键词识别、本月实付和近 12 个月月均分摊 |
+| 订阅与月卡统计 | 可用 | 分类/关键词识别、本月实付和按覆盖月数折算的月均负担 |
+| 消费洞察 | 基础可用 | 小额消费、可选支出、分类/商户排行和下月额度建议 |
 | 编辑和删除流水 | 可用 | 编辑保留来源和指纹，删除前二次确认 |
 | 完整交易类型 | 可用 | 支出、收入、转账、退款和报销 |
 | 账户管理 | 可用 | 期初余额、动态余额、停用和流水关联 |
 | 导入预览 | 可用 | 有效记录、重复项和问题行报告 |
 | 预算管理 | 规划中 | 已有页面框架，业务功能尚未接入 |
-| 分类编辑 | 规划中 | 已有页面框架，业务功能尚未接入 |
+| 分类编辑 | 可用 | 详细预设分类，支持新增、修改、排序、停用和安全删除 |
 
 ## 快速开始
 
@@ -95,7 +98,7 @@ dotnet run --project .\desktop\DuxiuLedger.Desktop\DuxiuLedger.Desktop.csproj
 
 ```text
 desktop\publish\win-x64\DuxiuLedger.exe
-desktop\publish\DuxiuLedger-v0.2.0-win-x64.zip
+desktop\publish\DuxiuLedger-v0.3.0-win-x64.zip
 ```
 
 单文件 EXE 可以单独复制运行，首次启动时会将 WinUI 3 运行依赖释放到临时目录，因此第一次启动可能稍慢。发布目录已被 Git 忽略，不会提交到仓库。
@@ -119,7 +122,7 @@ winget install --id JRSoftware.InnoSetup -e
 生成文件：
 
 ```text
-desktop\publish\installer\DuxiuLedger-Setup-v0.2.0-win-x64.exe
+desktop\publish\installer\DuxiuLedger-Setup-v0.3.0-win-x64.exe
 ```
 
 安装程序默认安装到当前用户的 `%LOCALAPPDATA%\Programs\DuxiuLedger`，不要求管理员权限，并提供开始菜单、可选桌面快捷方式和标准卸载入口。
@@ -135,9 +138,9 @@ desktop\publish\installer\DuxiuLedger-Setup-v0.2.0-win-x64.exe
 5. 使用中文提交版本变更，然后创建并推送 Git 标签：
 
 ```powershell
-git tag -a v0.2.0 -m "版本：发布 v0.2.0"
+git tag -a v0.3.0 -m "版本：发布 v0.3.0"
 git push origin master
-git push origin v0.2.0
+git push origin v0.3.0
 ```
 
 6. 在 GitHub Releases 中使用相同标签创建发行版，并上传单文件 EXE、ZIP 和安装程序。发布说明以 `CHANGELOG.md` 对应版本内容为准。
@@ -158,7 +161,7 @@ git push origin v0.2.0
 | 收支 | `支出` 或 `收入` | `支出` |
 | 金额(元) | 大于 0 的数字 | `18.50` |
 
-选填字段包括交易对方、商品说明、分类和备注。微信、支付宝官方导出的账单可直接尝试导入，不必先转换为标准模板。
+选填字段包括交易对方、商品说明、分类、订阅月数和备注。归类为“订阅消费”时建议填写价格覆盖的月数，例如年度会员填写 `12`；微信、支付宝官方导出的账单可直接尝试导入，不必先转换为标准模板。
 
 ## 数据存储
 
@@ -234,7 +237,9 @@ dotnet build .\desktop\DuxiuLedger.Desktop\DuxiuLedger.Desktop.csproj -c Release
 - [x] 编辑和删除流水
 - [x] 收入、支出、转账、退款和报销类型
 - [x] 本地账户管理和流水关联
-- [ ] 可编辑分类与自动分类规则
+- [x] 可编辑详细分类
+- [ ] 自动分类规则
+- [x] 消费去向、小额支出和商户排行洞察
 - [ ] 月度预算设置和使用进度
 - [x] 导入预览和错误行报告
 - [ ] 银行账单字段映射向导
