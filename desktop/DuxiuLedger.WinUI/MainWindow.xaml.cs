@@ -17,6 +17,7 @@ public sealed partial class MainWindow : Window
     {
         ["Dashboard"] = ("总览", "查看本月财务情况和最近流水"),
         ["Transactions"] = ("全部流水", "搜索、核对和管理本地账单记录"),
+        ["Insights"] = ("消费洞察", "看清消费去向、小额支出和可优化空间"),
         ["Budgets"] = ("预算计划", "规划每月支出，控制消费节奏"),
         ["Subscriptions"] = ("订阅与月卡", "看清自动续费、会员和游戏月卡的长期成本"),
         ["Accounts"] = ("账户管理", "管理现金、银行卡、电子钱包和信用账户"),
@@ -55,6 +56,7 @@ public sealed partial class MainWindow : Window
         TransactionsList.ItemsSource = allRecords;
         RecordCountText.Text = $"共 {allRecords.Count} 条记录 · 本月 {records.Count} 条";
         LoadSubscriptions(allRecords);
+        LoadInsights(allRecords);
         LoadAccounts();
         LoadCategories();
         StatusText.Text = $"已读取本地账本 · 本月 {records.Count} 条流水";
@@ -62,6 +64,62 @@ public sealed partial class MainWindow : Window
 
     private void LoadAccounts() => AccountsList.ItemsSource = _store.ListAccounts();
     private void LoadCategories() => CategoriesList.ItemsSource = _store.ListCategories();
+
+    private void LoadInsights(IReadOnlyList<TransactionRecord> allRecords)
+    {
+        var today = DateTime.Today;
+        var monthStart = new DateTime(today.Year, today.Month, 1);
+        var nextMonth = monthStart.AddMonths(1);
+        var previousMonth = monthStart.AddMonths(-1);
+        var previousCompareEnd = previousMonth.AddDays(Math.Min(today.Day, DateTime.DaysInMonth(previousMonth.Year, previousMonth.Month)));
+        var expenses = allRecords.Where(row => row.Direction == "支出" && row.OccurredOn >= monthStart && row.OccurredOn < nextMonth).ToList();
+        var previousExpenses = allRecords.Where(row => row.Direction == "支出" && row.OccurredOn >= previousMonth && row.OccurredOn < previousCompareEnd).ToList();
+        var total = expenses.Sum(row => row.Amount);
+        var settings = _store.LoadSettings();
+        var threshold = settings.SmallExpenseThreshold;
+        var small = expenses.Where(row => row.Amount <= threshold).ToList();
+        var optionalNames = new HashSet<string>(["零食饮料", "娱乐休闲", "游戏消费", "订阅消费", "小额杂项"]);
+        var optional = expenses.Where(row => optionalNames.Contains(row.Category)).ToList();
+        var previousOptional = previousExpenses.Where(row => optionalNames.Contains(row.Category)).Sum(row => row.Amount);
+        var categoryRanks = BuildRanks(expenses, row => row.Category, total);
+        var merchantRanks = BuildRanks(expenses, row => string.IsNullOrWhiteSpace(row.Merchant) ? "未注明交易对方" : row.Merchant.Trim(), total);
+        var forecast = today.Day == 0 ? total : total / today.Day * DateTime.DaysInMonth(today.Year, today.Month);
+        var suggestedBudget = settings.MonthlyBudget > 0 ? settings.MonthlyBudget : Math.Round(forecast * 0.9m, 0);
+
+        InsightSmallText.Text = $"¥{small.Sum(row => row.Amount):N2}";
+        InsightSmallDetailText.Text = $"{small.Count} 笔 · 单笔不超过 ¥{threshold:N0}";
+        InsightOptionalText.Text = $"¥{optional.Sum(row => row.Amount):N2}";
+        InsightOptionalDetailText.Text = total > 0 ? $"占本月支出 {optional.Sum(row => row.Amount) / total:P1}" : "本月暂无支出";
+        InsightTopCategoryText.Text = categoryRanks.Count == 0 ? "暂无数据" : categoryRanks[0].Name;
+        InsightTopCategoryDetailText.Text = categoryRanks.Count == 0 ? "导入或录入流水后生成" : $"{categoryRanks[0].AmountDisplay} · {categoryRanks[0].ShareDisplay}";
+        InsightBudgetText.Text = $"¥{suggestedBudget:N0}";
+        InsightBudgetDetailText.Text = settings.MonthlyBudget > 0 ? "采用你设置的月度总预算" : "按本月日均预测后预留 10% 空间";
+        CategoryRankingList.ItemsSource = categoryRanks.Take(6).ToList();
+        MerchantRankingList.ItemsSource = merchantRanks.Take(6).ToList();
+
+        var smallTotal = small.Sum(row => row.Amount);
+        var optionalTotal = optional.Sum(row => row.Amount);
+        var suggestions = new List<InsightSuggestion>();
+        suggestions.Add(total == 0
+            ? new InsightSuggestion { Title = "等待消费数据", Detail = "导入或录入本月支出后，系统会生成针对性的控制建议。" }
+            : new InsightSuggestion { Title = smallTotal / total >= 0.2m ? "小额消费需要留意" : "小额消费目前可控", Detail = $"本月 {small.Count} 笔小额支出合计 ¥{smallTotal:N2}，占支出 {smallTotal / total:P1}。" });
+        suggestions.Add(new InsightSuggestion
+        {
+            Title = optionalTotal > previousOptional ? "可选消费有所提高" : "可选消费未明显增加",
+            Detail = $"零食、娱乐、游戏、订阅和杂项合计 ¥{optionalTotal:N2}；上月同期 ¥{previousOptional:N2}。"
+        });
+        suggestions.Add(categoryRanks.Count == 0
+            ? new InsightSuggestion { Title = "主要去向尚不明确", Detail = "建议为流水选择详细分类，分析会更准确。" }
+            : new InsightSuggestion { Title = $"钱主要花在“{categoryRanks[0].Name}”", Detail = $"共 {categoryRanks[0].Count} 笔、¥{categoryRanks[0].Amount:N2}，占本月支出 {categoryRanks[0].Share:P1}。" });
+        suggestions.Add(new InsightSuggestion { Title = $"下月建议控制在 ¥{suggestedBudget:N0}", Detail = settings.MonthlyBudget > 0 ? "这是你设定的月度总额度，可在偏好设置中随时调整。" : "这是系统根据当前消费速度给出的初步建议，后续可在设置中改成自己的目标。" });
+        InsightSuggestionsList.ItemsSource = suggestions;
+    }
+
+    private static List<SpendingRankItem> BuildRanks(IEnumerable<TransactionRecord> rows, Func<TransactionRecord, string> nameSelector, decimal total)
+        => rows.GroupBy(nameSelector, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new SpendingRankItem { Name = group.Key, Amount = group.Sum(row => row.Amount), Count = group.Count(), Share = total <= 0 ? 0 : group.Sum(row => row.Amount) / total })
+            .OrderByDescending(item => item.Amount)
+            .ToList();
 
     private void LoadSubscriptions(IReadOnlyList<TransactionRecord> allRecords)
     {
@@ -109,6 +167,7 @@ public sealed partial class MainWindow : Window
         PageSubtitle.Text = page.Subtitle;
         DashboardPage.Visibility = key == "Dashboard" ? Visibility.Visible : Visibility.Collapsed;
         TransactionsPage.Visibility = key == "Transactions" ? Visibility.Visible : Visibility.Collapsed;
+        InsightsPage.Visibility = key == "Insights" ? Visibility.Visible : Visibility.Collapsed;
         SubscriptionsPage.Visibility = key == "Subscriptions" ? Visibility.Visible : Visibility.Collapsed;
         AccountsPage.Visibility = key == "Accounts" ? Visibility.Visible : Visibility.Collapsed;
         CategoriesPage.Visibility = key == "Categories" ? Visibility.Visible : Visibility.Collapsed;
