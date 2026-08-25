@@ -196,6 +196,7 @@ public sealed partial class MainWindow : Window
         MySqlDatabaseBox.Text = settings.MySqlDatabase;
         MySqlUsernameBox.Text = settings.MySqlUsername;
         MySqlSslModeBox.SelectedItem = settings.MySqlSslMode;
+        MySqlLegacyModeCheck.IsChecked = settings.MySqlLegacyMode;
         MySqlPasswordBox.PlaceholderText = string.IsNullOrEmpty(_store.LoadMySqlPassword()) ? "请输入数据库密码" : "密码已由 Windows 当前用户加密保存";
     }
 
@@ -482,7 +483,7 @@ public sealed partial class MainWindow : Window
             WeeklySummaryEnabled = WeeklySummaryCheck.IsChecked == true, WeeklySummaryDay = dayIndex == 6 ? DayOfWeek.Sunday : (DayOfWeek)(dayIndex + 1), WeeklySummaryTime = WeeklySummaryTimePicker.Time.ToString(@"hh\:mm"),
             SubscriptionKeywords = SubscriptionKeywordsBox.Text.Trim(), OptionalCategories = OptionalCategoriesBox.Text.Trim(), MySqlSyncEnabled = MySqlSyncEnabledCheck.IsChecked == true, SyncOnStartup = SyncOnStartupCheck.IsChecked == true,
             MySqlHost = MySqlHostBox.Text.Trim(), MySqlPort = (int)Math.Clamp(MySqlPortBox.Value, 1, 65535), MySqlDatabase = MySqlDatabaseBox.Text.Trim(),
-            MySqlUsername = MySqlUsernameBox.Text.Trim(), MySqlSslMode = MySqlSslModeBox.SelectedItem?.ToString() ?? "Preferred"
+            MySqlUsername = MySqlUsernameBox.Text.Trim(), MySqlSslMode = MySqlSslModeBox.SelectedItem?.ToString() ?? "Preferred", MySqlLegacyMode = MySqlLegacyModeCheck.IsChecked == true
         };
     }
 
@@ -502,8 +503,8 @@ public sealed partial class MainWindow : Window
         try
         {
             SaveCloudSettings(); CloudSyncProgress.IsActive = true; CloudSyncInfo.IsOpen = false;
-            await _syncService.TestConnectionAsync(_store.LoadSettings(), _store.LoadMySqlPassword());
-            CloudSyncInfo.Severity = InfoBarSeverity.Success; CloudSyncInfo.Title = "连接成功"; CloudSyncInfo.Message = "MySQL 登录和数据库访问正常。"; CloudSyncInfo.IsOpen = true;
+            var version = await _syncService.TestConnectionAsync(_store.LoadSettings(), _store.LoadMySqlPassword());
+            CloudSyncInfo.Severity = InfoBarSeverity.Success; CloudSyncInfo.Title = "连接成功"; CloudSyncInfo.Message = $"MySQL {version} 登录和数据库访问正常。"; CloudSyncInfo.IsOpen = true;
         }
         catch (Exception ex) { CloudSyncInfo.Severity = InfoBarSeverity.Error; CloudSyncInfo.Title = "连接失败"; CloudSyncInfo.Message = SafeDatabaseError(ex); CloudSyncInfo.IsOpen = true; }
         finally { CloudSyncProgress.IsActive = false; }

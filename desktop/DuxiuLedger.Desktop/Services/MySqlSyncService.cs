@@ -11,12 +11,13 @@ public sealed class MySqlSyncService
     private readonly LocalStore _store;
     public MySqlSyncService(LocalStore store) => _store = store;
 
-    public async Task TestConnectionAsync(AppSettings settings, string password, CancellationToken cancellationToken = default)
+    public async Task<string> TestConnectionAsync(AppSettings settings, string password, CancellationToken cancellationToken = default)
     {
         await using var connection = new MySqlConnection(BuildConnectionString(settings, password));
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand(); command.CommandText = "SELECT 1";
         await command.ExecuteScalarAsync(cancellationToken);
+        return connection.ServerVersion;
     }
 
     public async Task<SyncResult> SyncAsync(AppSettings settings, string password, CancellationToken cancellationToken = default)
@@ -24,7 +25,7 @@ public sealed class MySqlSyncService
         var result = new SyncResult();
         await using var remote = new MySqlConnection(BuildConnectionString(settings, password));
         await remote.OpenAsync(cancellationToken);
-        await EnsureRemoteSchemaAsync(remote, cancellationToken);
+        await EnsureRemoteSchemaAsync(remote, settings.MySqlLegacyMode, cancellationToken);
 
         foreach (var item in ReadLocalItems())
         {
@@ -48,15 +49,16 @@ public sealed class MySqlSyncService
         if (string.IsNullOrWhiteSpace(settings.MySqlHost) || string.IsNullOrWhiteSpace(settings.MySqlDatabase) || string.IsNullOrWhiteSpace(settings.MySqlUsername)) throw new InvalidOperationException("MySQL 主机、数据库名和用户名不能为空。 ");
         if (string.IsNullOrEmpty(password)) throw new InvalidOperationException("请先输入并保存 MySQL 密码。 ");
         if (!Enum.TryParse<MySqlSslMode>(settings.MySqlSslMode, true, out var sslMode)) sslMode = MySqlSslMode.Preferred;
+        if (settings.MySqlLegacyMode) sslMode = MySqlSslMode.Disabled;
         return new MySqlConnectionStringBuilder
         {
             Server = settings.MySqlHost.Trim(), Port = (uint)Math.Clamp(settings.MySqlPort, 1, 65535), Database = settings.MySqlDatabase.Trim(),
             UserID = settings.MySqlUsername.Trim(), Password = password, SslMode = sslMode, ConnectionTimeout = 10,
-            DefaultCommandTimeout = 30, CharacterSet = "utf8mb4", AllowUserVariables = false
+            DefaultCommandTimeout = 30, CharacterSet = settings.MySqlLegacyMode ? "utf8" : "utf8mb4", AllowUserVariables = false
         }.ConnectionString;
     }
 
-    private static async Task EnsureRemoteSchemaAsync(MySqlConnection connection, CancellationToken cancellationToken)
+    private static async Task EnsureRemoteSchemaAsync(MySqlConnection connection, bool legacyMode, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
         command.CommandText = """
@@ -67,8 +69,8 @@ public sealed class MySqlSyncService
               updated_at VARCHAR(40) NOT NULL,
               is_deleted TINYINT(1) NOT NULL DEFAULT 0,
               PRIMARY KEY(entity_type,sync_id)
-            ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-            """;
+            ) CHARACTER SET __CHARSET__ COLLATE __COLLATION__;
+            """.Replace("__CHARSET__", legacyMode ? "utf8" : "utf8mb4").Replace("__COLLATION__", legacyMode ? "utf8_general_ci" : "utf8mb4_unicode_ci");
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 

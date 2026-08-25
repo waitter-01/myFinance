@@ -391,6 +391,7 @@ public sealed class LocalStore
         if (values.TryGetValue("mysql_database", out var mysqlDatabase)) settings.MySqlDatabase = mysqlDatabase;
         if (values.TryGetValue("mysql_username", out var mysqlUsername)) settings.MySqlUsername = mysqlUsername;
         if (values.TryGetValue("mysql_ssl_mode", out var sslMode)) settings.MySqlSslMode = sslMode;
+        if (TryBool(values, "mysql_legacy_mode", out var legacyMode)) settings.MySqlLegacyMode = legacyMode;
         return settings;
     }
 
@@ -413,7 +414,8 @@ public sealed class LocalStore
             ["mysql_port"] = settings.MySqlPort.ToString(CultureInfo.InvariantCulture),
             ["mysql_database"] = settings.MySqlDatabase,
             ["mysql_username"] = settings.MySqlUsername,
-            ["mysql_ssl_mode"] = settings.MySqlSslMode
+            ["mysql_ssl_mode"] = settings.MySqlSslMode,
+            ["mysql_legacy_mode"] = settings.MySqlLegacyMode.ToString()
         };
         using var c = Open(); using var tx = c.BeginTransaction();
         foreach (var pair in values)

@@ -18,4 +18,5 @@ public sealed class AppSettings
     public string MySqlDatabase { get; set; } = "myFinance";
     public string MySqlUsername { get; set; } = "myFinance";
     public string MySqlSslMode { get; set; } = "Preferred";
+    public bool MySqlLegacyMode { get; set; }
 }
