@@ -11,4 +11,6 @@ public sealed class TransactionRecord
     public string Note { get; set; } = "";
     public string Source { get; set; } = "手动录入";
     public string Fingerprint { get; set; } = "";
+    public string DateDisplay => OccurredOn.ToString("yyyy-MM-dd HH:mm");
+    public string AmountDisplay => $"¥{Amount:N2}";
 }
