@@ -53,7 +53,7 @@ public sealed partial class ImportPreviewDialog : ContentDialog
         _duplicates = new ObservableCollection<ImportDuplicateItem>(duplicates);
         DetectedDuplicateCount = duplicates.Count;
         _issues = new ObservableCollection<ImportIssue>(previews.SelectMany(preview => preview.Issues));
-        FileCountText.Text = $"{previews.Count} 个";
+        FileCountText.Text = $"{previews.Count} 个 / {previews.Sum(preview => preview.TotalRows)} 条";
         RecordsList.ItemsSource = _candidates;
         DuplicateList.ItemsSource = _duplicates;
         IssuesList.ItemsSource = _issues;
@@ -87,6 +87,13 @@ public sealed partial class ImportPreviewDialog : ContentDialog
         EditMerchantBox.Text = selected.Merchant;
         EditDateBox.Header = "时间";
         EditDateBox.Text = selected.DateDisplay;
+    }
+
+    private void DialogOpened(ContentDialog sender, ContentDialogOpenedEventArgs args)
+    {
+        if (XamlRoot is null) return;
+        DialogRoot.Width = Math.Max(820, Math.Min(1220, XamlRoot.Size.Width - 72));
+        DialogRoot.Height = Math.Max(580, Math.Min(820, XamlRoot.Size.Height - 112));
     }
 
     private void ApplyEditClick(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
@@ -151,6 +158,14 @@ public sealed partial class ImportPreviewDialog : ContentDialog
     private void ShowIssuesClick(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
         => ImportTabs.SelectedItem = IssuesTab;
 
+    private void ScrollToLastClick(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+    {
+        if (_candidates.Count == 0) return;
+        var last = _candidates[^1];
+        RecordsList.SelectedItem = last;
+        RecordsList.ScrollIntoView(last);
+    }
+
     private void ReviewIssueClick(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
     {
         if (sender is not Button { Tag: ImportIssue issue } || issue.Record is null) return;
@@ -183,6 +198,10 @@ public sealed partial class ImportPreviewDialog : ContentDialog
         ValidCountText.Text = $"{_candidates.Count} 条";
         DuplicateCountText.Text = $"{_duplicates.Count} 条";
         IssueCountText.Text = $"{_issues.Count} 条";
+        PendingTab.Header = $"待导入流水（{_candidates.Count}）";
+        DuplicateTab.Header = $"疑似重复（{_duplicates.Count}，需要确认）";
+        IssuesTab.Header = $"需要核对（{_issues.Count}，可修改）";
+        ScrollToLastButton.IsEnabled = _candidates.Count > 0;
         DuplicateSummaryButton.IsEnabled = _duplicates.Count > 0;
         IssueSummaryButton.IsEnabled = _issues.Count > 0;
         var hasUnresolvedCandidate = _issues.Any(issue => issue.Record is not null && _candidates.Contains(issue.Record));

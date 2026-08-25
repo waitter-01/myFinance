@@ -12,16 +12,17 @@
     BorderThickness="1"
     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
     Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+    Opened="DialogOpened"
     PrimaryButtonClick="OnPrimaryButtonClick">
   <ContentDialog.Resources>
     <x:Double x:Key="ContentDialogMinWidth">1100</x:Double>
     <x:Double x:Key="ContentDialogMaxWidth">1220</x:Double>
   </ContentDialog.Resources>
-  <Grid Width="1120" Height="650">
+  <Grid x:Name="DialogRoot" Width="1120" Height="650">
     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
     <Grid ColumnSpacing="10">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-      <Border Style="{StaticResource CardStyle}" CornerRadius="10" Padding="14"><StackPanel><TextBlock Text="文件" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="FileCountText" FontSize="22" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
+      <Border Style="{StaticResource CardStyle}" CornerRadius="10" Padding="14"><StackPanel><TextBlock Text="文件 / 识别记录" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="FileCountText" FontSize="22" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
       <Border Grid.Column="1" Style="{StaticResource CardStyle}" CornerRadius="10" Padding="14"><StackPanel><TextBlock Text="待导入" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="ValidCountText" FontSize="22" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
       <Border Grid.Column="2" Style="{StaticResource CardStyle}" CornerRadius="10" Padding="14"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="疑似重复" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="DuplicateCountText" FontSize="22" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel><Button x:Name="DuplicateSummaryButton" Grid.Column="1" Content="查看并处理 →" VerticalAlignment="Center" Click="ShowDuplicatesClick" /></Grid></Border>
       <Border Grid.Column="3" Style="{StaticResource CardStyle}" CornerRadius="10" Padding="14"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="需要核对" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="IssueCountText" FontSize="22" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel><Button x:Name="IssueSummaryButton" Grid.Column="1" Content="查看并修正 →" VerticalAlignment="Center" Click="ShowIssuesClick" /></Grid></Border>
@@ -44,9 +45,9 @@
           <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
           <Grid Padding="12,8" ColumnSpacing="12" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
             <Grid.ColumnDefinitions><ColumnDefinition Width="145" /><ColumnDefinition Width="76" /><ColumnDefinition Width="105" /><ColumnDefinition Width="120" /><ColumnDefinition Width="*" /><ColumnDefinition Width="194" /></Grid.ColumnDefinitions>
-            <TextBlock Text="交易时间" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="类型" FontWeight="SemiBold" /><TextBlock Grid.Column="2" Text="金额" FontWeight="SemiBold" /><TextBlock Grid.Column="3" Text="分类" FontWeight="SemiBold" /><TextBlock Grid.Column="4" Text="交易对方" FontWeight="SemiBold" /><TextBlock Grid.Column="5" Text="来源" FontWeight="SemiBold" />
+            <TextBlock Text="交易时间" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="类型" FontWeight="SemiBold" /><TextBlock Grid.Column="2" Text="金额" FontWeight="SemiBold" /><TextBlock Grid.Column="3" Text="分类" FontWeight="SemiBold" /><TextBlock Grid.Column="4" Text="交易对方" FontWeight="SemiBold" /><Button x:Name="ScrollToLastButton" Grid.Column="5" Content="查看最后一条 ↓" HorizontalAlignment="Right" VerticalAlignment="Center" Click="ScrollToLastClick" />
           </Grid>
-          <ListView x:Name="RecordsList" Grid.Row="1" SelectionMode="Single" SelectionChanged="RecordsSelectionChanged">
+          <ListView x:Name="RecordsList" Grid.Row="1" SelectionMode="Single" SelectionChanged="RecordsSelectionChanged" ScrollViewer.VerticalScrollMode="Enabled" ScrollViewer.VerticalScrollBarVisibility="Visible">
             <ListView.ItemTemplate>
               <DataTemplate x:DataType="models:TransactionRecord">
                 <Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="12,9">
@@ -80,7 +81,7 @@
             </StackPanel>
             <Button Grid.Column="1" Content="仍然导入所选" Style="{StaticResource AccentButtonStyle}" VerticalAlignment="Center" Click="ImportDuplicateClick" />
           </Grid>
-          <ListView x:Name="DuplicateList" Grid.Row="1" SelectionMode="Single">
+          <ListView x:Name="DuplicateList" Grid.Row="1" SelectionMode="Single" ScrollViewer.VerticalScrollMode="Enabled" ScrollViewer.VerticalScrollBarVisibility="Visible">
             <ListView.ItemTemplate>
               <DataTemplate x:DataType="models:ImportDuplicateItem">
                 <Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="12,10">
@@ -99,7 +100,7 @@
         <Grid>
           <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
           <InfoBar IsOpen="True" IsClosable="False" Severity="Warning" Title="识别结果需要人工核对" Message="点击“定位并修改”后修正或跳过该条；待导入流水中的问题处理完成前，“确认导入”会暂时不可用。" />
-          <ListView x:Name="IssuesList" Grid.Row="1" SelectionMode="None">
+          <ListView x:Name="IssuesList" Grid.Row="1" SelectionMode="None" ScrollViewer.VerticalScrollMode="Enabled" ScrollViewer.VerticalScrollBarVisibility="Visible">
             <ListView.ItemTemplate>
               <DataTemplate x:DataType="models:ImportIssue">
                 <Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="12,10">
