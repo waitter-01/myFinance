@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentDialog
+    x:Class="DuxiuLedger.WinUI.ImportPreviewDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:DuxiuLedger.Desktop.Models"
+    Title="账单导入预览"
+    PrimaryButtonText="确认导入"
+    CloseButtonText="取消"
+    DefaultButton="Primary"
+    PrimaryButtonClick="OnPrimaryButtonClick">
+  <Grid Width="820" Height="560">
+    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+    <Grid ColumnSpacing="10">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+      <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="6" Padding="12"><StackPanel><TextBlock Text="文件" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="FileCountText" FontSize="20" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
+      <Border Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="6" Padding="12"><StackPanel><TextBlock Text="待导入" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="ValidCountText" FontSize="20" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
+      <Border Grid.Column="2" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="6" Padding="12"><StackPanel><TextBlock Text="重复跳过" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="DuplicateCountText" FontSize="20" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
+      <Border Grid.Column="3" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="6" Padding="12"><StackPanel><TextBlock Text="问题行" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="IssueCountText" FontSize="20" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
+    </Grid>
+    <ComboBox x:Name="AccountBox" Grid.Row="1" Header="导入到账户" DisplayMemberPath="Name" Width="280" HorizontalAlignment="Left" Margin="0,14,0,10" />
+    <TabView Grid.Row="2" IsAddTabButtonVisible="False">
+      <TabViewItem Header="待导入流水" IsClosable="False">
+        <ListView x:Name="RecordsList" SelectionMode="None"><ListView.ItemTemplate><DataTemplate x:DataType="models:TransactionRecord"><Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="8"><Grid ColumnSpacing="10"><Grid.ColumnDefinitions><ColumnDefinition Width="140" /><ColumnDefinition Width="60" /><ColumnDefinition Width="100" /><ColumnDefinition Width="*" /><ColumnDefinition Width="160" /></Grid.ColumnDefinitions><TextBlock Text="{x:Bind DateDisplay}" /><TextBlock Grid.Column="1" Text="{x:Bind Direction}" /><TextBlock Grid.Column="2" Text="{x:Bind AmountDisplay}" FontWeight="SemiBold" /><TextBlock Grid.Column="3" Text="{x:Bind Merchant}" TextTrimming="CharacterEllipsis" /><TextBlock Grid.Column="4" Text="{x:Bind Source}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" /></Grid></Border></DataTemplate></ListView.ItemTemplate></ListView>
+      </TabViewItem>
+      <TabViewItem Header="问题与跳过" IsClosable="False">
+        <ListView x:Name="IssuesList" SelectionMode="None"><ListView.ItemTemplate><DataTemplate x:DataType="models:ImportIssue"><Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="8"><Grid ColumnSpacing="10"><Grid.ColumnDefinitions><ColumnDefinition Width="150" /><ColumnDefinition Width="80" /><ColumnDefinition Width="150" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><TextBlock Text="{x:Bind Source}" TextTrimming="CharacterEllipsis" /><TextBlock Grid.Column="1" Text="{x:Bind RowDisplay}" /><TextBlock Grid.Column="2" Text="{x:Bind Reason}" /><TextBlock Grid.Column="3" Text="{x:Bind RawValue}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" /></Grid></Border></DataTemplate></ListView.ItemTemplate></ListView>
+      </TabViewItem>
+    </TabView>
+  </Grid>
+</ContentDialog>
