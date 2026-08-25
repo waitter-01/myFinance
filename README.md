@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8">
     <img src="https://img.shields.io/badge/UI-WinUI%203-146C70" alt="WinUI 3">
     <img src="https://img.shields.io/badge/数据库-SQLite-0F80CC" alt="SQLite">
-    <img src="https://img.shields.io/badge/版本-v0.3.0-6B7280" alt="v0.3.0">
+    <img src="https://img.shields.io/badge/版本-v0.4.0-6B7280" alt="v0.4.0">
   </p>
 </div>
 
@@ -33,6 +33,9 @@
 - 详细分类：内置餐饮、生活、娱乐、游戏、订阅等分类，并支持新增、编辑和停用。
 - 订阅统计：记录价格覆盖月数，按最近价格和计费周期计算真实月均负担。
 - 消费洞察：汇总小额消费、可选支出、分类与商户排行，并给出下月额度建议。
+- 预算与目标：设置月度总预算、分类预算和储蓄目标，显示使用进度及每月建议储蓄额。
+- 多端同步：可直连 MySQL 进行本地优先双向合并，密码由 Windows 当前用户加密保存。
+- 系统提醒：支持每日记账提醒和每周消费总结通知。
 - 流水搜索：按交易对方或备注查找记录。
 - 数据备份：可直接导出 SQLite 数据库备份并打开数据目录。
 - 原生 WinUI 3：使用 Windows App SDK 的 NavigationView、Mica、ContentDialog 和主题控件。
@@ -41,7 +44,7 @@
 
 ## 当前版本
 
-当前版本为 **v0.3.0**，已进入第二阶段，重点完善详细分类、订阅计费周期和消费去向分析。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本为 **v0.4.0**，已完成第三阶段的预算、储蓄目标、Windows 提醒、趋势报告和 MySQL 多端同步。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
 
 版本号采用 `主版本.次版本.修订版本`：
 
@@ -63,11 +66,15 @@
 | 偏好设置 | 可用 | 财务阈值、预算、提醒和订阅关键词持久化保存 |
 | 订阅与月卡统计 | 可用 | 分类/关键词识别、本月实付和按覆盖月数折算的月均负担 |
 | 消费洞察 | 基础可用 | 小额消费、可选支出、分类/商户排行和下月额度建议 |
+| 预算与储蓄目标 | 可用 | 月度总预算、分类预算、超支提示和目标月存建议 |
+| MySQL 多端同步 | 可用 | 本地优先双向合并、删除同步、TLS 和启动同步 |
+| Windows 提醒 | 可用 | 每日记账提醒和每周近 7 天支出总结 |
+| 趋势与导出 | 可用 | 近 6 个月趋势和本月 CSV 报告 |
 | 编辑和删除流水 | 可用 | 编辑保留来源和指纹，删除前二次确认 |
 | 完整交易类型 | 可用 | 支出、收入、转账、退款和报销 |
 | 账户管理 | 可用 | 期初余额、动态余额、停用和流水关联 |
 | 导入预览 | 可用 | 有效记录、重复项和问题行报告 |
-| 预算管理 | 规划中 | 已有页面框架，业务功能尚未接入 |
+| 预算管理 | 可用 | 总预算和分类预算进度 |
 | 分类编辑 | 可用 | 详细预设分类，支持新增、修改、排序、停用和安全删除 |
 
 ## 快速开始
@@ -98,7 +105,7 @@ dotnet run --project .\desktop\DuxiuLedger.Desktop\DuxiuLedger.Desktop.csproj
 
 ```text
 desktop\publish\win-x64\DuxiuLedger.exe
-desktop\publish\DuxiuLedger-v0.3.0-win-x64.zip
+desktop\publish\DuxiuLedger-v0.4.0-win-x64.zip
 ```
 
 单文件 EXE 可以单独复制运行，首次启动时会将 WinUI 3 运行依赖释放到临时目录，因此第一次启动可能稍慢。发布目录已被 Git 忽略，不会提交到仓库。
@@ -122,7 +129,7 @@ winget install --id JRSoftware.InnoSetup -e
 生成文件：
 
 ```text
-desktop\publish\installer\DuxiuLedger-Setup-v0.3.0-win-x64.exe
+desktop\publish\installer\DuxiuLedger-Setup-v0.4.0-win-x64.exe
 ```
 
 安装程序默认安装到当前用户的 `%LOCALAPPDATA%\Programs\DuxiuLedger`，不要求管理员权限，并提供开始菜单、可选桌面快捷方式和标准卸载入口。
@@ -138,9 +145,9 @@ desktop\publish\installer\DuxiuLedger-Setup-v0.3.0-win-x64.exe
 5. 使用中文提交版本变更，然后创建并推送 Git 标签：
 
 ```powershell
-git tag -a v0.3.0 -m "版本：发布 v0.3.0"
+git tag -a v0.4.0 -m "版本：发布 v0.4.0"
 git push origin master
-git push origin v0.3.0
+git push origin v0.4.0
 ```
 
 6. 在 GitHub Releases 中使用相同标签创建发行版，并上传单文件 EXE、ZIP 和安装程序。发布说明以 `CHANGELOG.md` 对应版本内容为准。
@@ -178,6 +185,19 @@ git push origin v0.3.0
 ```
 
 卸载或清理应用前，请先在“数据备份”页面导出数据库文件。仅删除 EXE 不会自动删除账本数据。
+
+## MySQL 多端同步
+
+在“偏好设置 → MySQL 多端同步”中填写服务器、端口、数据库名、用户名和密码，然后依次点击“保存并测试连接”和“立即双向同步”。首次同步会在指定数据库中自动创建 `duxiu_sync_items` 表。
+
+密码只通过 Windows DPAPI 加密保存在当前 Windows 用户配置中，不会写入仓库。更换电脑时需要重新输入密码。应用采用本地优先模式，断网时仍保存到 SQLite，恢复网络后再合并。
+
+服务器建议：
+
+- 仅向可信来源 IP 开放 MySQL 端口。
+- 开启 MySQL TLS；有可信证书时选择 `VerifyFull`，否则至少使用 `Preferred` 或 `Required`。
+- 应用数据库账户只授予 `myFinance` 数据库所需权限，不要使用 `root`。
+- 定期备份服务器数据库；MySQL 同步不能替代备份。
 
 ## 项目结构
 
@@ -240,7 +260,11 @@ dotnet build .\desktop\DuxiuLedger.Desktop\DuxiuLedger.Desktop.csproj -c Release
 - [x] 可编辑详细分类
 - [ ] 自动分类规则
 - [x] 消费去向、小额支出和商户排行洞察
-- [ ] 月度预算设置和使用进度
+- [x] 月度预算设置和使用进度
+- [x] 储蓄目标与每月建议储蓄额
+- [x] MySQL 本地优先多端同步
+- [x] Windows 每日提醒与每周总结
+- [x] 近半年趋势和 CSV 月报导出
 - [x] 导入预览和错误行报告
 - [ ] 银行账单字段映射向导
 - [ ] 图表、月报和年度汇总
