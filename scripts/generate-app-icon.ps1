@@ -1,6 +1,6 @@
 param(
-    [string]$Source = (Join-Path $PSScriptRoot 'DuxiuLedger.Desktop/Assets/duxiu-logo.png'),
-    [string]$Destination = (Join-Path $PSScriptRoot 'DuxiuLedger.Desktop/Assets/duxiu-logo.ico')
+    [string]$Source = (Join-Path (Split-Path $PSScriptRoot -Parent) 'assets/duxiu-logo.png'),
+    [string]$Destination = (Join-Path (Split-Path $PSScriptRoot -Parent) 'assets/duxiu-logo.ico')
 )
 
 $ErrorActionPreference = 'Stop'

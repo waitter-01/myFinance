@@ -18,9 +18,9 @@ AppUpdatesURL={#MyAppURL}/releases
 DefaultDirName={localappdata}\Programs\DuxiuLedger
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
-OutputDir=..\publish\installer
+OutputDir=..\artifacts\installer
 OutputBaseFilename=DuxiuLedger-Setup-v{#MyAppVersion}-win-x64
-SetupIconFile=..\DuxiuLedger.Desktop\Assets\duxiu-logo.ico
+SetupIconFile=..\assets\duxiu-logo.ico
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -38,7 +38,7 @@ Name: "chinesesimp"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加快捷方式："; Flags: unchecked
 
 [Files]
-Source: "..\publish\win-x64\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\artifacts\win-x64\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

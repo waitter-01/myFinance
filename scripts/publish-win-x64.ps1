@@ -1,17 +1,18 @@
 $ErrorActionPreference = 'Stop'
 
-$project = Join-Path $PSScriptRoot 'DuxiuLedger.WinUI/DuxiuLedger.WinUI.csproj'
-$publishRoot = Join-Path $PSScriptRoot 'publish'
+$repositoryRoot = Split-Path $PSScriptRoot -Parent
+$project = Join-Path $repositoryRoot 'src/DuxiuLedger.App/DuxiuLedger.App.csproj'
+$publishRoot = Join-Path $repositoryRoot 'artifacts'
 $output = Join-Path $publishRoot 'win-x64'
 [xml]$projectXml = Get-Content -LiteralPath $project
 $version = [string]($projectXml.Project.PropertyGroup.Version | Select-Object -First 1)
 if ([string]::IsNullOrWhiteSpace($version)) { throw '项目文件中没有设置 Version。' }
 $archive = Join-Path $publishRoot "DuxiuLedger-v$version-win-x64.zip"
 
-$resolvedDesktop = [System.IO.Path]::GetFullPath($PSScriptRoot)
+$resolvedRepository = [System.IO.Path]::GetFullPath($repositoryRoot)
 $resolvedOutput = [System.IO.Path]::GetFullPath($output)
-if (-not $resolvedOutput.StartsWith($resolvedDesktop, [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw "发布目录不在 desktop 目录内，已停止操作：$resolvedOutput"
+if (-not $resolvedOutput.StartsWith($resolvedRepository, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "发布目录不在仓库内，已停止操作：$resolvedOutput"
 }
 
 if (Test-Path -LiteralPath $output) {

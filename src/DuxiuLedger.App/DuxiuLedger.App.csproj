@@ -5,7 +5,7 @@
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>DuxiuLedger.WinUI</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>..\DuxiuLedger.Desktop\Assets\duxiu-logo.ico</ApplicationIcon>
+    <ApplicationIcon>..\..\assets\duxiu-logo.ico</ApplicationIcon>
     <Platforms>x64</Platforms>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <UseWinUI>true</UseWinUI>
@@ -23,18 +23,13 @@
     <Authors>waitter-01</Authors>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="ClosedXML" Version="0.105.0" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.7705" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260317003" />
-    <PackageReference Include="AWSSDK.S3" Version="4.0.101.6" />
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\DuxiuLedger.Desktop\Models\*.cs" Link="Models\%(Filename)%(Extension)" />
-    <Compile Include="..\DuxiuLedger.Desktop\Services\*.cs" Link="Services\%(Filename)%(Extension)" />
-    <Content Include="..\DuxiuLedger.Desktop\Assets\duxiu-logo.png" Link="Assets\duxiu-logo.png" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\DuxiuLedger.Desktop\Assets\duxiu-logo.ico" Link="Assets\duxiu-logo.ico" CopyToOutputDirectory="PreserveNewest" />
+    <ProjectReference Include="..\DuxiuLedger.Core\DuxiuLedger.Core.csproj" />
+    <Content Include="..\..\assets\duxiu-logo.png" Link="Assets\duxiu-logo.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\assets\duxiu-logo.ico" Link="Assets\duxiu-logo.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <Target Name="CopyWinUiMarkupToPublishDirectory" AfterTargets="Publish" Condition="'$(PublishSingleFile)' != 'true'">
     <ItemGroup>

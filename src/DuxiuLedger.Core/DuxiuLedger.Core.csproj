@@ -1,22 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
-    <UseWPF>true</UseWPF>
-    <Nullable>enable</Nullable>
-    <ApplicationIcon>Assets\duxiu-logo.ico</ApplicationIcon>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyName>DuxiuLedger</AssemblyName>
     <RootNamespace>DuxiuLedger.Desktop</RootNamespace>
+    <AssemblyName>DuxiuLedger.Core</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="ClosedXML" Version="0.105.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
     <PackageReference Include="AWSSDK.S3" Version="4.0.101.6" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
-  </ItemGroup>
-  <ItemGroup>
-    <Resource Include="Assets\duxiu-logo.png" />
-    <Resource Include="Assets\duxiu-logo.ico" />
   </ItemGroup>
 </Project>

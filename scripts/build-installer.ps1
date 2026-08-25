@@ -5,8 +5,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$project = Join-Path $PSScriptRoot 'DuxiuLedger.WinUI/DuxiuLedger.WinUI.csproj'
-$definition = Join-Path $PSScriptRoot 'installer/DuxiuLedger.iss'
+$repositoryRoot = Split-Path $PSScriptRoot -Parent
+$project = Join-Path $repositoryRoot 'src/DuxiuLedger.App/DuxiuLedger.App.csproj'
+$definition = Join-Path $repositoryRoot 'installer/DuxiuLedger.iss'
 $publishScript = Join-Path $PSScriptRoot 'publish-win-x64.ps1'
 [xml]$projectXml = Get-Content -LiteralPath $project
 $version = [string]($projectXml.Project.PropertyGroup.Version | Select-Object -First 1)
@@ -38,7 +39,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "Inno Setup 编译失败，退出代码：$LASTEXITCODE"
 }
 
-$installer = Join-Path $PSScriptRoot "publish/installer/DuxiuLedger-Setup-v$version-win-x64.exe"
+$installer = Join-Path $repositoryRoot "artifacts/installer/DuxiuLedger-Setup-v$version-win-x64.exe"
 if (-not (Test-Path -LiteralPath $installer)) {
     throw "安装程序没有生成：$installer"
 }
