@@ -13,6 +13,7 @@ namespace DuxiuLedger.WinUI;
 public sealed class ScreenshotBillImporter
 {
     private const int TileOverlap = 120;
+    private static readonly Regex AmountCandidateRegex = new(@"[+\-−–—]?[¥￥$]?[0-9OIlS][0-9OIlS,\.．·]*[\.．·][0-9OIlS]{2}", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public async Task<ImportPreviewResult> PreviewAsync(string path)
     {
@@ -62,7 +63,109 @@ public sealed class ScreenshotBillImporter
             if (top + actualHeight >= height) break;
         }
 
+        tokens = await EnhanceAmountTokensAsync(decoder, engine, tokens, width, height);
+
         return ScreenshotBillParser.Parse(tokens, width, height, source, DateTime.Now);
+    }
+
+    private static async Task<List<ScreenshotOcrToken>> EnhanceAmountTokensAsync(BitmapDecoder decoder, OcrEngine primaryEngine,
+        List<ScreenshotOcrToken> tokens, int imageWidth, int imageHeight)
+    {
+        var numericEngine = TryCreateNumericEngine();
+        var result = new List<ScreenshotOcrToken>(tokens.Count);
+        foreach (var token in tokens)
+        {
+            if (token.X < imageWidth * 0.62 || !TryExtractAmount(token.Text, ExplicitSign(token.Text), out var original))
+            {
+                result.Add(token);
+                continue;
+            }
+
+            var candidates = new List<string> { original };
+            foreach (var (engine, format) in RecognitionPasses(primaryEngine, numericEngine))
+            {
+                var recognized = await RecognizeAmountCropAsync(decoder, engine, format, token, imageWidth, imageHeight);
+                if (TryExtractAmount(recognized, ExplicitSign(original), out var amount)) candidates.Add(amount);
+            }
+
+            var winner = candidates.GroupBy(value => value, StringComparer.Ordinal)
+                .OrderByDescending(group => group.Count())
+                .ThenByDescending(group => string.Equals(group.Key, original, StringComparison.Ordinal))
+                .First();
+            var enhanced = winner.Count() >= 2 ? winner.Key : original;
+            result.Add(token with { Text = enhanced });
+        }
+        return result;
+    }
+
+    private static IEnumerable<(OcrEngine Engine, BitmapPixelFormat Format)> RecognitionPasses(OcrEngine primary, OcrEngine? numeric)
+    {
+        yield return (primary, BitmapPixelFormat.Bgra8);
+        if (numeric is not null) yield return (numeric, BitmapPixelFormat.Bgra8);
+        yield return (numeric ?? primary, BitmapPixelFormat.Gray8);
+    }
+
+    private static async Task<string> RecognizeAmountCropAsync(BitmapDecoder decoder, OcrEngine engine, BitmapPixelFormat format,
+        ScreenshotOcrToken token, int imageWidth, int imageHeight)
+    {
+        try
+        {
+            var paddingX = Math.Max(12, token.Width * 0.16);
+            var paddingY = Math.Max(8, token.Height * 0.45);
+            var left = Math.Max(0, (int)Math.Floor(token.X - paddingX));
+            var top = Math.Max(0, (int)Math.Floor(token.Y - paddingY));
+            var right = Math.Min(imageWidth, (int)Math.Ceiling(token.Right + paddingX));
+            var bottom = Math.Min(imageHeight, (int)Math.Ceiling(token.Y + token.Height + paddingY));
+            if (right <= left || bottom <= top) return "";
+            var cropWidth = right - left;
+            var cropHeight = bottom - top;
+            var scale = Math.Min(4, Math.Max(2, (int)Math.Floor(OcrEngine.MaxImageDimension / (double)Math.Max(cropWidth, cropHeight))));
+            var transform = new BitmapTransform
+            {
+                Bounds = new BitmapBounds { X = (uint)left, Y = (uint)top, Width = (uint)cropWidth, Height = (uint)cropHeight },
+                ScaledWidth = (uint)(cropWidth * scale),
+                ScaledHeight = (uint)(cropHeight * scale),
+                InterpolationMode = BitmapInterpolationMode.Cubic
+            };
+            using var bitmap = await decoder.GetSoftwareBitmapAsync(format, BitmapAlphaMode.Ignore, transform,
+                ExifOrientationMode.RespectExifOrientation, ColorManagementMode.ColorManageToSRgb);
+            var result = await engine.RecognizeAsync(bitmap);
+            return string.Concat(result.Lines.Select(line => line.Text));
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    private static OcrEngine? TryCreateNumericEngine()
+    {
+        try { return OcrEngine.TryCreateFromLanguage(new Language("en-US")); }
+        catch { return null; }
+    }
+
+    private static char ExplicitSign(string value)
+    {
+        if (value.IndexOfAny(['+', '＋']) >= 0) return '+';
+        if (value.IndexOfAny(['-', '−', '–', '—']) >= 0) return '-';
+        return '\0';
+    }
+
+    private static bool TryExtractAmount(string value, char fallbackSign, out string normalized)
+    {
+        normalized = "";
+        var text = value.Replace(" ", "").Replace("O", "0", StringComparison.OrdinalIgnoreCase)
+            .Replace("I", "1", StringComparison.OrdinalIgnoreCase).Replace("l", "1")
+            .Replace("S", "5", StringComparison.OrdinalIgnoreCase).Replace("．", ".").Replace("·", ".")
+            .Replace("−", "-").Replace("–", "-").Replace("—", "-").Replace("＋", "+");
+        var match = AmountCandidateRegex.Match(text);
+        if (!match.Success) return false;
+        var amountText = match.Value.Replace("¥", "").Replace("￥", "").Replace("$", "").TrimStart('+', '-');
+        if (!decimal.TryParse(amountText.Replace(",", ""), NumberStyles.Number, CultureInfo.InvariantCulture, out var amount) || amount <= 0) return false;
+        var sign = ExplicitSign(match.Value);
+        if (sign == '\0') sign = fallbackSign;
+        normalized = $"{(sign == '\0' ? "" : sign)}{amount:0.00}";
+        return true;
     }
 
     private static OcrEngine CreateEngine()
