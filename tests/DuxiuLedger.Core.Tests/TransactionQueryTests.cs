@@ -69,6 +69,37 @@ public sealed class TransactionQueryTests
         finally { DeleteDatabase(path); }
     }
 
+    [Fact]
+    public void Store_SupportsBatchOperationsAndSavedFilters()
+    {
+        var path = CreateDatabasePath();
+        try
+        {
+            var store = new LocalStore(path);
+            var account = store.ListAccounts().First(item => item.Name == "微信");
+            store.Import([
+                Row(new DateTime(2026, 8, 1), "支出", 10, "未分类", "商户甲", "手动录入"),
+                Row(new DateTime(2026, 8, 2), "支出", 20, "未分类", "商户乙", "手动录入"),
+                Row(new DateTime(2026, 8, 3), "支出", 30, "未分类", "商户丙", "手动录入")
+            ]);
+            var rows = store.List();
+            var selectedIds = rows.Take(2).Select(item => item.Id).ToList();
+
+            Assert.Equal(2, store.BatchUpdateTransactionCategory(selectedIds, "零食饮料"));
+            Assert.Equal(2, store.BatchUpdateTransactionAccount(selectedIds, account.Id));
+            Assert.All(store.List().Where(item => selectedIds.Contains(item.Id)), item => { Assert.Equal("零食饮料", item.Category); Assert.Equal(account.Id, item.AccountId); });
+            Assert.Equal(2, store.BatchDeleteTransactions(selectedIds));
+            Assert.Single(store.List());
+
+            store.SaveTransactionFilters([new SavedTransactionFilter { Name = "本月零食", DatePreset = "ThisMonth", Categories = ["零食饮料"], GroupMode = "Week" }]);
+            var saved = Assert.Single(store.LoadSavedTransactionFilters());
+            Assert.Equal("本月零食", saved.Name);
+            Assert.Equal("ThisMonth", saved.DatePreset);
+            Assert.Equal("Week", saved.GroupMode);
+        }
+        finally { DeleteDatabase(path); }
+    }
+
     private static TransactionRecord Row(DateTime date, string direction, decimal amount, string category, string merchant, string source, long? accountId = null, int months = 1)
     {
         var row = new TransactionRecord { OccurredOn = date, Direction = direction, Amount = amount, Category = category, Merchant = merchant, Source = source, AccountId = accountId, SubscriptionMonths = months };

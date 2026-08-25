@@ -1,5 +1,6 @@
 using System.IO;
 using System.Globalization;
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using DuxiuLedger.Desktop.Models;
 
@@ -290,6 +291,50 @@ public sealed class LocalStore
         return cmd.ExecuteNonQuery() == 1;
     }
 
+    public int BatchUpdateTransactionCategory(IEnumerable<long> ids, string category)
+        => ExecuteBatchTransactionUpdate(ids, "category=$value", category.Trim());
+
+    public int BatchUpdateTransactionAccount(IEnumerable<long> ids, long? accountId)
+        => ExecuteBatchTransactionUpdate(ids, "account_id=$value", (object?)accountId ?? DBNull.Value);
+
+    public int BatchDeleteTransactions(IEnumerable<long> ids)
+    {
+        var values = ids.Where(id => id > 0).Distinct().ToList();
+        if (values.Count == 0) return 0;
+        using var connection = Open(); using var transaction = connection.BeginTransaction();
+        foreach (var id in values) RecordTombstone(connection, "transaction", GetSyncId(connection, "transactions", id, transaction), transaction);
+        using var command = connection.CreateCommand(); command.Transaction = transaction;
+        var parameters = AddIdParameters(command, values);
+        command.CommandText = $"DELETE FROM transactions WHERE id IN ({string.Join(',', parameters)})";
+        var count = command.ExecuteNonQuery();
+        transaction.Commit();
+        return count;
+    }
+
+    private int ExecuteBatchTransactionUpdate(IEnumerable<long> ids, string assignment, object value)
+    {
+        var values = ids.Where(id => id > 0).Distinct().ToList();
+        if (values.Count == 0) return 0;
+        using var connection = Open(); using var command = connection.CreateCommand();
+        var parameters = AddIdParameters(command, values);
+        command.CommandText = $"UPDATE transactions SET {assignment}, updated_at=$updated WHERE id IN ({string.Join(',', parameters)})";
+        command.Parameters.AddWithValue("$value", value);
+        command.Parameters.AddWithValue("$updated", DateTime.Now.ToString("O"));
+        return command.ExecuteNonQuery();
+    }
+
+    private static IReadOnlyList<string> AddIdParameters(SqliteCommand command, IReadOnlyList<long> ids)
+    {
+        var names = new List<string>(ids.Count);
+        for (var index = 0; index < ids.Count; index++)
+        {
+            var name = $"$id{index}";
+            names.Add(name);
+            command.Parameters.AddWithValue(name, ids[index]);
+        }
+        return names;
+    }
+
     public IReadOnlyList<AccountRecord> ListAccounts(bool includeInactive = true)
     {
         using var c = Open(); using var cmd = c.CreateCommand();
@@ -532,6 +577,26 @@ public sealed class LocalStore
         tx.Commit();
     }
 
+    public IReadOnlyList<SavedTransactionFilter> LoadSavedTransactionFilters()
+    {
+        using var connection = Open(); using var command = connection.CreateCommand();
+        command.CommandText = "SELECT value FROM app_settings WHERE key='transaction_saved_filters'";
+        var json = command.ExecuteScalar()?.ToString();
+        if (string.IsNullOrWhiteSpace(json)) return [];
+        try { return JsonSerializer.Deserialize<List<SavedTransactionFilter>>(json) ?? []; }
+        catch (JsonException) { return []; }
+    }
+
+    public void SaveTransactionFilters(IEnumerable<SavedTransactionFilter> filters)
+    {
+        var json = JsonSerializer.Serialize(filters.OrderBy(item => item.CreatedAt).ToList());
+        using var connection = Open(); using var command = connection.CreateCommand();
+        command.CommandText = "INSERT INTO app_settings(key,value,updated_at) VALUES('transaction_saved_filters',$value,$updated) ON CONFLICT(key) DO UPDATE SET value=$value,updated_at=$updated";
+        command.Parameters.AddWithValue("$value", json);
+        command.Parameters.AddWithValue("$updated", DateTime.Now.ToString("O"));
+        command.ExecuteNonQuery();
+    }
+
     public string LoadS3SecretKey()
     {
         using var c = Open(); using var cmd = c.CreateCommand(); cmd.CommandText = "SELECT value FROM app_settings WHERE key='s3_secret_key'";
@@ -559,16 +624,16 @@ public sealed class LocalStore
         }
     }
 
-    private static string? GetSyncId(SqliteConnection connection, string table, long id)
+    private static string? GetSyncId(SqliteConnection connection, string table, long id, SqliteTransaction? transaction = null)
     {
-        using var cmd = connection.CreateCommand(); cmd.CommandText = $"SELECT sync_id FROM {table} WHERE id=$id"; cmd.Parameters.AddWithValue("$id", id);
+        using var cmd = connection.CreateCommand(); cmd.Transaction = transaction; cmd.CommandText = $"SELECT sync_id FROM {table} WHERE id=$id"; cmd.Parameters.AddWithValue("$id", id);
         return cmd.ExecuteScalar()?.ToString();
     }
 
-    private static void RecordTombstone(SqliteConnection connection, string entityType, string? syncId)
+    private static void RecordTombstone(SqliteConnection connection, string entityType, string? syncId, SqliteTransaction? transaction = null)
     {
         if (string.IsNullOrWhiteSpace(syncId)) return;
-        using var cmd = connection.CreateCommand();
+        using var cmd = connection.CreateCommand(); cmd.Transaction = transaction;
         cmd.CommandText = "INSERT INTO sync_tombstones(entity_type,sync_id,deleted_at) VALUES($type,$id,$now) ON CONFLICT(entity_type,sync_id) DO UPDATE SET deleted_at=$now";
         cmd.Parameters.AddWithValue("$type", entityType); cmd.Parameters.AddWithValue("$id", syncId); cmd.Parameters.AddWithValue("$now", DateTime.Now.ToString("O")); cmd.ExecuteNonQuery();
     }
