@@ -145,7 +145,7 @@ public sealed class LocalStore
         }
         AddTextSetFilter(cmd, where, "t.direction", "direction", query.Directions);
         AddTextSetFilter(cmd, where, "t.category", "category", query.Categories);
-        AddTextSetFilter(cmd, where, "t.source", "source", query.Sources);
+        AddSourceFilter(cmd, where, query.Sources);
         if (query.AccountIds.Count > 0)
         {
             var parameters = query.AccountIds.Select((id, index) => (id, name: $"$account{index}")).ToList();
@@ -200,8 +200,8 @@ public sealed class LocalStore
         cmd.CommandText = "SELECT DISTINCT source FROM transactions WHERE source <> '' ORDER BY source COLLATE NOCASE";
         using var reader = cmd.ExecuteReader();
         var sources = new List<string>();
-        while (reader.Read()) sources.Add(reader.GetString(0));
-        return sources;
+        while (reader.Read()) sources.Add(NormalizeTransactionSource(reader.GetString(0)));
+        return sources.Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     private static void AddTextSetFilter(SqliteCommand command, ICollection<string> where, string column, string prefix, IReadOnlyCollection<string> values)
@@ -210,6 +210,35 @@ public sealed class LocalStore
         var parameters = values.Select((value, index) => (value, name: $"${prefix}{index}")).ToList();
         where.Add($"{column} IN ({string.Join(',', parameters.Select(item => item.name))})");
         foreach (var item in parameters) command.Parameters.AddWithValue(item.name, item.value);
+    }
+
+    private static void AddSourceFilter(SqliteCommand command, ICollection<string> where, IReadOnlyCollection<string> values)
+    {
+        if (values.Count == 0) return;
+        var clauses = new List<string>();
+        var index = 0;
+        foreach (var source in values)
+        {
+            if (source == "微信截图") clauses.Add("t.source LIKE '微信截图%'");
+            else if (source == "支付宝截图") clauses.Add("t.source LIKE '支付宝截图%'");
+            else if (source == "表格文件") clauses.Add("(lower(t.source) LIKE '%.xlsx' OR lower(t.source) LIKE '%.xlsm' OR lower(t.source) LIKE '%.csv')");
+            else
+            {
+                var name = $"$source{index++}";
+                clauses.Add($"t.source = {name}");
+                command.Parameters.AddWithValue(name, source);
+            }
+        }
+        where.Add($"({string.Join(" OR ", clauses)})");
+    }
+
+    private static string NormalizeTransactionSource(string source)
+    {
+        if (source.StartsWith("微信截图", StringComparison.OrdinalIgnoreCase)) return "微信截图";
+        if (source.StartsWith("支付宝截图", StringComparison.OrdinalIgnoreCase)) return "支付宝截图";
+        var extension = Path.GetExtension(source);
+        if (extension.Equals(".xlsx", StringComparison.OrdinalIgnoreCase) || extension.Equals(".xlsm", StringComparison.OrdinalIgnoreCase) || extension.Equals(".csv", StringComparison.OrdinalIgnoreCase)) return "表格文件";
+        return source;
     }
     public int Import(IEnumerable<TransactionRecord> rows)
     {

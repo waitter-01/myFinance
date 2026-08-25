@@ -55,14 +55,16 @@ public sealed class TransactionQueryTests
             store.Import([
                 Row(new DateTime(2026, 8, 1), "支出", 19, "未分类", "待整理", "微信截图"),
                 Row(new DateTime(2026, 8, 2), "支出", 120, "订阅消费", "视频会员", "支付宝截图", months: 12),
-                Row(new DateTime(2026, 8, 3), "支出", 30, "日常餐饮", "早餐", "手动录入")
+                Row(new DateTime(2026, 8, 3), "支出", 30, "日常餐饮", "早餐", "手动录入"),
+                Row(new DateTime(2026, 8, 4), "支出", 16, "零食饮料", "蜜雪冰城", "微信截图 · 八月账单.jpg")
             ]);
 
             var unassigned = store.QueryTransactions(new TransactionQuery { UnassignedAccountOnly = true, SortBy = TransactionSortOption.AmountDescending });
-            Assert.Equal([120m, 30m, 19m], unassigned.Rows.Select(row => row.Amount));
+            Assert.Equal([120m, 30m, 19m, 16m], unassigned.Rows.Select(row => row.Amount));
             Assert.Single(store.QueryTransactions(new TransactionQuery { UncategorizedOnly = true }).Rows);
             Assert.Single(store.QueryTransactions(new TransactionQuery { SubscriptionOnly = true }).Rows);
             Assert.Contains("支付宝截图", store.ListTransactionSources());
+            Assert.Equal(2, store.QueryTransactions(new TransactionQuery { Sources = ["微信截图"] }).Count);
         }
         finally { DeleteDatabase(path); }
     }
