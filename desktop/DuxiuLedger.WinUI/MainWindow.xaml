@@ -633,7 +633,7 @@
               <Border Style="{StaticResource CardStyle}" Padding="22">
                 <StackPanel Spacing="12">
                   <TextBlock Text="S3 对象存储同步" Style="{StaticResource SectionTitleStyle}" />
-                  <TextBlock Text="支持 AWS S3 和兼容 S3 协议的对象存储。本地优先双向合并，密钥由 Windows 当前用户加密保存。" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                  <TextBlock Text="直接填写对象存储控制台提供的访问地址、API 端点和密钥。应用会自动从访问地址识别存储桶名称。" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                   <StackPanel Orientation="Horizontal" Spacing="18">
                     <CheckBox x:Name="S3SyncEnabledCheck" Content="启用 S3 同步" />
                     <CheckBox x:Name="SyncOnStartupCheck" Content="启动后自动同步" />
@@ -641,30 +641,35 @@
                   <Grid ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
                       <ColumnDefinition Width="*" />
-                      <ColumnDefinition Width="180" />
+                      <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBox x:Name="S3EndpointBox" Header="Endpoint（AWS S3 可留空）" PlaceholderText="例如：https://s3.example.com" />
-                    <TextBox x:Name="S3RegionBox" Grid.Column="1" Header="区域 Region" PlaceholderText="us-east-1" />
+                    <TextBox x:Name="S3AccessUrlBox" Header="访问地址" PlaceholderText="例如：https://bucket.example.com" />
+                    <TextBox x:Name="S3EndpointBox" Grid.Column="1" Header="API 端点" PlaceholderText="例如：https://example.com" />
                   </Grid>
                   <Grid ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
                       <ColumnDefinition Width="*" />
                       <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBox x:Name="S3BucketBox" Header="Bucket" />
-                    <TextBox x:Name="S3ObjectKeyBox" Grid.Column="1" Header="对象路径" PlaceholderText="duxiu-ledger/sync-v1.json" />
+                    <TextBox x:Name="S3AccessKeyIdBox" Header="Access Key" />
+                    <PasswordBox x:Name="S3SecretKeyBox" Grid.Column="1" Header="Secret Key（留空保持已保存密钥）" PasswordRevealMode="Peek" />
                   </Grid>
-                  <Grid ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="*" />
-                      <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBox x:Name="S3AccessKeyIdBox" Header="Access Key ID" />
-                    <PasswordBox x:Name="S3SecretKeyBox" Grid.Column="1" Header="Secret Access Key（留空保持已保存密钥）" PasswordRevealMode="Peek" />
-                  </Grid>
-                  <PasswordBox x:Name="S3SessionTokenBox" Header="Session Token（可选，临时凭据使用）" PasswordRevealMode="Peek" />
-                  <CheckBox x:Name="S3ForcePathStyleCheck" Content="使用 Path Style 地址（MinIO 等服务通常需要）" />
-                  <InfoBar Severity="Informational" IsOpen="True" IsClosable="False" Message="AWS S3 可将 Endpoint 留空；Cloudflare R2、MinIO 等服务请填写完整 Endpoint。建议只授予指定 Bucket 和对象路径的读写权限。" />
+                  <Expander Header="高级设置（通常无需修改）">
+                    <StackPanel Spacing="10" Padding="0,10,0,4">
+                      <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="180" />
+                          <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="S3RegionBox" Header="区域 Region" PlaceholderText="us-east-1" />
+                        <TextBox x:Name="S3BucketBox" Grid.Column="1" Header="Bucket 手动覆盖" PlaceholderText="无法自动识别时填写" />
+                      </Grid>
+                      <TextBox x:Name="S3ObjectKeyBox" Header="同步对象路径" PlaceholderText="duxiu-ledger/sync-v1.json" />
+                      <PasswordBox x:Name="S3SessionTokenBox" Header="Session Token（可选，临时凭据使用）" PasswordRevealMode="Peek" />
+                      <CheckBox x:Name="S3ForcePathStyleCheck" Content="使用 Path Style 地址（MinIO 等服务通常需要）" />
+                    </StackPanel>
+                  </Expander>
+                  <InfoBar Severity="Informational" IsOpen="True" IsClosable="False" Message="例如访问地址为 https://zxx.cn-nb1.rains3.com、API 端点为 https://cn-nb1.rains3.com 时，会自动识别 Bucket 为 zxx。" />
                   <ProgressRing x:Name="CloudSyncProgress" Width="24" Height="24" IsActive="False" HorizontalAlignment="Left" />
                   <InfoBar x:Name="CloudSyncInfo" IsOpen="False" IsClosable="True" />
                   <StackPanel Orientation="Horizontal" Spacing="8">

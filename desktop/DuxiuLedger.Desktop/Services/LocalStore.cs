@@ -388,6 +388,7 @@ public sealed class LocalStore
         if (values.TryGetValue("optional_categories", out var optionalCategories)) settings.OptionalCategories = optionalCategories;
         if (TryBool(values, "s3_sync_enabled", out var s3Enabled)) settings.S3SyncEnabled = s3Enabled;
         if (TryBool(values, "sync_on_startup", out var syncOnStartup)) settings.SyncOnStartup = syncOnStartup;
+        if (values.TryGetValue("s3_access_url", out var accessUrl)) settings.S3AccessUrl = accessUrl;
         if (values.TryGetValue("s3_endpoint", out var endpoint)) settings.S3Endpoint = endpoint;
         if (values.TryGetValue("s3_region", out var region)) settings.S3Region = region;
         if (values.TryGetValue("s3_bucket", out var bucket)) settings.S3Bucket = bucket;
@@ -412,6 +413,7 @@ public sealed class LocalStore
             ["optional_categories"] = settings.OptionalCategories,
             ["s3_sync_enabled"] = settings.S3SyncEnabled.ToString(),
             ["sync_on_startup"] = settings.SyncOnStartup.ToString(),
+            ["s3_access_url"] = settings.S3AccessUrl,
             ["s3_endpoint"] = settings.S3Endpoint,
             ["s3_region"] = settings.S3Region,
             ["s3_bucket"] = settings.S3Bucket,

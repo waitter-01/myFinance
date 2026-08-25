@@ -13,6 +13,7 @@ public sealed class AppSettings
     public string OptionalCategories { get; set; } = "零食饮料,娱乐休闲,游戏消费,订阅消费,小额杂项";
     public bool S3SyncEnabled { get; set; }
     public bool SyncOnStartup { get; set; }
+    public string S3AccessUrl { get; set; } = "";
     public string S3Endpoint { get; set; } = "";
     public string S3Region { get; set; } = "us-east-1";
     public string S3Bucket { get; set; } = "";

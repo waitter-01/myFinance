@@ -20,19 +20,19 @@ public sealed class S3SyncService
 
     public async Task<string> TestConnectionAsync(AppSettings settings, string secretKey, string sessionToken, CancellationToken cancellationToken = default)
     {
-        Validate(settings, secretKey);
+        var bucket = ValidateAndResolveBucket(settings, secretKey);
         using var client = CreateClient(settings, secretKey, sessionToken);
-        var document = await ReadRemoteDocumentAsync(client, settings, cancellationToken);
+        var document = await ReadRemoteDocumentAsync(client, settings, bucket, cancellationToken);
         if (document is null)
-            await WriteRemoteDocumentAsync(client, settings, new SyncDocument(), cancellationToken);
-        return $"{settings.S3Bucket.Trim()}/{NormalizeObjectKey(settings.S3ObjectKey)}";
+            await WriteRemoteDocumentAsync(client, settings, bucket, new SyncDocument(), cancellationToken);
+        return $"{bucket}/{NormalizeObjectKey(settings.S3ObjectKey)}";
     }
 
     public async Task<SyncResult> SyncAsync(AppSettings settings, string secretKey, string sessionToken, CancellationToken cancellationToken = default)
     {
-        Validate(settings, secretKey);
+        var bucket = ValidateAndResolveBucket(settings, secretKey);
         using var client = CreateClient(settings, secretKey, sessionToken);
-        var remoteDocument = await ReadRemoteDocumentAsync(client, settings, cancellationToken) ?? new SyncDocument();
+        var remoteDocument = await ReadRemoteDocumentAsync(client, settings, bucket, cancellationToken) ?? new SyncDocument();
         var merged = remoteDocument.Items.ToDictionary(ItemKey, StringComparer.Ordinal);
         var result = new SyncResult();
 
@@ -63,7 +63,7 @@ public sealed class S3SyncService
             UpdatedAt = DateTime.UtcNow.ToString("O"),
             Items = merged.Values.OrderBy(item => EntityOrder(item.EntityType)).ThenBy(item => item.SyncId, StringComparer.Ordinal).ToList()
         };
-        await WriteRemoteDocumentAsync(client, settings, output, cancellationToken);
+        await WriteRemoteDocumentAsync(client, settings, bucket, output, cancellationToken);
         return result;
     }
 
@@ -91,21 +91,61 @@ public sealed class S3SyncService
         return new AmazonS3Client(credentials, config);
     }
 
-    private static void Validate(AppSettings settings, string secretKey)
+    private static string ValidateAndResolveBucket(AppSettings settings, string secretKey)
     {
-        if (string.IsNullOrWhiteSpace(settings.S3Bucket)) throw new InvalidOperationException("Bucket 不能为空。");
         if (string.IsNullOrWhiteSpace(settings.S3ObjectKey)) throw new InvalidOperationException("对象路径不能为空。");
         if (string.IsNullOrWhiteSpace(settings.S3AccessKeyId)) throw new InvalidOperationException("Access Key ID 不能为空。");
         if (string.IsNullOrWhiteSpace(secretKey)) throw new InvalidOperationException("请先输入并保存 Secret Access Key。");
-        if (!string.IsNullOrWhiteSpace(settings.S3Endpoint) && !Uri.TryCreate(settings.S3Endpoint.Trim(), UriKind.Absolute, out _))
+        if (!string.IsNullOrWhiteSpace(settings.S3AccessUrl) && !TryCreateHttpUri(settings.S3AccessUrl, out _))
+            throw new InvalidOperationException("访问地址必须是完整的 http:// 或 https:// 地址。");
+        if (!string.IsNullOrWhiteSpace(settings.S3Endpoint) && !TryCreateHttpUri(settings.S3Endpoint, out _))
             throw new InvalidOperationException("Endpoint 必须是完整的 http:// 或 https:// 地址。");
+        var bucket = ResolveBucketName(settings);
+        if (string.IsNullOrWhiteSpace(bucket))
+            throw new InvalidOperationException("无法从访问地址识别 Bucket，请检查访问地址与 API 端点，或在高级设置中填写 Bucket。");
+        return bucket;
     }
 
-    private static async Task<SyncDocument?> ReadRemoteDocumentAsync(IAmazonS3 client, AppSettings settings, CancellationToken cancellationToken)
+    internal static string ResolveBucketName(AppSettings settings)
+    {
+        if (!string.IsNullOrWhiteSpace(settings.S3Bucket)) return settings.S3Bucket.Trim();
+        if (!TryCreateHttpUri(settings.S3AccessUrl, out var accessUri)) return "";
+
+        if (TryCreateHttpUri(settings.S3Endpoint, out var endpointUri))
+        {
+            var suffix = "." + endpointUri.Host;
+            if (accessUri.Host.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            {
+                var prefix = accessUri.Host[..^suffix.Length];
+                if (!string.IsNullOrWhiteSpace(prefix) && !prefix.Contains('.')) return prefix;
+            }
+
+            if (accessUri.Host.Equals(endpointUri.Host, StringComparison.OrdinalIgnoreCase))
+            {
+                var pathBucket = accessUri.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+                if (!string.IsNullOrWhiteSpace(pathBucket)) return pathBucket;
+            }
+        }
+
+        return accessUri.Host.Split('.', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
+    }
+
+    private static bool TryCreateHttpUri(string value, out Uri uri)
+    {
+        if (Uri.TryCreate(value.Trim(), UriKind.Absolute, out var parsed) && parsed.Scheme is "http" or "https")
+        {
+            uri = parsed;
+            return true;
+        }
+        uri = null!;
+        return false;
+    }
+
+    private static async Task<SyncDocument?> ReadRemoteDocumentAsync(IAmazonS3 client, AppSettings settings, string bucket, CancellationToken cancellationToken)
     {
         try
         {
-            using var response = await client.GetObjectAsync(settings.S3Bucket.Trim(), NormalizeObjectKey(settings.S3ObjectKey), cancellationToken);
+            using var response = await client.GetObjectAsync(bucket, NormalizeObjectKey(settings.S3ObjectKey), cancellationToken);
             using var reader = new StreamReader(response.ResponseStream, Encoding.UTF8);
             var json = await reader.ReadToEndAsync(cancellationToken);
             if (string.IsNullOrWhiteSpace(json)) return new SyncDocument();
@@ -118,13 +158,13 @@ public sealed class S3SyncService
         }
     }
 
-    private static async Task WriteRemoteDocumentAsync(IAmazonS3 client, AppSettings settings, SyncDocument document, CancellationToken cancellationToken)
+    private static async Task WriteRemoteDocumentAsync(IAmazonS3 client, AppSettings settings, string bucket, SyncDocument document, CancellationToken cancellationToken)
     {
         var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(document, JsonOptions));
         using var stream = new MemoryStream(bytes, writable: false);
         var request = new PutObjectRequest
         {
-            BucketName = settings.S3Bucket.Trim(),
+            BucketName = bucket,
             Key = NormalizeObjectKey(settings.S3ObjectKey),
             InputStream = stream,
             ContentType = "application/json",

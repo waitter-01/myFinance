@@ -196,6 +196,7 @@ public sealed partial class MainWindow : Window
         OptionalCategoriesBox.Text = settings.OptionalCategories;
         S3SyncEnabledCheck.IsChecked = settings.S3SyncEnabled;
         SyncOnStartupCheck.IsChecked = settings.SyncOnStartup;
+        S3AccessUrlBox.Text = settings.S3AccessUrl;
         S3EndpointBox.Text = settings.S3Endpoint;
         S3RegionBox.Text = settings.S3Region;
         S3BucketBox.Text = settings.S3Bucket;
@@ -629,7 +630,7 @@ public sealed partial class MainWindow : Window
             DailyReminderEnabled = DailyReminderCheck.IsChecked == true, DailyReminderTime = DailyReminderTimePicker.Time.ToString(@"hh\:mm"),
             WeeklySummaryEnabled = WeeklySummaryCheck.IsChecked == true, WeeklySummaryDay = dayIndex == 6 ? DayOfWeek.Sunday : (DayOfWeek)(dayIndex + 1), WeeklySummaryTime = WeeklySummaryTimePicker.Time.ToString(@"hh\:mm"),
             SubscriptionKeywords = SubscriptionKeywordsBox.Text.Trim(), OptionalCategories = OptionalCategoriesBox.Text.Trim(), S3SyncEnabled = S3SyncEnabledCheck.IsChecked == true, SyncOnStartup = SyncOnStartupCheck.IsChecked == true,
-            S3Endpoint = S3EndpointBox.Text.Trim(), S3Region = S3RegionBox.Text.Trim(), S3Bucket = S3BucketBox.Text.Trim(), S3ObjectKey = S3ObjectKeyBox.Text.Trim(),
+            S3AccessUrl = S3AccessUrlBox.Text.Trim(), S3Endpoint = S3EndpointBox.Text.Trim(), S3Region = S3RegionBox.Text.Trim(), S3Bucket = S3BucketBox.Text.Trim(), S3ObjectKey = S3ObjectKeyBox.Text.Trim(),
             S3AccessKeyId = S3AccessKeyIdBox.Text.Trim(), S3ForcePathStyle = S3ForcePathStyleCheck.IsChecked == true
         };
     }
