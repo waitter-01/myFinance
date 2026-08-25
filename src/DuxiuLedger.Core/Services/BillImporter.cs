@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.IO;
-using System.Security.Cryptography;
 using System.Text;
 using ClosedXML.Excel;
 using DuxiuLedger.Desktop.Models;
@@ -49,7 +48,7 @@ public sealed class BillImporter
             if (values.Count <= Math.Max(date, amount)) { issues.Add(new ImportIssue { Source = source, RowNumber = index + 1, Reason = "缺少日期或金额列", RawValue = raw }); continue; }
             if (!TryDate(values[date], out var when)) { issues.Add(new ImportIssue { Source = source, RowNumber = index + 1, Reason = "无法识别交易日期", RawValue = raw }); continue; }
             if (!TryAmount(values[amount], out var money) || money == 0) { issues.Add(new ImportIssue { Source = source, RowNumber = index + 1, Reason = "金额无效或为 0", RawValue = raw }); continue; }
-            var kind = type >= 0 && values.Count > type ? values[type] : ""; var direction = MapTransactionType(kind); var merchantText = merchant >= 0 && values.Count > merchant ? values[merchant] : ""; var noteText = note >= 0 && values.Count > note ? values[note] : ""; var categoryText = category >= 0 && values.Count > category && !string.IsNullOrWhiteSpace(values[category]) ? values[category] : "未分类"; var subscriptionMonths = months >= 0 && values.Count > months && int.TryParse(values[months], out var parsedMonths) ? Math.Max(1, parsedMonths) : 1; var fingerprint = Hash($"{when:O}|{direction}|{money.ToString(CultureInfo.InvariantCulture)}|{merchantText}|{noteText}"); result.Add(new TransactionRecord { OccurredOn = when, Direction = direction, Amount = Math.Abs(money), Category = categoryText, Merchant = merchantText, Note = noteText, Source = source, Fingerprint = fingerprint, SubscriptionMonths = subscriptionMonths });
+            var kind = type >= 0 && values.Count > type ? values[type] : ""; var direction = MapTransactionType(kind); var merchantText = merchant >= 0 && values.Count > merchant ? values[merchant] : ""; var noteText = note >= 0 && values.Count > note ? values[note] : ""; var categoryText = category >= 0 && values.Count > category && !string.IsNullOrWhiteSpace(values[category]) ? values[category] : "未分类"; var subscriptionMonths = months >= 0 && values.Count > months && int.TryParse(values[months], out var parsedMonths) ? Math.Max(1, parsedMonths) : 1; var record = new TransactionRecord { OccurredOn = when, Direction = direction, Amount = Math.Abs(money), Category = categoryText, Merchant = merchantText, Note = noteText, Source = source, SubscriptionMonths = subscriptionMonths }; record.Fingerprint = TransactionFingerprint.Create(record); result.Add(record);
         }
         return new ImportPreviewResult { Source = source, TotalRows = Math.Max(0, rows.Count - headerIndex - 1), Records = result, Issues = issues };
     }
@@ -66,5 +65,4 @@ public sealed class BillImporter
     private static int Find(List<string> headers, params string[] keys) => headers.FindIndex(h => Contains(h, keys));
     private static bool TryDate(string value, out DateTime date) => DateTime.TryParse(value, CultureInfo.GetCultureInfo("zh-CN"), DateTimeStyles.AllowWhiteSpaces, out date) || DateTime.TryParse(value, out date);
     private static bool TryAmount(string value, out decimal amount) => decimal.TryParse(value.Replace("¥", "").Replace(",", "").Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out amount);
-    private static string Hash(string text) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
 }

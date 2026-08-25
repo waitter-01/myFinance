@@ -1,8 +1,7 @@
 using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.RegularExpressions;
 using DuxiuLedger.Desktop.Models;
+using DuxiuLedger.Desktop.Services;
 using Windows.Globalization;
 using Windows.Graphics.Imaging;
 using Windows.Media.Ocr;
@@ -156,8 +155,7 @@ internal static partial class ScreenshotBillParser
             var direction = MapDirection(merchant, sign);
             var category = FindCategory(rowLines, merchant, dateText);
             var note = $"{platform}账单截图识别";
-            var fingerprint = Hash($"{occurredOn:yyyy-MM-dd HH:mm}|{direction}|{amount.ToString(CultureInfo.InvariantCulture)}|{merchant}");
-            records.Add(new TransactionRecord
+            var record = new TransactionRecord
             {
                 OccurredOn = occurredOn,
                 Direction = direction,
@@ -165,9 +163,10 @@ internal static partial class ScreenshotBillParser
                 Category = category,
                 Merchant = merchant,
                 Note = note,
-                Source = $"{platform}截图 · {source}",
-                Fingerprint = fingerprint
-            });
+                Source = $"{platform}截图 · {source}"
+            };
+            record.Fingerprint = TransactionFingerprint.Create(record);
+            records.Add(record);
         }
 
         if (records.Count == 0 && issues.Count == 0)
@@ -338,7 +337,6 @@ internal static partial class ScreenshotBillParser
             .OrderBy(line => line.CenterY).ThenBy(line => line.X).ToList();
     }
 
-    private static string Hash(string text) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
     private sealed record OcrVisualLine(string Text, double X, double Y, double Right, double Bottom) { public double CenterY => (Y + Bottom) / 2; }
 
     [GeneratedRegex(@"^[+\-−–—]?[¥￥]?([0-9][0-9,]*\.[0-9]{2})$")]
