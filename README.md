@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8">
     <img src="https://img.shields.io/badge/UI-WinUI%203-146C70" alt="WinUI 3">
     <img src="https://img.shields.io/badge/数据库-SQLite-0F80CC" alt="SQLite">
-    <img src="https://img.shields.io/badge/版本-v0.5.1-6B7280" alt="v0.5.1">
+    <img src="https://img.shields.io/badge/版本-v0.5.2-6B7280" alt="v0.5.2">
   </p>
 </div>
 
@@ -25,6 +25,7 @@
 - 截图识别：本地识别微信、支付宝账单列表长截图，支持选择文件、拖拽、剪贴板粘贴、自动分段、预览修正和重复过滤。
 - 格式识别：识别微信、支付宝常见账单表头以及项目标准模板。
 - 自动去重：通过交易时间、金额、方向、交易对方等信息生成指纹，避免重复导入。
+- 自动分类：根据常见商户和消费关键词建议分类，只补充未分类记录并允许导入前修改。
 - 财务总览：显示本月收入、支出、结余和最近流水。
 - 手动录入：填写日期、收支、金额、分类、交易对方和备注后直接保存。
 - 流水维护：支持编辑、删除以及收入、支出、转账、退款和报销类型。
@@ -45,7 +46,7 @@
 
 ## 当前版本
 
-当前版本为 **v0.5.1**，增加微信、支付宝账单长截图的拖拽和剪贴板快捷导入。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本为 **v0.5.2**，优化宽版圆角导入预览，并增加常见商户自动分类。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
 
 版本号采用 `主版本.次版本.修订版本`：
 
@@ -107,7 +108,7 @@ dotnet run --project .\desktop\DuxiuLedger.WinUI\DuxiuLedger.WinUI.csproj -p:Pla
 
 ```text
 desktop\publish\win-x64\DuxiuLedger.exe
-desktop\publish\DuxiuLedger-v0.5.1-win-x64.zip
+desktop\publish\DuxiuLedger-v0.5.2-win-x64.zip
 ```
 
 单文件 EXE 可以单独复制运行，首次启动时会将 WinUI 3 运行依赖释放到临时目录，因此第一次启动可能稍慢。发布目录已被 Git 忽略，不会提交到仓库。
@@ -131,7 +132,7 @@ winget install --id JRSoftware.InnoSetup -e
 生成文件：
 
 ```text
-desktop\publish\installer\DuxiuLedger-Setup-v0.5.1-win-x64.exe
+desktop\publish\installer\DuxiuLedger-Setup-v0.5.2-win-x64.exe
 ```
 
 安装程序默认安装到当前用户的 `%LOCALAPPDATA%\Programs\DuxiuLedger`，不要求管理员权限，并提供开始菜单、可选桌面快捷方式和标准卸载入口。
@@ -147,9 +148,9 @@ desktop\publish\installer\DuxiuLedger-Setup-v0.5.1-win-x64.exe
 5. 使用中文提交版本变更，然后创建并推送 Git 标签：
 
 ```powershell
-git tag -a v0.5.1 -m "版本：发布 v0.5.1"
+git tag -a v0.5.2 -m "版本：发布 v0.5.2"
 git push origin master
-git push origin v0.5.1
+git push origin v0.5.2
 ```
 
 6. 在 GitHub Releases 中使用相同标签创建发行版，并上传单文件 EXE、ZIP 和安装程序。发布说明以 `CHANGELOG.md` 对应版本内容为准。

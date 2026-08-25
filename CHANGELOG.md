@@ -2,6 +2,21 @@
 
 本项目采用[语义化版本](https://semver.org/lang/zh-CN/)管理版本，版本号格式为 `主版本.次版本.修订版本`。
 
+## [0.5.2] - 2026-08-25
+
+### 新增
+
+- 增加常见商户关键词自动分类，覆盖餐饮饮品、游戏、购物快递、出行、保险、医疗、教育、数码、通讯、居住、旅行和宠物等主要消费。
+- 蜜雪冰城、瑞幸等茶饮咖啡商户自动建议为“零食饮料”。
+- 增加“保险保障”预设分类，已有数据库会在启动时自动补充。
+
+### 改进
+
+- 导入预览由 WinUI 默认窄对话框调整为 1100 像素宽版圆角布局，与主界面卡片风格保持一致。
+- 流水列表增加列标题，扩大交易对方和来源显示空间，完整内容可通过悬停提示查看。
+- 问题记录扩大来源、原因和原始内容区域，原始内容支持自动换行。
+- 自动分类只替换“未分类”，不会覆盖账单原有分类或用户已经确认的分类；转账仍保持未分类以避免误判。
+
 ## [0.5.1] - 2026-08-25
 
 ### 新增
@@ -151,4 +166,5 @@
 [0.4.1]: https://github.com/waitter-01/myFinance/releases/tag/v0.4.1
 [0.5.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.5.0
 [0.5.1]: https://github.com/waitter-01/myFinance/releases/tag/v0.5.1
+[0.5.2]: https://github.com/waitter-01/myFinance/releases/tag/v0.5.2
 [0.1.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.1.0
