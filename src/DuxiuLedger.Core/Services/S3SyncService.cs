@@ -14,6 +14,7 @@ namespace DuxiuLedger.Desktop.Services;
 
 public sealed class S3SyncService
 {
+    private const int MaxMergeAttempts = 4;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
     private readonly LocalStore _store;
 
@@ -23,9 +24,12 @@ public sealed class S3SyncService
     {
         var bucket = ValidateAndResolveBucket(settings, secretKey);
         using var client = CreateClient(settings, secretKey, sessionToken);
-        var document = await ReadRemoteDocumentAsync(client, settings, bucket, cancellationToken);
-        if (document is null)
-            await WriteRemoteDocumentAsync(client, settings, bucket, new SyncDocument(), cancellationToken);
+        var snapshot = await ReadRemoteDocumentAsync(client, settings, bucket, cancellationToken);
+        if (!snapshot.Exists)
+        {
+            try { await WriteRemoteDocumentAsync(client, settings, bucket, new SyncDocument(), null, cancellationToken); }
+            catch (AmazonS3Exception ex) when (IsConcurrentWrite(ex)) { }
+        }
         return $"{bucket}/{NormalizeObjectKey(settings.S3ObjectKey)}";
     }
 
@@ -33,39 +37,57 @@ public sealed class S3SyncService
     {
         var bucket = ValidateAndResolveBucket(settings, secretKey);
         using var client = CreateClient(settings, secretKey, sessionToken);
-        var remoteDocument = await ReadRemoteDocumentAsync(client, settings, bucket, cancellationToken) ?? new SyncDocument();
-        var merged = remoteDocument.Items.ToDictionary(ItemKey, StringComparer.Ordinal);
-        var result = new SyncResult();
-
-        foreach (var localItem in ReadLocalItems())
+        for (var attempt = 1; attempt <= MaxMergeAttempts; attempt++)
         {
-            var key = ItemKey(localItem);
-            if (!merged.TryGetValue(key, out var remoteItem) || IsNewer(localItem, remoteItem))
+            var snapshot = await ReadRemoteDocumentAsync(client, settings, bucket, cancellationToken);
+            var merged = snapshot.Document.Items.ToDictionary(ItemKey, StringComparer.Ordinal);
+            var result = new SyncResult { MergeAttempts = attempt };
+
+            foreach (var localItem in ReadLocalItems())
             {
-                merged[key] = localItem;
-                result.Uploaded++;
+                var key = ItemKey(localItem);
+                if (!merged.TryGetValue(key, out var remoteItem))
+                {
+                    merged[key] = localItem;
+                    result.Uploaded++;
+                    continue;
+                }
+                if (!SameContent(localItem, remoteItem) && AreConcurrent(localItem, remoteItem)) result.Conflicts++;
+                if (IsPreferred(localItem, remoteItem))
+                {
+                    merged[key] = localItem;
+                    result.Uploaded++;
+                }
+            }
+
+            foreach (var item in merged.Values.OrderBy(item => EntityOrder(item.EntityType)))
+            {
+                if (!ApplyRemoteItem(item)) continue;
+                if (item.IsDeleted) result.Deleted++; else result.Downloaded++;
+            }
+
+            foreach (var localItem in ReadLocalItems())
+            {
+                var key = ItemKey(localItem);
+                if (!merged.TryGetValue(key, out var current) || IsPreferred(localItem, current)) merged[key] = localItem;
+            }
+
+            var output = new SyncDocument
+            {
+                UpdatedAt = DateTime.UtcNow.ToString("O"),
+                Items = merged.Values.OrderBy(item => EntityOrder(item.EntityType)).ThenBy(item => item.SyncId, StringComparer.Ordinal).ToList()
+            };
+            try
+            {
+                await WriteRemoteDocumentAsync(client, settings, bucket, output, snapshot.ETag, cancellationToken);
+                return result;
+            }
+            catch (AmazonS3Exception ex) when (IsConcurrentWrite(ex) && attempt < MaxMergeAttempts)
+            {
+                // 另一设备刚更新了同一对象，重新读取最新版本后再次按记录合并。
             }
         }
-
-        foreach (var item in merged.Values.OrderBy(item => EntityOrder(item.EntityType)))
-        {
-            if (!ApplyRemoteItem(item)) continue;
-            if (item.IsDeleted) result.Deleted++; else result.Downloaded++;
-        }
-
-        foreach (var localItem in ReadLocalItems())
-        {
-            var key = ItemKey(localItem);
-            if (!merged.TryGetValue(key, out var current) || IsNewer(localItem, current)) merged[key] = localItem;
-        }
-
-        var output = new SyncDocument
-        {
-            UpdatedAt = DateTime.UtcNow.ToString("O"),
-            Items = merged.Values.OrderBy(item => EntityOrder(item.EntityType)).ThenBy(item => item.SyncId, StringComparer.Ordinal).ToList()
-        };
-        await WriteRemoteDocumentAsync(client, settings, bucket, output, cancellationToken);
-        return result;
+        throw new InvalidOperationException("云端账本正在被其他设备频繁更新，请稍后重试。 ");
     }
 
     private static IAmazonS3 CreateClient(AppSettings settings, string secretKey, string sessionToken)
@@ -152,24 +174,24 @@ public sealed class S3SyncService
         return false;
     }
 
-    private static async Task<SyncDocument?> ReadRemoteDocumentAsync(IAmazonS3 client, AppSettings settings, string bucket, CancellationToken cancellationToken)
+    private static async Task<RemoteSnapshot> ReadRemoteDocumentAsync(IAmazonS3 client, AppSettings settings, string bucket, CancellationToken cancellationToken)
     {
         try
         {
             using var response = await client.GetObjectAsync(bucket, NormalizeObjectKey(settings.S3ObjectKey), cancellationToken);
             using var reader = new StreamReader(response.ResponseStream, Encoding.UTF8);
             var json = await reader.ReadToEndAsync(cancellationToken);
-            if (string.IsNullOrWhiteSpace(json)) return new SyncDocument();
-            return JsonSerializer.Deserialize<SyncDocument>(json, JsonOptions)
+            var document = string.IsNullOrWhiteSpace(json) ? new SyncDocument() : JsonSerializer.Deserialize<SyncDocument>(json, JsonOptions)
                 ?? throw new InvalidDataException("S3同步文件内容无效。");
+            return new RemoteSnapshot(document, response.ETag, true);
         }
         catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound || ex.ErrorCode is "NoSuchKey" or "NotFound")
         {
-            return null;
+            return new RemoteSnapshot(new SyncDocument(), null, false);
         }
     }
 
-    private static async Task WriteRemoteDocumentAsync(IAmazonS3 client, AppSettings settings, string bucket, SyncDocument document, CancellationToken cancellationToken)
+    private static async Task WriteRemoteDocumentAsync(IAmazonS3 client, AppSettings settings, string bucket, SyncDocument document, string? etag, CancellationToken cancellationToken)
     {
         var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(document, JsonOptions));
         using var stream = new MemoryStream(bytes, writable: false);
@@ -179,10 +201,15 @@ public sealed class S3SyncService
             Key = NormalizeObjectKey(settings.S3ObjectKey),
             InputStream = stream,
             ContentType = "application/json",
-            AutoCloseStream = false
+            AutoCloseStream = false,
+            IfMatch = etag,
+            IfNoneMatch = string.IsNullOrWhiteSpace(etag) ? "*" : null
         };
         await client.PutObjectAsync(request, cancellationToken);
     }
+
+    private static bool IsConcurrentWrite(AmazonS3Exception exception)
+        => exception.StatusCode == HttpStatusCode.PreconditionFailed || exception.ErrorCode is "PreconditionFailed" or "ConditionalRequestConflict";
 
     private IEnumerable<SyncItem> ReadLocalItems()
     {
@@ -286,7 +313,17 @@ public sealed class S3SyncService
         Add(command,"$type",item.EntityType); Add(command,"$id",item.SyncId); Add(command,"$updated",item.UpdatedAt); command.ExecuteNonQuery();
     }
 
-    private static bool IsNewer(SyncItem candidate, SyncItem current) => string.CompareOrdinal(candidate.UpdatedAt, current.UpdatedAt) > 0;
+    private static bool IsPreferred(SyncItem candidate, SyncItem current)
+    {
+        var timestampComparison = string.CompareOrdinal(candidate.UpdatedAt, current.UpdatedAt);
+        if (timestampComparison != 0) return timestampComparison > 0;
+        return string.CompareOrdinal(ContentKey(candidate), ContentKey(current)) > 0;
+    }
+    private static bool SameContent(SyncItem left, SyncItem right) => ContentKey(left) == ContentKey(right);
+    private static string ContentKey(SyncItem item) => $"{item.IsDeleted}|{item.Payload}";
+    private static bool AreConcurrent(SyncItem left, SyncItem right)
+        => DateTimeOffset.TryParse(left.UpdatedAt, out var leftTime) && DateTimeOffset.TryParse(right.UpdatedAt, out var rightTime)
+            && (leftTime - rightTime).Duration() <= TimeSpan.FromSeconds(5);
     private static string ItemKey(SyncItem item) => $"{item.EntityType}\n{item.SyncId}";
     private static string NormalizeObjectKey(string value) => value.Trim().TrimStart('/');
     private static int EntityOrder(string type) => type switch { "account" => 0, "category" => 1, "budget" => 2, "savings_goal" => 3, "transaction" => 4, _ => 9 };
@@ -308,4 +345,5 @@ public sealed class S3SyncService
     }
 
     private sealed record SyncItem(string EntityType, string SyncId, string? Payload, string UpdatedAt, bool IsDeleted);
+    private sealed record RemoteSnapshot(SyncDocument Document, string? ETag, bool Exists);
 }
