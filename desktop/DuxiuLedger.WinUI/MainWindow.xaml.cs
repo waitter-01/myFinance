@@ -19,7 +19,7 @@ public sealed partial class MainWindow : Window
     private readonly LocalStore _store = new();
     private readonly BillImporter _importer = new();
     private readonly ScreenshotBillImporter _screenshotImporter = new();
-    private readonly MySqlSyncService _syncService;
+    private readonly S3SyncService _syncService;
     private readonly Dictionary<string, (string Title, string Subtitle)> _pages = new()
     {
         ["Dashboard"] = ("总览", "查看本月财务情况和最近流水"),
@@ -29,14 +29,14 @@ public sealed partial class MainWindow : Window
         ["Subscriptions"] = ("订阅与月卡", "看清自动续费、会员和游戏月卡的长期成本"),
         ["Accounts"] = ("账户管理", "管理现金、银行卡、电子钱包和信用账户"),
         ["Categories"] = ("分类设置", "建立适合自己的收支分类体系"),
-        ["Backup"] = ("数据备份", "复制和保护本地账本数据库"),
+        ["Backup"] = ("数据备份", "复制和保护本地账本文件"),
         ["Settings"] = ("偏好设置", "按自己的习惯调整分析标准和提醒计划")
     };
 
     public MainWindow()
     {
         InitializeComponent();
-        _syncService = new MySqlSyncService(_store);
+        _syncService = new S3SyncService(_store);
         var version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.5.2";
         AppTitleBar.Subtitle = $"个人财务中心 · v{version}";
         ExtendsContentIntoTitleBar = true;
@@ -44,7 +44,6 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
         AppWindow.Resize(new SizeInt32(1320, 850));
         WeeklySummaryDayBox.ItemsSource = new[] { "星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日" };
-        MySqlSslModeBox.ItemsSource = new[] { "Preferred", "Required", "VerifyCA", "VerifyFull" };
         DataPathText.Text = _store.DatabasePath;
         LoadSettings();
         LoadDashboard();
@@ -195,15 +194,16 @@ public sealed partial class MainWindow : Window
         WeeklySummaryTimePicker.Time = TimeSpan.Parse(settings.WeeklySummaryTime);
         SubscriptionKeywordsBox.Text = settings.SubscriptionKeywords;
         OptionalCategoriesBox.Text = settings.OptionalCategories;
-        MySqlSyncEnabledCheck.IsChecked = settings.MySqlSyncEnabled;
+        S3SyncEnabledCheck.IsChecked = settings.S3SyncEnabled;
         SyncOnStartupCheck.IsChecked = settings.SyncOnStartup;
-        MySqlHostBox.Text = settings.MySqlHost;
-        MySqlPortBox.Value = settings.MySqlPort;
-        MySqlDatabaseBox.Text = settings.MySqlDatabase;
-        MySqlUsernameBox.Text = settings.MySqlUsername;
-        MySqlSslModeBox.SelectedItem = settings.MySqlSslMode;
-        MySqlLegacyModeCheck.IsChecked = settings.MySqlLegacyMode;
-        MySqlPasswordBox.PlaceholderText = string.IsNullOrEmpty(_store.LoadMySqlPassword()) ? "请输入数据库密码" : "密码已由 Windows 当前用户加密保存";
+        S3EndpointBox.Text = settings.S3Endpoint;
+        S3RegionBox.Text = settings.S3Region;
+        S3BucketBox.Text = settings.S3Bucket;
+        S3ObjectKeyBox.Text = settings.S3ObjectKey;
+        S3AccessKeyIdBox.Text = settings.S3AccessKeyId;
+        S3ForcePathStyleCheck.IsChecked = settings.S3ForcePathStyle;
+        S3SecretKeyBox.PlaceholderText = string.IsNullOrEmpty(_store.LoadS3SecretKey()) ? "请输入 Secret Access Key" : "密钥已由 Windows 当前用户加密保存";
+        S3SessionTokenBox.PlaceholderText = string.IsNullOrEmpty(_store.LoadS3SessionToken()) ? "可选，仅临时凭据需要" : "令牌已由 Windows 当前用户加密保存";
     }
 
     private void NavigationSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
@@ -439,7 +439,7 @@ public sealed partial class MainWindow : Window
         _store.Import([dialog.Result]);
         LoadDashboard();
         SelectNavigation("Transactions");
-        StatusText.Text = "手动流水已保存到本地数据库";
+        StatusText.Text = "手动流水已保存到本地账本";
     }
 
     private async void EditTransactionClick(object sender, RoutedEventArgs e)
@@ -464,7 +464,7 @@ public sealed partial class MainWindow : Window
         {
             XamlRoot = ContentHost.XamlRoot,
             Title = "删除这条流水？",
-            Content = $"{record.DateDisplay} · {record.Merchant}\n{record.Direction} {record.AmountDisplay}\n\n删除后只能通过数据库备份恢复。",
+            Content = $"{record.DateDisplay} · {record.Merchant}\n{record.Direction} {record.AmountDisplay}\n\n删除后只能通过账本备份恢复。",
             PrimaryButtonText = "删除",
             CloseButtonText = "取消",
             DefaultButton = ContentDialogButton.Close
@@ -617,32 +617,35 @@ public sealed partial class MainWindow : Window
             SmallExpenseThreshold = (decimal)Math.Max(0, SmallExpenseThresholdBox.Value), MonthlyBudget = (decimal)Math.Max(0, MonthlyBudgetBox.Value),
             DailyReminderEnabled = DailyReminderCheck.IsChecked == true, DailyReminderTime = DailyReminderTimePicker.Time.ToString(@"hh\:mm"),
             WeeklySummaryEnabled = WeeklySummaryCheck.IsChecked == true, WeeklySummaryDay = dayIndex == 6 ? DayOfWeek.Sunday : (DayOfWeek)(dayIndex + 1), WeeklySummaryTime = WeeklySummaryTimePicker.Time.ToString(@"hh\:mm"),
-            SubscriptionKeywords = SubscriptionKeywordsBox.Text.Trim(), OptionalCategories = OptionalCategoriesBox.Text.Trim(), MySqlSyncEnabled = MySqlSyncEnabledCheck.IsChecked == true, SyncOnStartup = SyncOnStartupCheck.IsChecked == true,
-            MySqlHost = MySqlHostBox.Text.Trim(), MySqlPort = (int)Math.Clamp(MySqlPortBox.Value, 1, 65535), MySqlDatabase = MySqlDatabaseBox.Text.Trim(),
-            MySqlUsername = MySqlUsernameBox.Text.Trim(), MySqlSslMode = MySqlSslModeBox.SelectedItem?.ToString() ?? "Preferred", MySqlLegacyMode = MySqlLegacyModeCheck.IsChecked == true
+            SubscriptionKeywords = SubscriptionKeywordsBox.Text.Trim(), OptionalCategories = OptionalCategoriesBox.Text.Trim(), S3SyncEnabled = S3SyncEnabledCheck.IsChecked == true, SyncOnStartup = SyncOnStartupCheck.IsChecked == true,
+            S3Endpoint = S3EndpointBox.Text.Trim(), S3Region = S3RegionBox.Text.Trim(), S3Bucket = S3BucketBox.Text.Trim(), S3ObjectKey = S3ObjectKeyBox.Text.Trim(),
+            S3AccessKeyId = S3AccessKeyIdBox.Text.Trim(), S3ForcePathStyle = S3ForcePathStyleCheck.IsChecked == true
         };
     }
 
     private void SaveCloudSettings()
     {
         _store.SaveSettings(CollectSettings());
-        if (!string.IsNullOrEmpty(MySqlPasswordBox.Password))
+        if (!string.IsNullOrEmpty(S3SecretKeyBox.Password) || !string.IsNullOrEmpty(S3SessionTokenBox.Password))
         {
-            _store.SaveMySqlPassword(MySqlPasswordBox.Password);
-            MySqlPasswordBox.Password = "";
-            MySqlPasswordBox.PlaceholderText = "密码已由 Windows 当前用户加密保存";
+            var secretKey = string.IsNullOrEmpty(S3SecretKeyBox.Password) ? _store.LoadS3SecretKey() : S3SecretKeyBox.Password;
+            var sessionToken = string.IsNullOrEmpty(S3SessionTokenBox.Password) ? _store.LoadS3SessionToken() : S3SessionTokenBox.Password;
+            _store.SaveS3Credentials(secretKey, sessionToken);
+            S3SecretKeyBox.Password = ""; S3SessionTokenBox.Password = "";
+            S3SecretKeyBox.PlaceholderText = "密钥已由 Windows 当前用户加密保存";
+            if (!string.IsNullOrEmpty(sessionToken)) S3SessionTokenBox.PlaceholderText = "令牌已由 Windows 当前用户加密保存";
         }
     }
 
-    private async void TestMySqlClick(object sender, RoutedEventArgs e)
+    private async void TestS3Click(object sender, RoutedEventArgs e)
     {
         try
         {
             SaveCloudSettings(); CloudSyncProgress.IsActive = true; CloudSyncInfo.IsOpen = false;
-            var version = await _syncService.TestConnectionAsync(_store.LoadSettings(), _store.LoadMySqlPassword());
-            CloudSyncInfo.Severity = InfoBarSeverity.Success; CloudSyncInfo.Title = "连接成功"; CloudSyncInfo.Message = $"MySQL {version} 登录和数据库访问正常。"; CloudSyncInfo.IsOpen = true;
+            var target = await _syncService.TestConnectionAsync(_store.LoadSettings(), _store.LoadS3SecretKey(), _store.LoadS3SessionToken());
+            CloudSyncInfo.Severity = InfoBarSeverity.Success; CloudSyncInfo.Title = "连接成功"; CloudSyncInfo.Message = $"已验证 S3 对象的读取和写入权限：{target}"; CloudSyncInfo.IsOpen = true;
         }
-        catch (Exception ex) { CloudSyncInfo.Severity = InfoBarSeverity.Error; CloudSyncInfo.Title = "连接失败"; CloudSyncInfo.Message = SafeDatabaseError(ex); CloudSyncInfo.IsOpen = true; }
+        catch (Exception ex) { CloudSyncInfo.Severity = InfoBarSeverity.Error; CloudSyncInfo.Title = "连接失败"; CloudSyncInfo.Message = SafeCloudError(ex); CloudSyncInfo.IsOpen = true; }
         finally { CloudSyncProgress.IsActive = false; }
     }
 
@@ -651,7 +654,7 @@ public sealed partial class MainWindow : Window
     private async void TrySyncOnStartup()
     {
         var settings = _store.LoadSettings();
-        if (!settings.MySqlSyncEnabled || !settings.SyncOnStartup || string.IsNullOrEmpty(_store.LoadMySqlPassword())) return;
+        if (!settings.S3SyncEnabled || !settings.SyncOnStartup || string.IsNullOrEmpty(_store.LoadS3SecretKey())) return;
         await RunCloudSyncAsync(showResult: false);
     }
 
@@ -661,22 +664,22 @@ public sealed partial class MainWindow : Window
         {
             SaveCloudSettings();
             var settings = _store.LoadSettings();
-            if (!settings.MySqlSyncEnabled) throw new InvalidOperationException("请先启用 MySQL 同步。 ");
+            if (!settings.S3SyncEnabled) throw new InvalidOperationException("请先启用 S3 同步。 ");
             CloudSyncProgress.IsActive = true; CloudSyncInfo.IsOpen = false;
-            var result = await _syncService.SyncAsync(settings, _store.LoadMySqlPassword());
+            var result = await _syncService.SyncAsync(settings, _store.LoadS3SecretKey(), _store.LoadS3SessionToken());
             LoadDashboard();
             CloudSyncInfo.Severity = InfoBarSeverity.Success; CloudSyncInfo.Title = "同步完成"; CloudSyncInfo.Message = result.Display; CloudSyncInfo.IsOpen = true;
             StatusText.Text = $"云同步完成：{result.Display}";
         }
         catch (Exception ex)
         {
-            CloudSyncInfo.Severity = InfoBarSeverity.Error; CloudSyncInfo.Title = "同步失败，本地数据未受影响"; CloudSyncInfo.Message = SafeDatabaseError(ex); CloudSyncInfo.IsOpen = true;
-            if (showResult) StatusText.Text = "MySQL 同步失败，请查看连接设置";
+            CloudSyncInfo.Severity = InfoBarSeverity.Error; CloudSyncInfo.Title = "同步失败，本地数据未受影响"; CloudSyncInfo.Message = SafeCloudError(ex); CloudSyncInfo.IsOpen = true;
+            if (showResult) StatusText.Text = "S3 同步失败，请查看对象存储设置";
         }
         finally { CloudSyncProgress.IsActive = false; }
     }
 
-    private static string SafeDatabaseError(Exception exception)
+    private static string SafeCloudError(Exception exception)
     {
         var message = exception.Message.Replace("Password", "凭据", StringComparison.OrdinalIgnoreCase);
         return message.Length > 300 ? message[..300] : message;
@@ -705,7 +708,7 @@ public sealed partial class MainWindow : Window
         {
             SuggestedFileName = $"duxiu-ledger-{DateTime.Now:yyyyMMdd-HHmm}"
         };
-        picker.FileTypeChoices.Add("SQLite 数据库", [".db"]);
+        picker.FileTypeChoices.Add("独秀账本备份", [".duxiu"]);
         WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
         var file = await picker.PickSaveFileAsync();
         if (file is null) return;
