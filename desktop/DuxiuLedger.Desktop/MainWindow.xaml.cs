@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Globalization;
 using Microsoft.Win32;
 using DuxiuLedger.Desktop.Models;
 using DuxiuLedger.Desktop.Services;
@@ -25,11 +26,14 @@ public partial class MainWindow : Window
             ["Transactions"] = (TransactionsPage, TransactionsNav, "全部流水", "搜索、核对和管理本地账单记录"),
             ["Budgets"] = (BudgetsPage, BudgetsNav, "预算计划", "规划每月支出，控制消费节奏"),
             ["Categories"] = (CategoriesPage, CategoriesNav, "分类设置", "建立适合自己的收支分类体系"),
+            ["Settings"] = (SettingsPage, SettingsNav, "偏好设置", "按自己的习惯调整分析标准和提醒计划"),
             ["Backup"] = (BackupPage, BackupNav, "数据备份", "复制和保护本地账本数据库")
         };
         DashboardGrid.ItemsSource = _records;
         TransactionsGrid.ItemsSource = _records;
         DataPathText.Text = _store.DatabasePath;
+        WeeklySummaryDayBox.ItemsSource = new[] { "星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日" };
+        LoadSettings();
         LoadRecords();
         ShowPage("Dashboard");
     }
@@ -94,6 +98,48 @@ public partial class MainWindow : Window
         LoadRecords();
         ShowPage("Transactions");
         StatusText.Text = "手动流水已保存到本地数据库";
+    }
+
+    private void LoadSettings()
+    {
+        var settings = _store.LoadSettings();
+        SmallExpenseThresholdBox.Text = settings.SmallExpenseThreshold.ToString("0.##");
+        MonthlyBudgetBox.Text = settings.MonthlyBudget.ToString("0.##");
+        DailyReminderCheck.IsChecked = settings.DailyReminderEnabled;
+        DailyReminderTimeBox.Text = settings.DailyReminderTime;
+        WeeklySummaryCheck.IsChecked = settings.WeeklySummaryEnabled;
+        WeeklySummaryDayBox.SelectedIndex = settings.WeeklySummaryDay == DayOfWeek.Sunday ? 6 : (int)settings.WeeklySummaryDay - 1;
+        WeeklySummaryTimeBox.Text = settings.WeeklySummaryTime;
+        SubscriptionKeywordsBox.Text = settings.SubscriptionKeywords;
+    }
+
+    private void SaveSettingsClick(object sender, RoutedEventArgs e)
+    {
+        if (!decimal.TryParse(SmallExpenseThresholdBox.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var threshold) || threshold < 0 ||
+            !decimal.TryParse(MonthlyBudgetBox.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var budget) || budget < 0)
+        {
+            MessageBox.Show("小额消费上限和月度预算必须是大于或等于 0 的数字。", "设置未保存", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (!TimeOnly.TryParseExact(DailyReminderTimeBox.Text.Trim(), "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out _) ||
+            !TimeOnly.TryParseExact(WeeklySummaryTimeBox.Text.Trim(), "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+        {
+            MessageBox.Show("提醒时间请使用 24 小时制 HH:mm，例如 21:00。", "设置未保存", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        var dayIndex = Math.Max(0, WeeklySummaryDayBox.SelectedIndex);
+        _store.SaveSettings(new AppSettings
+        {
+            SmallExpenseThreshold = threshold,
+            MonthlyBudget = budget,
+            DailyReminderEnabled = DailyReminderCheck.IsChecked == true,
+            DailyReminderTime = DailyReminderTimeBox.Text.Trim(),
+            WeeklySummaryEnabled = WeeklySummaryCheck.IsChecked == true,
+            WeeklySummaryDay = dayIndex == 6 ? DayOfWeek.Sunday : (DayOfWeek)(dayIndex + 1),
+            WeeklySummaryTime = WeeklySummaryTimeBox.Text.Trim(),
+            SubscriptionKeywords = SubscriptionKeywordsBox.Text.Trim()
+        });
+        StatusText.Text = "偏好设置已保存，将用于消费分析和提醒计划";
     }
 
     private void BackupClick(object sender, RoutedEventArgs e)
