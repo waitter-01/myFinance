@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -108,7 +109,7 @@ public sealed class S3SyncService
 
     internal static string ResolveBucketName(AppSettings settings)
     {
-        if (!string.IsNullOrWhiteSpace(settings.S3Bucket)) return settings.S3Bucket.Trim();
+        if (IsPlainBucketName(settings.S3Bucket)) return settings.S3Bucket.Trim();
         if (!TryCreateHttpUri(settings.S3AccessUrl, out var accessUri)) return "";
 
         if (TryCreateHttpUri(settings.S3Endpoint, out var endpointUri))
@@ -128,6 +129,16 @@ public sealed class S3SyncService
         }
 
         return accessUri.Host.Split('.', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
+    }
+
+    internal static bool IsPlainBucketName(string value)
+    {
+        var candidate = value.Trim();
+        return candidate.Length >= 3
+            && !candidate.Contains("://", StringComparison.Ordinal)
+            && !candidate.Contains('/')
+            && !candidate.Contains('\\')
+            && !candidate.Any(char.IsWhiteSpace);
     }
 
     private static bool TryCreateHttpUri(string value, out Uri uri)

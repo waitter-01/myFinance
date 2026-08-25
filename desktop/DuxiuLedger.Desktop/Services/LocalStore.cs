@@ -391,7 +391,7 @@ public sealed class LocalStore
         if (values.TryGetValue("s3_access_url", out var accessUrl)) settings.S3AccessUrl = accessUrl;
         if (values.TryGetValue("s3_endpoint", out var endpoint)) settings.S3Endpoint = endpoint;
         if (values.TryGetValue("s3_region", out var region)) settings.S3Region = region;
-        if (values.TryGetValue("s3_bucket", out var bucket)) settings.S3Bucket = bucket;
+        if (values.TryGetValue("s3_bucket", out var bucket) && S3SyncService.IsPlainBucketName(bucket)) settings.S3Bucket = bucket.Trim();
         if (values.TryGetValue("s3_object_key", out var objectKey)) settings.S3ObjectKey = objectKey;
         if (values.TryGetValue("s3_access_key_id", out var accessKeyId)) settings.S3AccessKeyId = accessKeyId;
         if (TryBool(values, "s3_force_path_style", out var forcePathStyle)) settings.S3ForcePathStyle = forcePathStyle;
