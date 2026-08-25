@@ -2,6 +2,18 @@
 
 本项目采用[语义化版本](https://semver.org/lang/zh-CN/)管理版本，版本号格式为 `主版本.次版本.修订版本`。
 
+## [0.6.3] - 2026-08-25
+
+### 修复
+
+- 将现有独秀账本 Logo 转换为包含 16–256 像素的多尺寸 Windows ICO，并嵌入 WinUI 3 与 WPF 可执行文件。
+- 显式设置 WinUI 3 `AppWindow` 图标，统一标题栏、Windows 任务栏、Alt+Tab 窗口切换器和快捷方式图标。
+- 安装程序和卸载列表继续从主 EXE 读取同一图标，不再显示默认应用图标。
+
+### 工程化
+
+- 增加 `desktop/generate-app-icon.ps1`，可从现有 PNG Logo 重复生成标准多尺寸 ICO。
+
 ## [0.6.2] - 2026-08-25
 
 ### 修复
@@ -204,6 +216,7 @@
 - 提醒时间可以保存，但 Windows 系统通知尚未接入。
 - 云同步、账户管理、资产负债和多端客户端尚未实现。
 
+[0.6.3]: https://github.com/waitter-01/myFinance/releases/tag/v0.6.3
 [0.6.2]: https://github.com/waitter-01/myFinance/releases/tag/v0.6.2
 [0.6.1]: https://github.com/waitter-01/myFinance/releases/tag/v0.6.1
 [0.6.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.6.0
