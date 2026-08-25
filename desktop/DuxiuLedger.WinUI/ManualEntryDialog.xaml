@@ -21,6 +21,7 @@
       <ComboBox x:Name="ToAccountBox" Grid.Column="1" Header="转入账户（仅转账）" DisplayMemberPath="Name" HorizontalAlignment="Stretch" IsEnabled="False" />
     </Grid>
     <ComboBox x:Name="CategoryBox" Header="分类" PlaceholderText="选择或输入分类" IsEditable="True" HorizontalAlignment="Stretch" />
+    <NumberBox x:Name="SubscriptionMonthsBox" Header="订阅价格覆盖月数（非订阅保持 1）" Minimum="1" Maximum="120" Value="1" SpinButtonPlacementMode="Compact" />
     <TextBox x:Name="MerchantBox" Header="交易对方" PlaceholderText="例如：某某超市、视频会员" />
     <TextBox x:Name="NoteBox" Header="备注" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="68" />
     <InfoBar x:Name="ValidationInfo" IsOpen="False" Severity="Error" IsClosable="False" />

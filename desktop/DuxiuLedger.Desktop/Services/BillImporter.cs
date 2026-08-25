@@ -39,7 +39,7 @@ public sealed class BillImporter
     {
         var headerIndex = rows.FindIndex(r => r.Any(v => Contains(v, "时间", "日期", "交易时间")) && r.Any(v => Contains(v, "金额", "收支金额", "金额(元)")));
         if (headerIndex < 0) throw new InvalidDataException("无法识别账单表头。请使用微信、支付宝官方导出的账单文件，或提供包含日期和金额列的表格。");
-        var headers = rows[headerIndex]; int date = Find(headers, "时间", "日期", "交易时间"), amount = Find(headers, "金额", "收支金额", "金额(元)"), type = Find(headers, "收支", "交易类型", "类型"), merchant = Find(headers, "交易对方", "商户", "商品", "备注"), note = Find(headers, "备注", "商品说明", "描述");
+        var headers = rows[headerIndex]; int date = Find(headers, "时间", "日期", "交易时间"), amount = Find(headers, "金额", "收支金额", "金额(元)"), type = Find(headers, "收支", "交易类型", "类型"), merchant = Find(headers, "交易对方", "商户", "商品", "备注"), note = Find(headers, "备注", "商品说明", "描述"), category = Find(headers, "分类", "交易分类"), months = Find(headers, "订阅月数", "计费月数", "覆盖月数");
         var result = new List<TransactionRecord>(); var issues = new List<ImportIssue>();
         for (var index = headerIndex + 1; index < rows.Count; index++)
         {
@@ -49,7 +49,7 @@ public sealed class BillImporter
             if (values.Count <= Math.Max(date, amount)) { issues.Add(new ImportIssue { Source = source, RowNumber = index + 1, Reason = "缺少日期或金额列", RawValue = raw }); continue; }
             if (!TryDate(values[date], out var when)) { issues.Add(new ImportIssue { Source = source, RowNumber = index + 1, Reason = "无法识别交易日期", RawValue = raw }); continue; }
             if (!TryAmount(values[amount], out var money) || money == 0) { issues.Add(new ImportIssue { Source = source, RowNumber = index + 1, Reason = "金额无效或为 0", RawValue = raw }); continue; }
-            var kind = type >= 0 && values.Count > type ? values[type] : ""; var direction = MapTransactionType(kind); var merchantText = merchant >= 0 && values.Count > merchant ? values[merchant] : ""; var noteText = note >= 0 && values.Count > note ? values[note] : ""; var fingerprint = Hash($"{when:O}|{direction}|{money.ToString(CultureInfo.InvariantCulture)}|{merchantText}|{noteText}"); result.Add(new TransactionRecord { OccurredOn = when, Direction = direction, Amount = Math.Abs(money), Merchant = merchantText, Note = noteText, Source = source, Fingerprint = fingerprint });
+            var kind = type >= 0 && values.Count > type ? values[type] : ""; var direction = MapTransactionType(kind); var merchantText = merchant >= 0 && values.Count > merchant ? values[merchant] : ""; var noteText = note >= 0 && values.Count > note ? values[note] : ""; var categoryText = category >= 0 && values.Count > category && !string.IsNullOrWhiteSpace(values[category]) ? values[category] : "未分类"; var subscriptionMonths = months >= 0 && values.Count > months && int.TryParse(values[months], out var parsedMonths) ? Math.Max(1, parsedMonths) : 1; var fingerprint = Hash($"{when:O}|{direction}|{money.ToString(CultureInfo.InvariantCulture)}|{merchantText}|{noteText}"); result.Add(new TransactionRecord { OccurredOn = when, Direction = direction, Amount = Math.Abs(money), Category = categoryText, Merchant = merchantText, Note = noteText, Source = source, Fingerprint = fingerprint, SubscriptionMonths = subscriptionMonths });
         }
         return new ImportPreviewResult { Source = source, TotalRows = Math.Max(0, rows.Count - headerIndex - 1), Records = result, Issues = issues };
     }

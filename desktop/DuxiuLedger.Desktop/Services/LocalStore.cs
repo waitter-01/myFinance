@@ -74,6 +74,7 @@ public sealed class LocalStore
         command.ExecuteNonQuery();
         EnsureColumn(connection, "transactions", "account_id", "INTEGER");
         EnsureColumn(connection, "transactions", "to_account_id", "INTEGER");
+        EnsureColumn(connection, "transactions", "subscription_months", "INTEGER NOT NULL DEFAULT 1");
     }
     private SqliteConnection Open() { var c = new SqliteConnection(_connectionString); c.Open(); return c; }
     private static void EnsureColumn(SqliteConnection connection, string table, string column, string definition)
@@ -92,7 +93,7 @@ public sealed class LocalStore
         cmd.CommandText = """
             SELECT t.id, t.occurred_on, t.direction, t.amount, t.category, t.merchant, t.note,
               t.source, t.fingerprint, t.account_id, t.to_account_id,
-              COALESCE(a.name,''), COALESCE(ta.name,'')
+              COALESCE(a.name,''), COALESCE(ta.name,''), COALESCE(t.subscription_months,1)
             FROM transactions t
             LEFT JOIN accounts a ON a.id=t.account_id
             LEFT JOIN accounts ta ON ta.id=t.to_account_id
@@ -102,13 +103,13 @@ public sealed class LocalStore
             """;
         cmd.Parameters.AddWithValue("$search", search ?? ""); cmd.Parameters.AddWithValue("$like", $"%{search}%");
         using var reader = cmd.ExecuteReader(); var rows = new List<TransactionRecord>();
-        while (reader.Read()) rows.Add(new TransactionRecord { Id = reader.GetInt64(0), OccurredOn = DateTime.Parse(reader.GetString(1)), Direction = reader.GetString(2), Amount = reader.GetDecimal(3), Category = reader.GetString(4), Merchant = reader.GetString(5), Note = reader.GetString(6), Source = reader.GetString(7), Fingerprint = reader.GetString(8), AccountId = reader.IsDBNull(9) ? null : reader.GetInt64(9), ToAccountId = reader.IsDBNull(10) ? null : reader.GetInt64(10), AccountName = reader.GetString(11), ToAccountName = reader.GetString(12) });
+        while (reader.Read()) rows.Add(new TransactionRecord { Id = reader.GetInt64(0), OccurredOn = DateTime.Parse(reader.GetString(1)), Direction = reader.GetString(2), Amount = reader.GetDecimal(3), Category = reader.GetString(4), Merchant = reader.GetString(5), Note = reader.GetString(6), Source = reader.GetString(7), Fingerprint = reader.GetString(8), AccountId = reader.IsDBNull(9) ? null : reader.GetInt64(9), ToAccountId = reader.IsDBNull(10) ? null : reader.GetInt64(10), AccountName = reader.GetString(11), ToAccountName = reader.GetString(12), SubscriptionMonths = reader.GetInt32(13) });
         return rows;
     }
     public int Import(IEnumerable<TransactionRecord> rows)
     {
         using var c = Open(); using var tx = c.BeginTransaction(); var count = 0;
-        foreach (var row in rows) { using var cmd = c.CreateCommand(); cmd.Transaction = tx; cmd.CommandText = "INSERT OR IGNORE INTO transactions(occurred_on,direction,amount,category,merchant,note,source,fingerprint,account_id,to_account_id,created_at) VALUES($date,$direction,$amount,$category,$merchant,$note,$source,$fingerprint,$account,$toAccount,$created)"; cmd.Parameters.AddWithValue("$date", row.OccurredOn.ToString("yyyy-MM-dd HH:mm:ss")); cmd.Parameters.AddWithValue("$direction", row.Direction); cmd.Parameters.AddWithValue("$amount", row.Amount); cmd.Parameters.AddWithValue("$category", row.Category); cmd.Parameters.AddWithValue("$merchant", row.Merchant); cmd.Parameters.AddWithValue("$note", row.Note); cmd.Parameters.AddWithValue("$source", row.Source); cmd.Parameters.AddWithValue("$fingerprint", row.Fingerprint); cmd.Parameters.AddWithValue("$account", (object?)row.AccountId ?? DBNull.Value); cmd.Parameters.AddWithValue("$toAccount", (object?)row.ToAccountId ?? DBNull.Value); cmd.Parameters.AddWithValue("$created", DateTime.Now.ToString("O")); count += cmd.ExecuteNonQuery(); }
+        foreach (var row in rows) { using var cmd = c.CreateCommand(); cmd.Transaction = tx; cmd.CommandText = "INSERT OR IGNORE INTO transactions(occurred_on,direction,amount,category,merchant,note,source,fingerprint,account_id,to_account_id,subscription_months,created_at) VALUES($date,$direction,$amount,$category,$merchant,$note,$source,$fingerprint,$account,$toAccount,$months,$created)"; cmd.Parameters.AddWithValue("$date", row.OccurredOn.ToString("yyyy-MM-dd HH:mm:ss")); cmd.Parameters.AddWithValue("$direction", row.Direction); cmd.Parameters.AddWithValue("$amount", row.Amount); cmd.Parameters.AddWithValue("$category", row.Category); cmd.Parameters.AddWithValue("$merchant", row.Merchant); cmd.Parameters.AddWithValue("$note", row.Note); cmd.Parameters.AddWithValue("$source", row.Source); cmd.Parameters.AddWithValue("$fingerprint", row.Fingerprint); cmd.Parameters.AddWithValue("$account", (object?)row.AccountId ?? DBNull.Value); cmd.Parameters.AddWithValue("$toAccount", (object?)row.ToAccountId ?? DBNull.Value); cmd.Parameters.AddWithValue("$months", Math.Max(1, row.SubscriptionMonths)); cmd.Parameters.AddWithValue("$created", DateTime.Now.ToString("O")); count += cmd.ExecuteNonQuery(); }
         tx.Commit(); return count;
     }
 
@@ -127,7 +128,7 @@ public sealed class LocalStore
         cmd.CommandText = """
             UPDATE transactions SET occurred_on=$date, direction=$direction, amount=$amount,
               category=$category, merchant=$merchant, note=$note, source=$source,
-              account_id=$account, to_account_id=$toAccount
+              account_id=$account, to_account_id=$toAccount, subscription_months=$months
             WHERE id=$id
             """;
         cmd.Parameters.AddWithValue("$id", row.Id);
@@ -140,6 +141,7 @@ public sealed class LocalStore
         cmd.Parameters.AddWithValue("$source", row.Source);
         cmd.Parameters.AddWithValue("$account", (object?)row.AccountId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$toAccount", (object?)row.ToAccountId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$months", Math.Max(1, row.SubscriptionMonths));
         return cmd.ExecuteNonQuery() == 1;
     }
 

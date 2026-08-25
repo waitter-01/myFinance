@@ -31,6 +31,7 @@ public sealed partial class ManualEntryDialog : ContentDialog
         CategoryBox.Text = record.Category;
         MerchantBox.Text = record.Merchant;
         NoteBox.Text = record.Note;
+        SubscriptionMonthsBox.Value = Math.Max(1, record.SubscriptionMonths);
         AccountBox.SelectedItem = accounts.FirstOrDefault(account => account.Id == record.AccountId);
         ToAccountBox.SelectedItem = accounts.FirstOrDefault(account => account.Id == record.ToAccountId);
         Result = new TransactionRecord
@@ -69,6 +70,14 @@ public sealed partial class ManualEntryDialog : ContentDialog
             args.Cancel = true;
             return;
         }
+        var subscriptionMonths = double.IsNaN(SubscriptionMonthsBox.Value) ? 1 : (int)SubscriptionMonthsBox.Value;
+        if (string.Equals(CategoryBox.Text.Trim(), "订阅消费", StringComparison.Ordinal) && subscriptionMonths < 1)
+        {
+            ValidationInfo.Message = "订阅消费必须填写价格覆盖的月数。";
+            ValidationInfo.IsOpen = true;
+            args.Cancel = true;
+            return;
+        }
         Result ??= new TransactionRecord
         {
             Source = "手动录入",
@@ -82,6 +91,7 @@ public sealed partial class ManualEntryDialog : ContentDialog
         Result.Note = NoteBox.Text.Trim();
         Result.AccountId = account?.Id;
         Result.ToAccountId = direction == "转账" ? toAccount?.Id : null;
+        Result.SubscriptionMonths = Math.Max(1, subscriptionMonths);
     }
 
     private void DirectionSelectionChanged(object sender, SelectionChangedEventArgs e)

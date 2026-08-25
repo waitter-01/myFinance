@@ -67,15 +67,21 @@ public sealed partial class MainWindow : Window
     {
         var keywords = _store.LoadSettings().SubscriptionKeywords.Split([',', '，', ';', '；', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var since = DateTime.Now.Date.AddMonths(-12);
-        var detected = allRecords.Where(row => row.Direction == "支出" && row.OccurredOn >= since).Where(row => keywords.Any(keyword => $"{row.Merchant} {row.Category} {row.Note}".Contains(keyword, StringComparison.OrdinalIgnoreCase))).ToList();
-        var summaries = detected.GroupBy(row => string.IsNullOrWhiteSpace(row.Merchant) ? "未注明交易对方" : row.Merchant.Trim(), StringComparer.OrdinalIgnoreCase).Select(group => new SubscriptionSummary
+        var detected = allRecords.Where(row => row.Direction == "支出" && row.OccurredOn >= since).Where(row => row.Category == "订阅消费" || keywords.Any(keyword => $"{row.Merchant} {row.Category} {row.Note}".Contains(keyword, StringComparison.OrdinalIgnoreCase))).ToList();
+        var summaries = detected.GroupBy(row => string.IsNullOrWhiteSpace(row.Merchant) ? "未注明交易对方" : row.Merchant.Trim(), StringComparer.OrdinalIgnoreCase).Select(group =>
         {
-            Merchant = group.Key,
-            Category = group.GroupBy(row => row.Category).OrderByDescending(item => item.Count()).First().Key,
-            PaymentCount = group.Count(),
-            PaidLast12Months = group.Sum(row => row.Amount),
-            MonthlyAverage = group.Sum(row => row.Amount) / 12m,
-            LatestPayment = group.Max(row => row.OccurredOn)
+            var latest = group.OrderByDescending(row => row.OccurredOn).ThenByDescending(row => row.Id).First();
+            var billingMonths = Math.Max(1, latest.SubscriptionMonths);
+            return new SubscriptionSummary
+            {
+                Merchant = group.Key,
+                Category = group.GroupBy(row => row.Category).OrderByDescending(item => item.Count()).First().Key,
+                PaymentCount = group.Count(),
+                PaidLast12Months = group.Sum(row => row.Amount),
+                MonthlyAverage = latest.Amount / billingMonths,
+                BillingMonths = billingMonths,
+                LatestPayment = latest.OccurredOn
+            };
         }).OrderByDescending(item => item.MonthlyAverage).ToList();
         SubscriptionsList.ItemsSource = summaries;
         SubscriptionCurrentText.Text = $"¥{detected.Where(row => row.OccurredOn.ToString("yyyy-MM") == DateTime.Now.ToString("yyyy-MM")).Sum(row => row.Amount):N2}";
