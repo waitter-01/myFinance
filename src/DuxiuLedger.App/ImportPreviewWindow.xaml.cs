@@ -72,6 +72,7 @@ public sealed partial class ImportPreviewWindow : Window
         SetTitleBar(ImportTitleBar);
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Standard;
         AppWindow.Resize(new SizeInt32(1240, 820));
+        AppWindow.Changed += ImportPreviewAppWindowChanged;
         var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "duxiu-logo.ico");
         if (File.Exists(iconPath)) AppWindow.SetIcon(iconPath);
         Closed += ImportPreviewWindowClosed;
@@ -131,6 +132,14 @@ public sealed partial class ImportPreviewWindow : Window
         Grid.SetRow(FooterActions, narrowFooter ? 1 : 0);
         Grid.SetColumn(FooterActions, narrowFooter ? 0 : 1);
         Grid.SetColumnSpan(FooterActions, narrowFooter ? 2 : 1);
+    }
+
+    private void ImportPreviewAppWindowChanged(AppWindow sender, AppWindowChangedEventArgs args)
+    {
+        if (!args.DidSizeChange) return;
+        var width = Math.Max(780, sender.Size.Width);
+        var height = Math.Max(720, sender.Size.Height);
+        if (width != sender.Size.Width || height != sender.Size.Height) sender.Resize(new SizeInt32(width, height));
     }
 
     private void RecordsSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -268,6 +277,7 @@ public sealed partial class ImportPreviewWindow : Window
     private void ImportPreviewWindowClosed(object sender, WindowEventArgs args)
     {
         Closed -= ImportPreviewWindowClosed;
+        AppWindow.Changed -= ImportPreviewAppWindowChanged;
         _completion.TrySetResult(_confirmed);
     }
 
