@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentDialog
+    x:Class="DuxiuLedger.WinUI.ManualEntryDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="新增流水"
+    PrimaryButtonText="保存"
+    CloseButtonText="取消"
+    DefaultButton="Primary"
+    PrimaryButtonClick="OnPrimaryButtonClick">
+  <StackPanel Width="440" Spacing="12">
+    <Grid ColumnSpacing="12">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+      <CalendarDatePicker x:Name="OccurredOnPicker" Header="交易日期" HorizontalAlignment="Stretch" />
+      <ComboBox x:Name="DirectionBox" Grid.Column="1" Header="收支类型" HorizontalAlignment="Stretch" />
+    </Grid>
+    <NumberBox x:Name="AmountBox" Header="金额（元）" Minimum="0" SpinButtonPlacementMode="Compact" PlaceholderText="请输入大于 0 的金额" />
+    <TextBox x:Name="CategoryBox" Header="分类" PlaceholderText="例如：日常餐饮、娱乐、订阅会员" />
+    <TextBox x:Name="MerchantBox" Header="交易对方" PlaceholderText="例如：某某超市、视频会员" />
+    <TextBox x:Name="NoteBox" Header="备注" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="68" />
+    <InfoBar x:Name="ValidationInfo" IsOpen="False" Severity="Error" IsClosable="False" />
+  </StackPanel>
+</ContentDialog>

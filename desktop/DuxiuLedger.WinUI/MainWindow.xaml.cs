@@ -11,6 +11,7 @@ namespace DuxiuLedger.WinUI;
 public sealed partial class MainWindow : Window
 {
     private readonly LocalStore _store = new();
+    private readonly BillImporter _importer = new();
     private readonly Dictionary<string, (string Title, string Subtitle)> _pages = new()
     {
         ["Dashboard"] = ("总览", "查看本月财务情况和最近流水"),
@@ -98,18 +99,48 @@ public sealed partial class MainWindow : Window
 
     private void TitleBarPaneToggleRequested(TitleBar sender, object args) => NavView.IsPaneOpen = !NavView.IsPaneOpen;
 
-    private async void ImportClick(object sender, RoutedEventArgs e) => await ShowMigrationNotice("账单导入");
-    private async void AddClick(object sender, RoutedEventArgs e) => await ShowMigrationNotice("手动录入");
-
-    private async Task ShowMigrationNotice(string feature)
+    private async void ImportClick(object sender, RoutedEventArgs e)
     {
-        var dialog = new ContentDialog
+        var picker = new Windows.Storage.Pickers.FileOpenPicker();
+        picker.FileTypeFilter.Add(".xlsx");
+        picker.FileTypeFilter.Add(".xlsm");
+        picker.FileTypeFilter.Add(".csv");
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
+        var files = await picker.PickMultipleFilesAsync();
+        if (files.Count == 0) return;
+        try
         {
-            XamlRoot = ContentHost.XamlRoot,
-            Title = $"{feature}迁移中",
-            Content = "当前稳定版功能仍可在 WPF 版本使用；WinUI 3 版本完成迁移后会替换发布入口。",
-            CloseButtonText = "知道了"
-        };
+            var imported = 0;
+            foreach (var file in files) imported += _store.Import(_importer.Read(file.Path));
+            LoadDashboard();
+            SelectNavigation("Transactions");
+            StatusText.Text = $"导入完成：新增 {imported} 条，重复记录已跳过";
+        }
+        catch (Exception ex)
+        {
+            await ShowMessage("导入失败", ex.Message);
+        }
+    }
+
+    private async void AddClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ManualEntryDialog { XamlRoot = ContentHost.XamlRoot };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary || dialog.Result is null) return;
+        _store.Import([dialog.Result]);
+        LoadDashboard();
+        SelectNavigation("Transactions");
+        StatusText.Text = "手动流水已保存到本地数据库";
+    }
+
+    private void SelectNavigation(string key)
+    {
+        var item = NavView.MenuItems.OfType<NavigationViewItem>().FirstOrDefault(menuItem => menuItem.Tag?.ToString() == key);
+        if (item is not null) NavView.SelectedItem = item;
+    }
+
+    private async Task ShowMessage(string title, string message)
+    {
+        var dialog = new ContentDialog { XamlRoot = ContentHost.XamlRoot, Title = title, Content = message, CloseButtonText = "确定" };
         await dialog.ShowAsync();
     }
 
