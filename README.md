@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8">
     <img src="https://img.shields.io/badge/UI-WinUI%203-146C70" alt="WinUI 3">
     <img src="https://img.shields.io/badge/同步-S3%20兼容-0F80CC" alt="S3 compatible">
-    <img src="https://img.shields.io/badge/版本-v0.8.3-6B7280" alt="v0.8.3">
+    <img src="https://img.shields.io/badge/版本-v0.8.4-6B7280" alt="v0.8.4">
   </p>
 </div>
 
@@ -27,6 +27,7 @@
 - 自动去重：同时使用统一指纹和“分钟级时间＋金额＋收支类型”检查现有账本与本批次记录。
 - 重复确认：疑似重复默认跳过；确为同额同时间的两笔交易时，可在预览中选择仍然导入。
 - 问题修正：截图末条信息不完整时保留候选，可从“需要核对”页面一键定位并修改。
+- 预览可达：列表显示固定滚动条、动态记录数量，并可一键查看最后一条。
 - 易读流水：收支语义色、金额正负号和低饱和分类标签帮助快速浏览长列表。
 - 自动分类：根据常见商户和消费关键词建议分类，只补充未分类记录并允许导入前修改。
 - 财务总览：显示本月收入、支出、结余和最近流水。
@@ -51,7 +52,7 @@
 
 ## 当前版本
 
-当前版本为 **v0.8.3**，修复长截图末条丢失，并增加问题流水一键定位与修正流程。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本为 **v0.8.4**，解决导入预览末条被可视区域遮挡的问题，并增加账单日期倒序异常检查。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
 
 版本号采用 `主版本.次版本.修订版本`：
 
@@ -113,7 +114,7 @@ dotnet run --project .\src\DuxiuLedger.App\DuxiuLedger.App.csproj -p:Platform=x6
 
 ```text
 artifacts\win-x64\DuxiuLedger.exe
-artifacts\DuxiuLedger-v0.8.3-win-x64.zip
+artifacts\DuxiuLedger-v0.8.4-win-x64.zip
 ```
 
 单文件 EXE 可以单独复制运行，首次启动时会将 WinUI 3 运行依赖释放到临时目录，因此第一次启动可能稍慢。发布目录已被 Git 忽略，不会提交到仓库。
@@ -137,7 +138,7 @@ winget install --id JRSoftware.InnoSetup -e
 生成文件：
 
 ```text
-artifacts\installer\DuxiuLedger-Setup-v0.8.3-win-x64.exe
+artifacts\installer\DuxiuLedger-Setup-v0.8.4-win-x64.exe
 ```
 
 安装程序默认安装到当前用户的 `%LOCALAPPDATA%\Programs\DuxiuLedger`，不要求管理员权限，并提供开始菜单、可选桌面快捷方式和标准卸载入口。
@@ -153,9 +154,9 @@ artifacts\installer\DuxiuLedger-Setup-v0.8.3-win-x64.exe
 5. 使用中文提交版本变更，然后创建并推送 Git 标签：
 
 ```powershell
-git tag -a v0.8.3 -m "版本：发布 v0.8.3"
+git tag -a v0.8.4 -m "版本：发布 v0.8.4"
 git push origin master
-git push origin v0.8.3
+git push origin v0.8.4
 ```
 
 6. 在 GitHub Releases 中使用相同标签创建发行版，并上传单文件 EXE、ZIP 和安装程序。发布说明以 `CHANGELOG.md` 对应版本内容为准。
