@@ -26,4 +26,11 @@
     <Compile Include="..\DuxiuLedger.Desktop\Services\*.cs" Link="Services\%(Filename)%(Extension)" />
     <Content Include="..\DuxiuLedger.Desktop\Assets\duxiu-logo.png" Link="Assets\duxiu-logo.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <Target Name="CopyWinUiMarkupToPublishDirectory" AfterTargets="Publish">
+    <ItemGroup>
+      <WinUiMarkup Include="$(TargetDir)*.xbf" />
+      <WinUiMarkup Include="$(TargetDir)$(AssemblyName).pri" />
+    </ItemGroup>
+    <Copy SourceFiles="@(WinUiMarkup)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+  </Target>
 </Project>
