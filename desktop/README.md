@@ -16,7 +16,7 @@
 .\\desktop\\publish-win-x64.ps1
 ```
 
-生成文件为 `desktop/publish/win-x64/DuxiuLedger.exe`，压缩包为 `desktop/publish/DuxiuLedger-v0.6.0-win-x64.zip`。目标电脑不需要安装 .NET Runtime 或 Windows App SDK Runtime。
+生成文件为 `desktop/publish/win-x64/DuxiuLedger.exe`，压缩包为 `desktop/publish/DuxiuLedger-v0.6.1-win-x64.zip`。目标电脑不需要安装 .NET Runtime 或 Windows App SDK Runtime。
 
 单文件 EXE 会在首次启动时释放 WinUI 3 运行依赖到临时目录，可以独立复制和运行。
 
@@ -26,12 +26,12 @@
 .\desktop\build-installer.ps1
 ```
 
-安装程序输出到 `desktop/publish/installer/DuxiuLedger-Setup-v0.6.0-win-x64.exe`，支持当前用户安装、开始菜单快捷方式、可选桌面快捷方式和卸载。
+安装程序输出到 `desktop/publish/installer/DuxiuLedger-Setup-v0.6.1-win-x64.exe`，支持当前用户安装、开始菜单快捷方式、可选桌面快捷方式和卸载。
 
-当前版本为 `v0.6.0`，版本变更记录位于仓库根目录的 `CHANGELOG.md`。
+当前版本为 `v0.6.1`，版本变更记录位于仓库根目录的 `CHANGELOG.md`。
 
 ## S3 同步
 
-在“偏好设置 → S3 对象存储同步”中填写 Endpoint、Region、Bucket、对象路径和访问凭据。AWS S3 的 Endpoint 可以留空；Cloudflare R2、MinIO 等兼容服务填写其 HTTPS Endpoint，MinIO 通常还需要开启 Path Style。凭据使用 Windows 当前用户加密保护，不会进入同步对象或仓库。
+在“偏好设置 → S3 对象存储同步”中填写访问地址、API 端点、Access Key 和 Secret Key。应用会自动从访问地址识别 Bucket；只有无法识别或服务商有特殊要求时，才需要打开高级设置填写 Region、Bucket 或 Path Style。凭据使用 Windows 当前用户加密保护，不会进入同步对象或仓库。
 
 支付宝或微信导出文件可能因版本和导出语言产生不同表头；导入预览会列出无法解析的行。应用支持流水编辑、删除、账户关联以及退款、报销和转账。下一步将增加银行账单字段映射向导和可编辑分类规则。

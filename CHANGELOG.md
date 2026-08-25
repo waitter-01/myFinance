@@ -2,6 +2,17 @@
 
 本项目采用[语义化版本](https://semver.org/lang/zh-CN/)管理版本，版本号格式为 `主版本.次版本.修订版本`。
 
+## [0.6.1] - 2026-08-25
+
+### 新增
+
+- S3 设置支持直接填写对象存储控制台提供的访问地址、API 端点、Access Key 和 Secret Key。
+- 根据访问地址和 API 端点自动识别 Bucket；Region、Bucket 覆盖、对象路径和 Path Style 收入高级设置。
+
+### 修复
+
+- `Ctrl+V` 仅在非文本输入区域触发截图识别，编辑凭据、搜索条件、金额和其他文本时恢复系统粘贴行为。
+
 ## [0.6.0] - 2026-08-25
 
 ### 新增
@@ -181,6 +192,7 @@
 - 提醒时间可以保存，但 Windows 系统通知尚未接入。
 - 云同步、账户管理、资产负债和多端客户端尚未实现。
 
+[0.6.1]: https://github.com/waitter-01/myFinance/releases/tag/v0.6.1
 [0.6.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.6.0
 [0.2.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.2.0
 [0.3.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.3.0

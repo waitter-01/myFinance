@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8">
     <img src="https://img.shields.io/badge/UI-WinUI%203-146C70" alt="WinUI 3">
     <img src="https://img.shields.io/badge/同步-S3%20兼容-0F80CC" alt="S3 compatible">
-    <img src="https://img.shields.io/badge/版本-v0.6.0-6B7280" alt="v0.6.0">
+    <img src="https://img.shields.io/badge/版本-v0.6.1-6B7280" alt="v0.6.1">
   </p>
 </div>
 
@@ -46,7 +46,7 @@
 
 ## 当前版本
 
-当前版本为 **v0.6.0**，移除 MySQL 直连，改为用户自主配置的 S3 兼容对象存储同步。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本为 **v0.6.1**，支持从访问地址自动识别 S3 存储桶，并修复凭据输入时 `Ctrl+V` 被截图识别占用的问题。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
 
 版本号采用 `主版本.次版本.修订版本`：
 
@@ -108,7 +108,7 @@ dotnet run --project .\desktop\DuxiuLedger.WinUI\DuxiuLedger.WinUI.csproj -p:Pla
 
 ```text
 desktop\publish\win-x64\DuxiuLedger.exe
-desktop\publish\DuxiuLedger-v0.6.0-win-x64.zip
+desktop\publish\DuxiuLedger-v0.6.1-win-x64.zip
 ```
 
 单文件 EXE 可以单独复制运行，首次启动时会将 WinUI 3 运行依赖释放到临时目录，因此第一次启动可能稍慢。发布目录已被 Git 忽略，不会提交到仓库。
@@ -132,7 +132,7 @@ winget install --id JRSoftware.InnoSetup -e
 生成文件：
 
 ```text
-desktop\publish\installer\DuxiuLedger-Setup-v0.6.0-win-x64.exe
+desktop\publish\installer\DuxiuLedger-Setup-v0.6.1-win-x64.exe
 ```
 
 安装程序默认安装到当前用户的 `%LOCALAPPDATA%\Programs\DuxiuLedger`，不要求管理员权限，并提供开始菜单、可选桌面快捷方式和标准卸载入口。
@@ -148,9 +148,9 @@ desktop\publish\installer\DuxiuLedger-Setup-v0.6.0-win-x64.exe
 5. 使用中文提交版本变更，然后创建并推送 Git 标签：
 
 ```powershell
-git tag -a v0.6.0 -m "版本：发布 v0.6.0"
+git tag -a v0.6.1 -m "版本：发布 v0.6.1"
 git push origin master
-git push origin v0.6.0
+git push origin v0.6.1
 ```
 
 6. 在 GitHub Releases 中使用相同标签创建发行版，并上传单文件 EXE、ZIP 和安装程序。发布说明以 `CHANGELOG.md` 对应版本内容为准。
@@ -195,15 +195,14 @@ git push origin v0.6.0
 
 在“偏好设置 → S3 对象存储同步”中开启同步并填写配置，然后依次点击“保存并测试连接”和“立即双向同步”。应用会把一个带版本号的 JSON 同步对象保存到用户指定的 Bucket 中，不需要创建数据表。
 
-配置字段：
+对象存储控制台只有四项参数时，直接填写：
 
-- `Endpoint`：AWS S3 可留空；R2、MinIO 等服务填写控制台提供的完整 HTTPS 地址。
-- `Region`：AWS 填写 Bucket 所在区域；兼容服务按服务商说明填写。
-- `Bucket`：填写已创建的 Bucket 名称。
-- `对象路径`：默认 `duxiu-ledger/sync-v1.json`，同一套账本的所有设备必须保持一致。
-- `Access Key ID`、`Secret Access Key`：填写仅用于该账本对象的访问凭据。
-- `Session Token`：使用临时凭据时填写，否则留空。
-- `Path Style`：MinIO 或明确要求路径风格寻址的服务开启；AWS S3 通常无需开启。
+- `访问地址`：例如 `https://zxx.cn-nb1.rains3.com`。
+- `API 端点`：例如 `https://cn-nb1.rains3.com`。
+- `Access Key`。
+- `Secret Key`。
+
+应用会比较访问地址和 API 端点并自动识别 Bucket，上述示例会识别为 `zxx`。Region、Bucket 手动覆盖、同步对象路径、Session Token 和 Path Style 位于高级设置，一般无需修改。
 
 Secret Key 和 Session Token 只通过 Windows DPAPI 加密保存在当前 Windows 用户配置中，不会写入仓库、日志或同步对象。更换电脑时需要重新输入凭据。应用采用本地优先模式，断网时仍可记账，恢复网络后再合并。
 
