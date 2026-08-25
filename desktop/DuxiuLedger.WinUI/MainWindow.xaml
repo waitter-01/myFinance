@@ -42,7 +42,7 @@
         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
         <Grid>
           <StackPanel><TextBlock x:Name="PageTitle" Text="总览" Style="{StaticResource PageTitleStyle}" /><TextBlock x:Name="PageSubtitle" Text="查看本月财务情况和最近流水" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,4,0,0" /></StackPanel>
-          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="8"><Button Content="导入账单" Click="ImportClick" /><Button Content="新增记录" Style="{StaticResource AccentButtonStyle}" Click="AddClick" /></StackPanel>
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="8"><Button Content="导入表格" Click="ImportClick" /><Button Content="识别账单截图" Click="ScreenshotImportClick" /><Button Content="新增记录" Style="{StaticResource AccentButtonStyle}" Click="AddClick" /></StackPanel>
         </Grid>
 
         <Grid x:Name="ContentHost" Grid.Row="1" Margin="0,22,0,0">

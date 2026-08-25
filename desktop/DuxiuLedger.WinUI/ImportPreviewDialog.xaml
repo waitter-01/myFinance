@@ -9,8 +9,8 @@
     CloseButtonText="取消"
     DefaultButton="Primary"
     PrimaryButtonClick="OnPrimaryButtonClick">
-  <Grid Width="820" Height="560">
-    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+  <Grid Width="920" Height="650">
+    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
     <Grid ColumnSpacing="10">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
       <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="6" Padding="12"><StackPanel><TextBlock Text="文件" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="FileCountText" FontSize="20" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
@@ -18,10 +18,21 @@
       <Border Grid.Column="2" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="6" Padding="12"><StackPanel><TextBlock Text="重复跳过" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="DuplicateCountText" FontSize="20" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
       <Border Grid.Column="3" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="6" Padding="12"><StackPanel><TextBlock Text="问题行" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="IssueCountText" FontSize="20" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
     </Grid>
-    <ComboBox x:Name="AccountBox" Grid.Row="1" Header="导入到账户" DisplayMemberPath="Name" Width="280" HorizontalAlignment="Left" Margin="0,14,0,10" />
-    <TabView Grid.Row="2" IsAddTabButtonVisible="False">
+    <Grid Grid.Row="1" Margin="0,12,0,10" ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="280" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><ComboBox x:Name="AccountBox" Header="导入到账户" DisplayMemberPath="Name" /><InfoBar Grid.Column="1" IsOpen="True" IsClosable="False" Severity="Informational" Message="截图识别结果请逐条核对；选择一条流水后可在下方修正，确认前不会写入账本。" /></Grid>
+    <Border Grid.Row="2" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,10">
+      <Grid ColumnSpacing="10">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="110" /><ColumnDefinition Width="110" /><ColumnDefinition Width="160" /><ColumnDefinition Width="*" /><ColumnDefinition Width="120" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <ComboBox x:Name="EditDirectionBox" Header="收支类型" IsEnabled="False" />
+        <NumberBox x:Name="EditAmountBox" Grid.Column="1" Header="金额" Minimum="0.01" IsEnabled="False" />
+        <ComboBox x:Name="EditCategoryBox" Grid.Column="2" Header="分类" IsEditable="True" IsEnabled="False" />
+        <TextBox x:Name="EditMerchantBox" Grid.Column="3" Header="交易对方" IsEnabled="False" />
+        <TextBox x:Name="EditDateBox" Grid.Column="4" Header="时间" PlaceholderText="yyyy-MM-dd HH:mm" IsEnabled="False" />
+        <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="6" VerticalAlignment="Bottom"><Button x:Name="ApplyEditButton" Content="应用修正" Click="ApplyEditClick" IsEnabled="False" /><Button x:Name="RemoveRowButton" Content="跳过此条" Click="RemoveRowClick" IsEnabled="False" /></StackPanel>
+      </Grid>
+    </Border>
+    <TabView Grid.Row="3" IsAddTabButtonVisible="False">
       <TabViewItem Header="待导入流水" IsClosable="False">
-        <ListView x:Name="RecordsList" SelectionMode="None"><ListView.ItemTemplate><DataTemplate x:DataType="models:TransactionRecord"><Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="8"><Grid ColumnSpacing="10"><Grid.ColumnDefinitions><ColumnDefinition Width="140" /><ColumnDefinition Width="60" /><ColumnDefinition Width="100" /><ColumnDefinition Width="*" /><ColumnDefinition Width="160" /></Grid.ColumnDefinitions><TextBlock Text="{x:Bind DateDisplay}" /><TextBlock Grid.Column="1" Text="{x:Bind Direction}" /><TextBlock Grid.Column="2" Text="{x:Bind AmountDisplay}" FontWeight="SemiBold" /><TextBlock Grid.Column="3" Text="{x:Bind Merchant}" TextTrimming="CharacterEllipsis" /><TextBlock Grid.Column="4" Text="{x:Bind Source}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" /></Grid></Border></DataTemplate></ListView.ItemTemplate></ListView>
+        <ListView x:Name="RecordsList" SelectionMode="Single" SelectionChanged="RecordsSelectionChanged"><ListView.ItemTemplate><DataTemplate x:DataType="models:TransactionRecord"><Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="8"><Grid ColumnSpacing="10"><Grid.ColumnDefinitions><ColumnDefinition Width="140" /><ColumnDefinition Width="60" /><ColumnDefinition Width="100" /><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /><ColumnDefinition Width="150" /></Grid.ColumnDefinitions><TextBlock Text="{x:Bind DateDisplay}" /><TextBlock Grid.Column="1" Text="{x:Bind Direction}" /><TextBlock Grid.Column="2" Text="{x:Bind AmountDisplay}" FontWeight="SemiBold" /><TextBlock Grid.Column="3" Text="{x:Bind Category}" TextTrimming="CharacterEllipsis" /><TextBlock Grid.Column="4" Text="{x:Bind Merchant}" TextTrimming="CharacterEllipsis" /><TextBlock Grid.Column="5" Text="{x:Bind Source}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" /></Grid></Border></DataTemplate></ListView.ItemTemplate></ListView>
       </TabViewItem>
       <TabViewItem Header="问题与跳过" IsClosable="False">
         <ListView x:Name="IssuesList" SelectionMode="None"><ListView.ItemTemplate><DataTemplate x:DataType="models:ImportIssue"><Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="8"><Grid ColumnSpacing="10"><Grid.ColumnDefinitions><ColumnDefinition Width="150" /><ColumnDefinition Width="80" /><ColumnDefinition Width="150" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><TextBlock Text="{x:Bind Source}" TextTrimming="CharacterEllipsis" /><TextBlock Grid.Column="1" Text="{x:Bind RowDisplay}" /><TextBlock Grid.Column="2" Text="{x:Bind Reason}" /><TextBlock Grid.Column="3" Text="{x:Bind RawValue}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" /></Grid></Border></DataTemplate></ListView.ItemTemplate></ListView>

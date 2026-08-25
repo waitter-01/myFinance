@@ -13,6 +13,7 @@ public sealed partial class MainWindow : Window
 {
     private readonly LocalStore _store = new();
     private readonly BillImporter _importer = new();
+    private readonly ScreenshotBillImporter _screenshotImporter = new();
     private readonly MySqlSyncService _syncService;
     private readonly Dictionary<string, (string Title, string Subtitle)> _pages = new()
     {
@@ -288,12 +289,50 @@ public sealed partial class MainWindow : Window
                 });
             }
         }
-        var previewDialog = new ImportPreviewDialog(previews, _store.ListAccounts(), _store.ExistingFingerprints()) { XamlRoot = ContentHost.XamlRoot };
+        var previewDialog = new ImportPreviewDialog(previews, _store.ListAccounts(), _store.ListCategories(), _store.ExistingFingerprints()) { XamlRoot = ContentHost.XamlRoot };
         if (await previewDialog.ShowAsync() != ContentDialogResult.Primary) return;
         var imported = _store.Import(previewDialog.RowsToImport);
         LoadDashboard();
         SelectNavigation("Transactions");
         StatusText.Text = $"导入完成：新增 {imported} 条，重复 {previewDialog.DuplicateCount} 条，问题行 {previewDialog.IssueCount} 条";
+    }
+
+    private async void ScreenshotImportClick(object sender, RoutedEventArgs e)
+    {
+        var picker = new Windows.Storage.Pickers.FileOpenPicker();
+        picker.FileTypeFilter.Add(".png");
+        picker.FileTypeFilter.Add(".jpg");
+        picker.FileTypeFilter.Add(".jpeg");
+        picker.FileTypeFilter.Add(".bmp");
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
+        var files = await picker.PickMultipleFilesAsync();
+        if (files.Count == 0) return;
+
+        StatusText.Text = $"正在本地识别 {files.Count} 张账单截图…";
+        var previews = new List<ImportPreviewResult>();
+        foreach (var file in files)
+        {
+            try { previews.Add(await _screenshotImporter.PreviewAsync(file.Path)); }
+            catch (Exception ex)
+            {
+                previews.Add(new ImportPreviewResult
+                {
+                    Source = file.Name,
+                    Issues = [new ImportIssue { Source = file.Name, RowNumber = 0, Reason = "截图识别失败", RawValue = ex.Message }]
+                });
+            }
+        }
+
+        var previewDialog = new ImportPreviewDialog(previews, _store.ListAccounts(), _store.ListCategories(), _store.ExistingFingerprints()) { XamlRoot = ContentHost.XamlRoot };
+        if (await previewDialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            StatusText.Text = "已取消截图导入，识别结果没有写入账本";
+            return;
+        }
+        var imported = _store.Import(previewDialog.RowsToImport);
+        LoadDashboard();
+        SelectNavigation("Transactions");
+        StatusText.Text = $"截图导入完成：新增 {imported} 条，重复 {previewDialog.DuplicateCount} 条，问题记录 {previewDialog.IssueCount} 条";
     }
 
     private async void AddClick(object sender, RoutedEventArgs e)
