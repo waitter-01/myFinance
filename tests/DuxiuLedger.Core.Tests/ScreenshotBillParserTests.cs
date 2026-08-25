@@ -170,4 +170,71 @@ public sealed class ScreenshotBillParserTests
         Assert.Empty(result.Issues);
         Assert.Contains("时间经固定区域多轮识别", record.Note);
     }
+
+    [Fact]
+    public void Parse_CorrectsWechatDayFiveToThreeWhenBillOrderWouldOtherwiseReverse()
+    {
+        var tokens = new List<ScreenshotOcrToken>
+        {
+            new("全部账单", 50, 100, 160, 40), new("2026年7月", 50, 180, 180, 36),
+            new("商户一", 180, 300, 180, 40), new("7月4日 00:02", 180, 350, 220, 34), new("-14.50", 820, 300, 130, 40),
+            new("高德打车", 180, 500, 180, 40), new("7月5日 22:41", 180, 550, 220, 34), new("-32.00", 820, 500, 130, 40)
+        };
+
+        var result = ScreenshotBillParser.Parse(tokens, 1000, 800, "微信日期纠错.png", new DateTime(2026, 8, 26));
+
+        Assert.Equal(new DateTime(2026, 7, 3, 22, 41, 0), result.Records[1].OccurredOn);
+        Assert.False(result.Records[1].RequiresReview);
+        Assert.Contains("账单倒序", result.Records[1].Note);
+    }
+
+    [Fact]
+    public void Parse_PrefersTrustedWechatDateTokenOverRawOcrDate()
+    {
+        var tokens = new List<ScreenshotOcrToken>
+        {
+            new("全部账单", 50, 100, 160, 40), new("2026年7月", 50, 180, 180, 36),
+            new("测试商户", 180, 300, 180, 40), new("7月5日 15:58", 180, 350, 220, 34),
+            new("7月5日 13:38", 180, 350, 220, 34, "时间经数字专用识别从 7月5日 15:58 校正为 7月5日 13:38", false),
+            new("-3.00", 820, 300, 130, 40)
+        };
+
+        var result = ScreenshotBillParser.Parse(tokens, 1000, 600, "微信时间纠错.png", new DateTime(2026, 8, 26));
+
+        var record = Assert.Single(result.Records);
+        Assert.Equal(new DateTime(2026, 7, 5, 13, 38, 0), record.OccurredOn);
+        Assert.False(record.RequiresReview);
+    }
+
+    [Fact]
+    public void Parse_AlipayMerchantBankNameDoesNotOverrideScreenshotPlatform()
+    {
+        var tokens = new List<ScreenshotOcrToken>
+        {
+            new("搜索交易记录", 100, 80, 220, 40), new("收支分析", 700, 180, 160, 36), new("8月", 50, 240, 80, 34),
+            new("信用卡还款-中信银行", 180, 360, 360, 40), new("08-19 19:53", 180, 420, 200, 34), new("446.64", 820, 360, 130, 40)
+        };
+
+        var result = ScreenshotBillParser.Parse(tokens, 1000, 650, "支付宝银行商户.png", new DateTime(2026, 8, 26));
+
+        var record = Assert.Single(result.Records);
+        Assert.Contains("支付宝账单截图识别", record.Note);
+        Assert.Equal(new DateTime(2026, 8, 19, 19, 53, 0), record.OccurredOn);
+    }
+
+    [Fact]
+    public void Parse_AlipayAcceptsDotMisreadAsLeadingMinus()
+    {
+        var tokens = new List<ScreenshotOcrToken>
+        {
+            new("搜索交易记录", 100, 80, 220, 40), new("收支分析", 700, 180, 160, 36), new("8月", 50, 240, 80, 34),
+            new("杭州深度求索", 180, 360, 260, 40), new("08-20 09:35", 180, 420, 200, 34), new("·10.00", 820, 360, 130, 40)
+        };
+
+        var result = ScreenshotBillParser.Parse(tokens, 1000, 650, "支付宝负号纠错.png", new DateTime(2026, 8, 26));
+
+        var record = Assert.Single(result.Records);
+        Assert.Equal(10m, record.Amount);
+        Assert.Equal(new DateTime(2026, 8, 20, 9, 35, 0), record.OccurredOn);
+    }
 }
