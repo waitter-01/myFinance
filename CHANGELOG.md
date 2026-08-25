@@ -2,6 +2,14 @@
 
 本项目采用[语义化版本](https://semver.org/lang/zh-CN/)管理版本，版本号格式为 `主版本.次版本.修订版本`。
 
+## [0.4.1] - 2026-08-25
+
+### 修复
+
+- 增加 MySQL 5.x 旧版兼容模式，禁用不兼容的 TLS 协商并改用旧版服务器支持的 `utf8` 字符集。
+- 连接测试成功后显示服务器实际版本，便于继续诊断权限和版本问题。
+- 兼容模式增加明文传输风险提示，默认仍保持安全优先的 TLS 配置。
+
 ## [0.4.0] - 2026-08-25
 
 第三阶段预算、目标、提醒和多端同步版本。
@@ -110,4 +118,5 @@
 [0.2.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.2.0
 [0.3.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.3.0
 [0.4.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.4.0
+[0.4.1]: https://github.com/waitter-01/myFinance/releases/tag/v0.4.1
 [0.1.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.1.0

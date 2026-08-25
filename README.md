@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8">
     <img src="https://img.shields.io/badge/UI-WinUI%203-146C70" alt="WinUI 3">
     <img src="https://img.shields.io/badge/数据库-SQLite-0F80CC" alt="SQLite">
-    <img src="https://img.shields.io/badge/版本-v0.4.0-6B7280" alt="v0.4.0">
+    <img src="https://img.shields.io/badge/版本-v0.4.1-6B7280" alt="v0.4.1">
   </p>
 </div>
 
@@ -44,7 +44,7 @@
 
 ## 当前版本
 
-当前版本为 **v0.4.0**，已完成第三阶段的预算、储蓄目标、Windows 提醒、趋势报告和 MySQL 多端同步。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本为 **v0.4.1**，已完成第三阶段，并增加 MySQL 5.x 旧版服务器兼容模式。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
 
 版本号采用 `主版本.次版本.修订版本`：
 
@@ -105,7 +105,7 @@ dotnet run --project .\desktop\DuxiuLedger.Desktop\DuxiuLedger.Desktop.csproj
 
 ```text
 desktop\publish\win-x64\DuxiuLedger.exe
-desktop\publish\DuxiuLedger-v0.4.0-win-x64.zip
+desktop\publish\DuxiuLedger-v0.4.1-win-x64.zip
 ```
 
 单文件 EXE 可以单独复制运行，首次启动时会将 WinUI 3 运行依赖释放到临时目录，因此第一次启动可能稍慢。发布目录已被 Git 忽略，不会提交到仓库。
@@ -129,7 +129,7 @@ winget install --id JRSoftware.InnoSetup -e
 生成文件：
 
 ```text
-desktop\publish\installer\DuxiuLedger-Setup-v0.4.0-win-x64.exe
+desktop\publish\installer\DuxiuLedger-Setup-v0.4.1-win-x64.exe
 ```
 
 安装程序默认安装到当前用户的 `%LOCALAPPDATA%\Programs\DuxiuLedger`，不要求管理员权限，并提供开始菜单、可选桌面快捷方式和标准卸载入口。
@@ -145,9 +145,9 @@ desktop\publish\installer\DuxiuLedger-Setup-v0.4.0-win-x64.exe
 5. 使用中文提交版本变更，然后创建并推送 Git 标签：
 
 ```powershell
-git tag -a v0.4.0 -m "版本：发布 v0.4.0"
+git tag -a v0.4.1 -m "版本：发布 v0.4.1"
 git push origin master
-git push origin v0.4.0
+git push origin v0.4.1
 ```
 
 6. 在 GitHub Releases 中使用相同标签创建发行版，并上传单文件 EXE、ZIP 和安装程序。发布说明以 `CHANGELOG.md` 对应版本内容为准。
@@ -189,6 +189,8 @@ git push origin v0.4.0
 ## MySQL 多端同步
 
 在“偏好设置 → MySQL 多端同步”中填写服务器、端口、数据库名、用户名和密码，然后依次点击“保存并测试连接”和“立即双向同步”。首次同步会在指定数据库中自动创建 `duxiu_sync_items` 表。
+
+如果服务器是 MySQL 5.1、5.5 或较早的 5.6/5.7，并且普通模式提示 TLS 或字符集错误，可以勾选“MySQL 5.x 旧版兼容模式”后重新测试。该模式会禁用 TLS 并使用 `utf8`，只应作为无法升级服务器时的临时方案。
 
 密码只通过 Windows DPAPI 加密保存在当前 Windows 用户配置中，不会写入仓库。更换电脑时需要重新输入密码。应用采用本地优先模式，断网时仍保存到 SQLite，恢复网络后再合并。
 
