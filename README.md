@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8">
     <img src="https://img.shields.io/badge/UI-WinUI%203-146C70" alt="WinUI 3">
     <img src="https://img.shields.io/badge/数据库-SQLite-0F80CC" alt="SQLite">
-    <img src="https://img.shields.io/badge/版本-v0.4.1-6B7280" alt="v0.4.1">
+    <img src="https://img.shields.io/badge/版本-v0.5.0-6B7280" alt="v0.5.0">
   </p>
 </div>
 
@@ -22,6 +22,7 @@
 
 - 本地优先：数据默认保存在当前 Windows 用户目录，不依赖云端服务。
 - 账单导入：支持 `.xlsx`、`.xlsm` 和 `.csv` 文件。
+- 截图识别：本地识别微信、支付宝账单列表长截图，支持自动分段、预览修正和重复过滤。
 - 格式识别：识别微信、支付宝常见账单表头以及项目标准模板。
 - 自动去重：通过交易时间、金额、方向、交易对方等信息生成指纹，避免重复导入。
 - 财务总览：显示本月收入、支出、结余和最近流水。
@@ -44,7 +45,7 @@
 
 ## 当前版本
 
-当前版本为 **v0.4.1**，已完成第三阶段，并增加 MySQL 5.x 旧版服务器兼容模式。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本为 **v0.5.0**，增加微信、支付宝账单列表长截图本地识别和导入前人工校正。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
 
 版本号采用 `主版本.次版本.修订版本`：
 
@@ -58,6 +59,7 @@
 | --- | --- | --- |
 | 本地数据库 | 可用 | SQLite 持久化存储 |
 | Excel/CSV 导入 | 可用 | 支持标准模板和常见账单表头 |
+| 微信/支付宝长截图 | 基础可用 | 本地 OCR、超长图分段、预览校正和去重 |
 | 微信/支付宝识别 | 基础可用 | 不同版本账单可能需要补充表头规则 |
 | 导入去重 | 可用 | 重复导入不会重复保存 |
 | 流水搜索 | 可用 | 支持交易对方和备注 |
@@ -90,7 +92,7 @@
 ```powershell
 git clone https://github.com/waitter-01/myFinance.git
 cd myFinance
-dotnet run --project .\desktop\DuxiuLedger.Desktop\DuxiuLedger.Desktop.csproj
+dotnet run --project .\desktop\DuxiuLedger.WinUI\DuxiuLedger.WinUI.csproj -p:Platform=x64
 ```
 
 ### 生成独立 EXE
@@ -105,7 +107,7 @@ dotnet run --project .\desktop\DuxiuLedger.Desktop\DuxiuLedger.Desktop.csproj
 
 ```text
 desktop\publish\win-x64\DuxiuLedger.exe
-desktop\publish\DuxiuLedger-v0.4.1-win-x64.zip
+desktop\publish\DuxiuLedger-v0.5.0-win-x64.zip
 ```
 
 单文件 EXE 可以单独复制运行，首次启动时会将 WinUI 3 运行依赖释放到临时目录，因此第一次启动可能稍慢。发布目录已被 Git 忽略，不会提交到仓库。
@@ -129,7 +131,7 @@ winget install --id JRSoftware.InnoSetup -e
 生成文件：
 
 ```text
-desktop\publish\installer\DuxiuLedger-Setup-v0.4.1-win-x64.exe
+desktop\publish\installer\DuxiuLedger-Setup-v0.5.0-win-x64.exe
 ```
 
 安装程序默认安装到当前用户的 `%LOCALAPPDATA%\Programs\DuxiuLedger`，不要求管理员权限，并提供开始菜单、可选桌面快捷方式和标准卸载入口。
@@ -145,16 +147,18 @@ desktop\publish\installer\DuxiuLedger-Setup-v0.4.1-win-x64.exe
 5. 使用中文提交版本变更，然后创建并推送 Git 标签：
 
 ```powershell
-git tag -a v0.4.1 -m "版本：发布 v0.4.1"
+git tag -a v0.5.0 -m "版本：发布 v0.5.0"
 git push origin master
-git push origin v0.4.1
+git push origin v0.5.0
 ```
 
 6. 在 GitHub Releases 中使用相同标签创建发行版，并上传单文件 EXE、ZIP 和安装程序。发布说明以 `CHANGELOG.md` 对应版本内容为准。
 
 ## 导入账单
 
-点击应用右上角的“导入账单”，选择一个或多个账单文件。导入成功后，程序会自动跳转到“全部流水”。
+点击应用右上角的“导入表格”，可以选择一个或多个 Excel/CSV 账单文件；点击“识别账单截图”，可以选择一张或多张微信、支付宝账单列表长截图。所有内容先进入预览，确认后才写入账本。
+
+截图识别在本机完成，不上传图片。建议使用账单列表页原始截图，保留月份标题、商户、金额和时间；如果截图最底部只显示半条记录，请在预览中修正时间或跳过该条。OCR 可能误认相似汉字，确认导入前可选择流水并修改金额、方向、分类、交易对方和时间。
 
 标准 Excel 模板位于：
 
