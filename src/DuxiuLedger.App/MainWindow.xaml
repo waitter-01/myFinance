@@ -236,15 +236,20 @@
                   <ItemsControl.ItemsPanel><ItemsPanelTemplate><ItemsWrapGrid Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate><DataTemplate><Button Content="{Binding Label}" Tag="{Binding}" Margin="0,0,7,6" Padding="10,5" Click="RemoveTransactionFilterChipClick" /></DataTemplate></ItemsControl.ItemTemplate>
                 </ItemsControl>
-                <Button x:Name="ClearAllTransactionFiltersButton" Grid.Column="1" Content="清除全部" HorizontalAlignment="Right" VerticalAlignment="Top" Click="ResetTransactionFiltersClick" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7" HorizontalAlignment="Right" VerticalAlignment="Top">
+                  <Button x:Name="SavedFiltersButton" Content="常用筛选" Click="ShowSavedTransactionFiltersClick" />
+                  <Button x:Name="SaveCurrentFilterButton" Content="保存当前" Click="SaveCurrentTransactionFilterClick" />
+                  <Button x:Name="ClearAllTransactionFiltersButton" Content="清除全部" Click="ResetTransactionFiltersClick" />
+                </StackPanel>
               </Grid>
               <Grid Grid.Row="2" Margin="0,0,0,10" ColumnSpacing="22">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <TextBlock x:Name="FilteredTransactionCountText" FontWeight="SemiBold" VerticalAlignment="Center" />
                 <TextBlock x:Name="FilteredExpenseText" Grid.Column="1" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                 <TextBlock x:Name="FilteredIncomeText" Grid.Column="2" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                 <TextBlock x:Name="FilteredRefundText" Grid.Column="3" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                 <TextBlock x:Name="FilteredBalanceText" Grid.Column="4" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="7" Margin="14,0,0,0"><Button x:Name="ExportFilteredTransactionsButton" Content="导出结果" Click="ExportFilteredTransactionsClick" /><Button x:Name="BatchModeButton" Content="批量管理" Click="ToggleTransactionBatchModeClick" /></StackPanel>
               </Grid>
               <Border Grid.Row="3" Style="{StaticResource CardStyle}" Padding="0">
                 <Grid>
@@ -253,7 +258,7 @@
                     <Grid.ColumnDefinitions><ColumnDefinition Width="4" /><ColumnDefinition Width="130" /><ColumnDefinition Width="74" /><ColumnDefinition Width="104" /><ColumnDefinition Width="116" /><ColumnDefinition Width="116" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="52" /></Grid.ColumnDefinitions>
                     <Button Grid.Column="1" Content="时间 ↕" Padding="4,2" HorizontalAlignment="Left" Click="SortTransactionsByDateClick" /><TextBlock Grid.Column="2" Text="类型" FontWeight="SemiBold" VerticalAlignment="Center" /><Button Grid.Column="3" Content="金额 ↕" Padding="4,2" HorizontalAlignment="Left" Click="SortTransactionsByAmountClick" /><TextBlock Grid.Column="4" Text="分类" FontWeight="SemiBold" VerticalAlignment="Center" /><TextBlock Grid.Column="5" Text="账户" FontWeight="SemiBold" VerticalAlignment="Center" /><Button Grid.Column="6" Content="商户 ↕" Padding="4,2" HorizontalAlignment="Left" Click="SortTransactionsByMerchantClick" /><TextBlock Grid.Column="7" Text="备注" FontWeight="SemiBold" VerticalAlignment="Center" />
                   </Grid>
-                  <ListView x:Name="TransactionsList" Grid.Row="1" SelectionMode="None" IsItemClickEnabled="True" ItemClick="TransactionItemClick" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                  <ListView x:Name="TransactionsList" Grid.Row="1" SelectionMode="None" IsMultiSelectCheckBoxEnabled="True" IsItemClickEnabled="True" ItemClick="TransactionItemClick" SelectionChanged="TransactionsSelectionChanged" ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <ListView.ItemsPanel><ItemsPanelTemplate><ItemsStackPanel AreStickyGroupHeadersEnabled="False" /></ItemsPanelTemplate></ListView.ItemsPanel>
                     <ListView.GroupStyle>
                       <GroupStyle>
@@ -292,6 +297,20 @@
                     </ListView.ItemTemplate>
                   </ListView>
                   <StackPanel x:Name="TransactionsEmptyState" Grid.Row="1" Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8"><FontIcon Glyph="&#xE721;" FontSize="34" /><TextBlock Text="没有找到符合条件的流水" FontSize="18" FontWeight="SemiBold" /><TextBlock Text="尝试修改关键词或清除部分筛选条件" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><Button Content="清除全部筛选" HorizontalAlignment="Center" Click="ResetTransactionFiltersClick" /></StackPanel>
+                  <Border x:Name="TransactionBatchActionBar" Grid.Row="1" Visibility="Collapsed" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="14" Padding="12" CornerRadius="14" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" Translation="0,0,24">
+                    <Border.Shadow><ThemeShadow /></Border.Shadow>
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                      <TextBlock x:Name="BatchSelectedCountText" Text="已选 0 条" FontWeight="SemiBold" VerticalAlignment="Center" MinWidth="72" />
+                      <Button Content="全选结果" Click="SelectAllFilteredTransactionsClick" />
+                      <ComboBox x:Name="BatchCategoryBox" Width="130" PlaceholderText="选择分类" />
+                      <Button Content="修改分类" Click="BatchUpdateCategoryClick" />
+                      <ComboBox x:Name="BatchAccountBox" Width="140" DisplayMemberPath="Name" PlaceholderText="选择账户" />
+                      <Button Content="修改账户" Click="BatchUpdateAccountClick" />
+                      <Button Content="导出所选" Click="ExportSelectedTransactionsClick" />
+                      <Button Content="删除" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Click="BatchDeleteTransactionsClick" />
+                      <Button Content="退出" Click="ToggleTransactionBatchModeClick" />
+                    </StackPanel>
+                  </Border>
                 </Grid>
               </Border>
             </Grid>

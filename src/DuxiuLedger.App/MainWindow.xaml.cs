@@ -30,8 +30,10 @@ public sealed partial class MainWindow : Window
     private readonly List<TransactionFilterOption> _transactionCategoryOptions = [];
     private readonly List<TransactionFilterOption> _transactionAccountOptions = [];
     private readonly List<TransactionFilterOption> _transactionSourceOptions = [];
+    private IReadOnlyList<TransactionRecord> _currentTransactionRows = [];
     private CancellationTokenSource? _transactionSearchDebounce;
     private bool _transactionFiltersReady;
+    private bool _transactionBatchMode;
     private bool _isInitialized;
     private readonly Dictionary<string, (string Title, string Subtitle)> _pages = new()
     {
@@ -79,7 +81,11 @@ public sealed partial class MainWindow : Window
         ExpenseText.Text = $"¥{expense:N2}";
         BalanceText.Text = $"¥{income - expense:N2}";
         RecentList.ItemsSource = allRecords.Take(10).ToList();
-        if (_transactionFiltersReady) ApplyTransactionQuery();
+        if (_transactionFiltersReady)
+        {
+            RefreshTransactionBatchChoices();
+            ApplyTransactionQuery();
+        }
         RecordCountText.Text = $"共 {allRecords.Count} 条记录 · 本月 {records.Count} 条";
         LoadSubscriptions(allRecords);
         LoadInsights(allRecords);
@@ -481,6 +487,7 @@ public sealed partial class MainWindow : Window
 
     private async void TransactionItemClick(object sender, ItemClickEventArgs e)
     {
+        if (_transactionBatchMode) return;
         if (e.ClickedItem is TransactionRecord record) await EditTransactionAsync(record);
     }
 
@@ -638,6 +645,7 @@ public sealed partial class MainWindow : Window
     {
         TransactionSortBox.SelectedIndex = 0;
         RefreshTransactionFilterOptions();
+        RefreshTransactionBatchChoices();
         _transactionFiltersReady = true;
     }
 
@@ -647,6 +655,18 @@ public sealed partial class MainWindow : Window
         SyncTransactionOptions(_transactionAccountOptions, _store.ListAccounts().Where(item => item.IsActive).Select(item => (item.Id.ToString(), item.Name)));
         SyncTransactionOptions(_transactionSourceOptions, _store.ListTransactionSources().Select(item => (item, item)));
         FilterTransactionOptionLists();
+    }
+
+    private void RefreshTransactionBatchChoices()
+    {
+        var selectedCategory = BatchCategoryBox.SelectedItem?.ToString();
+        BatchCategoryBox.ItemsSource = _store.ListCategories().Where(item => item.IsActive).Select(item => item.Name).Distinct().ToList();
+        if (selectedCategory is not null) BatchCategoryBox.SelectedItem = selectedCategory;
+        var selectedAccountId = (BatchAccountBox.SelectedItem as AccountRecord)?.Id;
+        var accounts = new List<AccountRecord> { new() { Id = 0, Name = "未指定账户", Type = "" } };
+        accounts.AddRange(_store.ListAccounts().Where(item => item.IsActive));
+        BatchAccountBox.ItemsSource = accounts;
+        if (selectedAccountId is not null) BatchAccountBox.SelectedItem = accounts.FirstOrDefault(item => item.Id == selectedAccountId);
     }
 
     private static void SyncTransactionOptions(List<TransactionFilterOption> target, IEnumerable<(string Key, string Display)> values)
@@ -669,6 +689,9 @@ public sealed partial class MainWindow : Window
     {
         RefreshTransactionFilterOptions();
         var result = _store.QueryTransactions(_transactionQuery);
+        _currentTransactionRows = result.Rows;
+        if (_transactionBatchMode) TransactionsList.SelectedItems.Clear();
+        else TransactionsList.SelectedItem = null;
         if (_transactionGroupMode == TransactionGroupMode.None)
         {
             _transactionGroupsSource.IsSourceGrouped = false;
@@ -762,6 +785,8 @@ public sealed partial class MainWindow : Window
         var moreCount = _transactionQuery.Sources.Count + (_transactionQuery.MinimumAmount is null ? 0 : 1) + (_transactionQuery.MaximumAmount is null ? 0 : 1)
             + (_transactionQuery.UncategorizedOnly ? 1 : 0) + (_transactionQuery.SubscriptionOnly ? 1 : 0) + (_transactionQuery.UnassignedAccountOnly ? 1 : 0);
         MoreTransactionFiltersButton.Content = moreCount == 0 ? "更多筛选" : $"更多筛选 · {moreCount}";
+        var savedCount = _store.LoadSavedTransactionFilters().Count;
+        SavedFiltersButton.Content = savedCount == 0 ? "常用筛选" : $"常用筛选 · {savedCount}";
     }
 
     private static string JoinFilterValues(IEnumerable<string> values)
@@ -934,6 +959,246 @@ public sealed partial class MainWindow : Window
         _transactionQuery.SortBy = TransactionSortOption.MerchantAscending;
         TransactionSortBox.SelectedIndex = (int)_transactionQuery.SortBy;
         ApplyTransactionQuery();
+    }
+
+    private IReadOnlyList<TransactionRecord> SelectedTransactionRows()
+        => TransactionsList.SelectedItems.OfType<TransactionRecord>().ToList();
+
+    private void ToggleTransactionBatchModeClick(object sender, RoutedEventArgs e)
+    {
+        var enable = !_transactionBatchMode;
+        if (enable)
+        {
+            TransactionsList.SelectionMode = ListViewSelectionMode.Multiple;
+            TransactionsList.SelectedItem = null;
+        }
+        else
+        {
+            TransactionsList.SelectedItems.Clear();
+            TransactionsList.SelectionMode = ListViewSelectionMode.None;
+        }
+        _transactionBatchMode = enable;
+        TransactionBatchActionBar.Visibility = _transactionBatchMode ? Visibility.Visible : Visibility.Collapsed;
+        BatchModeButton.Content = _transactionBatchMode ? "退出批量" : "批量管理";
+        UpdateTransactionBatchSelection();
+    }
+
+    private void TransactionsSelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateTransactionBatchSelection();
+
+    private void UpdateTransactionBatchSelection()
+    {
+        var count = TransactionsList.SelectedItems.Count;
+        BatchSelectedCountText.Text = $"已选 {count} 条";
+    }
+
+    private void SelectAllFilteredTransactionsClick(object sender, RoutedEventArgs e)
+    {
+        TransactionsList.SelectedItems.Clear();
+        foreach (var row in _currentTransactionRows) TransactionsList.SelectedItems.Add(row);
+        UpdateTransactionBatchSelection();
+    }
+
+    private async void BatchUpdateCategoryClick(object sender, RoutedEventArgs e)
+    {
+        var rows = SelectedTransactionRows();
+        if (rows.Count == 0) { await ShowMessage("尚未选择流水", "请先勾选需要修改分类的流水。 "); return; }
+        if (BatchCategoryBox.SelectedItem is not string category) { await ShowMessage("尚未选择分类", "请先在批量操作栏中选择目标分类。 "); return; }
+        var count = _store.BatchUpdateTransactionCategory(rows.Select(item => item.Id), category);
+        LoadDashboard(); SelectNavigation("Transactions");
+        StatusText.Text = $"已将 {count} 条流水修改为“{category}”";
+    }
+
+    private async void BatchUpdateAccountClick(object sender, RoutedEventArgs e)
+    {
+        var rows = SelectedTransactionRows();
+        if (rows.Count == 0) { await ShowMessage("尚未选择流水", "请先勾选需要修改账户的流水。 "); return; }
+        if (BatchAccountBox.SelectedItem is not AccountRecord account) { await ShowMessage("尚未选择账户", "请先在批量操作栏中选择目标账户。 "); return; }
+        var accountId = account.Id > 0 ? account.Id : (long?)null;
+        var count = _store.BatchUpdateTransactionAccount(rows.Select(item => item.Id), accountId);
+        LoadDashboard(); SelectNavigation("Transactions");
+        StatusText.Text = $"已将 {count} 条流水修改为“{account.Name}”";
+    }
+
+    private async void BatchDeleteTransactionsClick(object sender, RoutedEventArgs e)
+    {
+        var rows = SelectedTransactionRows();
+        if (rows.Count == 0) { await ShowMessage("尚未选择流水", "请先勾选需要删除的流水。 "); return; }
+        var amount = rows.Sum(item => item.Amount);
+        var confirm = new ContentDialog
+        {
+            XamlRoot = ContentHost.XamlRoot,
+            Title = $"删除选中的 {rows.Count} 条流水？",
+            Content = $"选中记录金额合计 ¥{amount:N2}。删除后只能通过账本备份恢复。",
+            PrimaryButtonText = "确认删除",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Close
+        };
+        if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;
+        var count = _store.BatchDeleteTransactions(rows.Select(item => item.Id));
+        LoadDashboard(); SelectNavigation("Transactions");
+        StatusText.Text = $"已删除 {count} 条流水";
+    }
+
+    private async void ExportFilteredTransactionsClick(object sender, RoutedEventArgs e)
+        => await ExportTransactionsAsync(_currentTransactionRows, "筛选结果");
+
+    private async void ExportSelectedTransactionsClick(object sender, RoutedEventArgs e)
+        => await ExportTransactionsAsync(SelectedTransactionRows(), "所选流水");
+
+    private async Task ExportTransactionsAsync(IReadOnlyList<TransactionRecord> rows, string scope)
+    {
+        if (rows.Count == 0) { await ShowMessage("没有可以导出的流水", scope == "所选流水" ? "请先勾选需要导出的流水。 " : "当前筛选结果为空。 "); return; }
+        var picker = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = $"独秀账本-{scope}-{DateTime.Now:yyyyMMdd-HHmm}" };
+        picker.FileTypeChoices.Add("CSV 表格", [".csv"]);
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
+        var file = await picker.PickSaveFileAsync();
+        if (file is null) return;
+        var lines = new List<string> { "交易时间,类型,金额,分类,交易对方,账户,备注,来源,订阅月数" };
+        lines.AddRange(rows.Select(row => string.Join(',', Csv(row.DateDisplay), Csv(row.Direction), row.Amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture), Csv(row.Category), Csv(row.Merchant), Csv(row.AccountDisplay), Csv(row.Note), Csv(row.Source), row.SubscriptionMonths)));
+        await File.WriteAllTextAsync(file.Path, "\uFEFF" + string.Join(Environment.NewLine, lines));
+        StatusText.Text = $"已导出 {rows.Count} 条{scope}：{file.Path}";
+    }
+
+    private async void SaveCurrentTransactionFilterClick(object sender, RoutedEventArgs e)
+    {
+        var nameBox = new TextBox { Header = "筛选名称", PlaceholderText = "例如：本月游戏消费", MaxLength = 30 };
+        var dialog = new ContentDialog { XamlRoot = ContentHost.XamlRoot, Title = "保存当前筛选", Content = nameBox, PrimaryButtonText = "保存", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Primary };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        var name = nameBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(name)) { await ShowMessage("名称不能为空", "请为常用筛选填写一个便于识别的名称。 "); return; }
+        var filters = _store.LoadSavedTransactionFilters().Where(item => !string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase)).ToList();
+        filters.Add(CreateSavedTransactionFilter(name));
+        _store.SaveTransactionFilters(filters);
+        UpdateTransactionFilterPresentation();
+        StatusText.Text = $"常用筛选“{name}”已保存";
+    }
+
+    private SavedTransactionFilter CreateSavedTransactionFilter(string name) => new()
+    {
+        Name = name,
+        SearchText = _transactionQuery.SearchText,
+        DatePreset = TransactionDatePresetKey(TransactionDatePresetBox.SelectedIndex),
+        StartDate = _transactionQuery.StartDate,
+        EndDate = _transactionQuery.EndDate,
+        Directions = _transactionQuery.Directions.ToList(),
+        Categories = _transactionQuery.Categories.ToList(),
+        AccountIds = _transactionQuery.AccountIds.ToList(),
+        Sources = _transactionQuery.Sources.ToList(),
+        MinimumAmount = _transactionQuery.MinimumAmount,
+        MaximumAmount = _transactionQuery.MaximumAmount,
+        UncategorizedOnly = _transactionQuery.UncategorizedOnly,
+        SubscriptionOnly = _transactionQuery.SubscriptionOnly,
+        UnassignedAccountOnly = _transactionQuery.UnassignedAccountOnly,
+        SortBy = _transactionQuery.SortBy,
+        GroupMode = _transactionGroupMode.ToString()
+    };
+
+    private void ShowSavedTransactionFiltersClick(object sender, RoutedEventArgs e)
+    {
+        var filters = _store.LoadSavedTransactionFilters();
+        var flyout = new MenuFlyout();
+        if (filters.Count == 0) flyout.Items.Add(new MenuFlyoutItem { Text = "还没有保存常用筛选", IsEnabled = false });
+        else
+        {
+            foreach (var filter in filters.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                var item = new MenuFlyoutItem { Text = filter.Name, Tag = filter };
+                item.Click += ApplySavedTransactionFilterClick;
+                flyout.Items.Add(item);
+            }
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            var deleteMenu = new MenuFlyoutSubItem { Text = "删除常用筛选" };
+            foreach (var filter in filters.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                var item = new MenuFlyoutItem { Text = filter.Name, Tag = filter };
+                item.Click += DeleteSavedTransactionFilterClick;
+                deleteMenu.Items.Add(item);
+            }
+            flyout.Items.Add(deleteMenu);
+        }
+        flyout.ShowAt(SavedFiltersButton);
+    }
+
+    private void ApplySavedTransactionFilterClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: SavedTransactionFilter filter }) return;
+        _transactionFiltersReady = false;
+        RefreshTransactionFilterOptions();
+        var dateIndex = TransactionDatePresetIndex(filter.DatePreset);
+        var dates = dateIndex == 6 ? (filter.StartDate, filter.EndDate) : ResolveTransactionDatePreset(dateIndex);
+        _transactionQuery = new TransactionQuery
+        {
+            SearchText = filter.SearchText,
+            StartDate = dates.Item1,
+            EndDate = dates.Item2,
+            Directions = filter.Directions.ToList(),
+            Categories = filter.Categories.ToList(),
+            AccountIds = filter.AccountIds.ToList(),
+            Sources = filter.Sources.ToList(),
+            MinimumAmount = filter.MinimumAmount,
+            MaximumAmount = filter.MaximumAmount,
+            UncategorizedOnly = filter.UncategorizedOnly,
+            SubscriptionOnly = filter.SubscriptionOnly,
+            UnassignedAccountOnly = filter.UnassignedAccountOnly,
+            SortBy = filter.SortBy
+        };
+        _transactionGroupMode = Enum.TryParse<TransactionGroupMode>(filter.GroupMode, out var groupMode) ? groupMode : TransactionGroupMode.Day;
+        TransactionsSearchBox.Text = filter.SearchText;
+        TransactionDatePresetBox.SelectedIndex = dateIndex;
+        TransactionGroupBox.SelectedIndex = (int)_transactionGroupMode;
+        TransactionStartDatePicker.Date = _transactionQuery.StartDate;
+        TransactionEndDatePicker.Date = _transactionQuery.EndDate;
+        FilterExpenseCheck.IsChecked = filter.Directions.Contains("支出");
+        FilterIncomeCheck.IsChecked = filter.Directions.Contains("收入");
+        FilterTransferCheck.IsChecked = filter.Directions.Contains("转账");
+        FilterRefundCheck.IsChecked = filter.Directions.Contains("退款");
+        FilterReimbursementCheck.IsChecked = filter.Directions.Contains("报销");
+        foreach (var option in _transactionCategoryOptions) option.IsSelected = filter.Categories.Contains(option.Key);
+        foreach (var option in _transactionAccountOptions) option.IsSelected = filter.AccountIds.Contains(long.Parse(option.Key));
+        foreach (var option in _transactionSourceOptions) option.IsSelected = filter.Sources.Contains(option.Key);
+        TransactionMinimumAmountBox.Value = filter.MinimumAmount is null ? double.NaN : (double)filter.MinimumAmount.Value;
+        TransactionMaximumAmountBox.Value = filter.MaximumAmount is null ? double.NaN : (double)filter.MaximumAmount.Value;
+        TransactionUncategorizedCheck.IsChecked = filter.UncategorizedOnly;
+        TransactionSubscriptionCheck.IsChecked = filter.SubscriptionOnly;
+        TransactionUnassignedAccountCheck.IsChecked = filter.UnassignedAccountOnly;
+        TransactionSortBox.SelectedIndex = (int)filter.SortBy;
+        _transactionFiltersReady = true;
+        FilterTransactionOptionLists();
+        ApplyTransactionQuery();
+        StatusText.Text = $"已应用常用筛选“{filter.Name}”";
+    }
+
+    private void DeleteSavedTransactionFilterClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: SavedTransactionFilter filter }) return;
+        var filters = _store.LoadSavedTransactionFilters().Where(item => item.Id != filter.Id).ToList();
+        _store.SaveTransactionFilters(filters);
+        UpdateTransactionFilterPresentation();
+        StatusText.Text = $"已删除常用筛选“{filter.Name}”";
+    }
+
+    private static string TransactionDatePresetKey(int index) => index switch
+    {
+        1 => "ThisMonth", 2 => "LastMonth", 3 => "Last7Days", 4 => "Last30Days", 5 => "ThisYear", 6 => "Custom", _ => "All"
+    };
+
+    private static int TransactionDatePresetIndex(string key) => key switch
+    {
+        "ThisMonth" => 1, "LastMonth" => 2, "Last7Days" => 3, "Last30Days" => 4, "ThisYear" => 5, "Custom" => 6, _ => 0
+    };
+
+    private static (DateTime? Start, DateTime? End) ResolveTransactionDatePreset(int index)
+    {
+        var today = DateTime.Today;
+        return index switch
+        {
+            1 => (new DateTime(today.Year, today.Month, 1), new DateTime(today.Year, today.Month, 1).AddMonths(1).AddDays(-1)),
+            2 => (new DateTime(today.Year, today.Month, 1).AddMonths(-1), new DateTime(today.Year, today.Month, 1).AddDays(-1)),
+            3 => (today.AddDays(-6), today),
+            4 => (today.AddDays(-29), today),
+            5 => (new DateTime(today.Year, 1, 1), new DateTime(today.Year, 12, 31)),
+            _ => (null, null)
+        };
     }
 
     private void SaveSettingsClick(object sender, RoutedEventArgs e)
