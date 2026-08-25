@@ -5,6 +5,7 @@ using DuxiuLedger.Desktop.Services;
 using Windows.Globalization;
 using Windows.Graphics.Imaging;
 using Windows.Media.Ocr;
+using Windows.Security.Cryptography;
 using Windows.Storage;
 using Windows.Storage.Streams;
 
@@ -14,6 +15,7 @@ public sealed class ScreenshotBillImporter
 {
     private const int TileOverlap = 120;
     private static readonly Regex AmountCandidateRegex = new(@"[+\-−–—]?[¥￥$]?[0-9OIlS][0-9OIlS,\.．·]*[\.．·][0-9OIlS]{2}", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex StandaloneTimeCandidateRegex = new(@"^[0-2OIlS]?\d:[0-5OIlS]\d(?::[0-5OIlS]\d)?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public async Task<ImportPreviewResult> PreviewAsync(string path)
     {
@@ -59,13 +61,97 @@ public sealed class ScreenshotBillImporter
                 var right = words.Max(word => word.BoundingRect.X + word.BoundingRect.Width);
                 var bottom = words.Max(word => word.BoundingRect.Y + word.BoundingRect.Height);
                 tokens.Add(new ScreenshotOcrToken(string.Concat(words.Select(word => word.Text)).Trim(), left, lineTop + top, right - left, bottom - lineTop));
+                foreach (var word in words)
+                {
+                    var rect = word.BoundingRect;
+                    tokens.Add(new ScreenshotOcrToken(word.Text.Trim(), rect.X, rect.Y + top, rect.Width, rect.Height));
+                }
             }
             if (top + actualHeight >= height) break;
         }
+        tokens = await RecoverIcbcAmountTokensAsync(decoder, engine, tokens, width, height);
+        tokens = CombineSplitAmountTokens(tokens, width);
 
         tokens = await EnhanceAmountTokensAsync(decoder, engine, tokens, width, height);
+        tokens = await EnhanceTimeTokensAsync(decoder, engine, tokens, width, height);
 
         return ScreenshotBillParser.Parse(tokens, width, height, source, DateTime.Now);
+    }
+
+    private static async Task<List<ScreenshotOcrToken>> RecoverIcbcAmountTokensAsync(BitmapDecoder decoder, OcrEngine primaryEngine,
+        List<ScreenshotOcrToken> tokens, int imageWidth, int imageHeight)
+    {
+        var compactText = string.Concat(tokens.Select(token => token.Text)).Replace(" ", "");
+        if (!compactText.Contains("查询明细") || (!compactText.Contains("工银借记卡") && !compactText.Contains("人民币余额"))) return tokens;
+        var numericEngine = TryCreateNumericEngine();
+        var daySeeds = tokens
+            .Where(token => token.X < imageWidth * 0.14 && token.Y > imageHeight * 0.28)
+            .Where(token => int.TryParse(token.Text.Trim(), out var day) && day is >= 1 and <= 31)
+            .OrderBy(token => token.CenterY)
+            .Aggregate(new List<ScreenshotOcrToken>(), (rows, token) =>
+            {
+                if (rows.Count == 0 || Math.Abs(rows[^1].CenterY - token.CenterY) > 16) rows.Add(token);
+                return rows;
+            });
+        var output = new List<ScreenshotOcrToken>(tokens);
+        foreach (var seed in daySeeds)
+        {
+            var amountRegion = new ScreenshotOcrToken("", imageWidth * 0.68, seed.CenterY - Math.Max(40, seed.Height),
+                imageWidth * 0.30, Math.Max(80, seed.Height * 2.1));
+            var candidates = new List<string>();
+            foreach (var (engine, format) in RecognitionPasses(primaryEngine, numericEngine))
+            {
+                var recognized = await RecognizeTokenCropAsync(decoder, engine, format, amountRegion, imageWidth, imageHeight, 0.02, 0.08);
+                if (TryExtractAmount(recognized, '\0', out var amount)) candidates.Add(amount);
+            }
+            foreach (var threshold in new byte[] { 125, 155, 185, 215 })
+            {
+                var recognized = await RecognizeThresholdedTokenCropAsync(decoder, numericEngine ?? primaryEngine, amountRegion,
+                    imageWidth, imageHeight, threshold);
+                if (TryExtractAmount(recognized, '\0', out var amount)) candidates.Add(amount);
+            }
+            if (candidates.Count == 0) continue;
+            var groups = candidates.GroupBy(value => value, StringComparer.Ordinal).OrderByDescending(group => group.Count()).ToList();
+            var winner = groups[0].Key;
+            var note = groups.Count > 1
+                ? $"金额固定区域多轮识别：采用 {winner}，其他结果 {string.Join("、", groups.Skip(1).Select(group => group.Key).Distinct())}"
+                : null;
+            output.Add(amountRegion with { Text = winner, Y = seed.Y, Height = seed.Height, RecognitionNote = note });
+
+            var nextSeedY = daySeeds.FirstOrDefault(item => item.CenterY > seed.CenterY)?.CenterY ?? imageHeight;
+            var accountLine = tokens
+                .Where(token => token.CenterY > seed.CenterY && token.CenterY < nextSeedY)
+                .Where(token => token.Text.Contains("工银借记卡", StringComparison.Ordinal))
+                .OrderBy(token => token.CenterY)
+                .FirstOrDefault();
+            if (accountLine is null) continue;
+            var originalTime = TryExtractTimeAnywhere(accountLine.Text, out var accountTime) ? accountTime : "";
+            var timeRegion = new ScreenshotOcrToken("", Math.Max(accountLine.X, accountLine.Right - imageWidth * 0.17),
+                accountLine.Y - 10, Math.Min(imageWidth * 0.18, accountLine.Width), accountLine.Height + 20);
+            var timeCandidates = new List<string>();
+            if (originalTime.Length > 0) timeCandidates.Add(originalTime);
+            foreach (var (engine, format) in RecognitionPasses(primaryEngine, numericEngine))
+            {
+                var recognized = await RecognizeTokenCropAsync(decoder, engine, format, timeRegion, imageWidth, imageHeight, 0.08, 0.18);
+                if (TryExtractTimeAnywhere(recognized, out var time)) timeCandidates.Add(time);
+            }
+            foreach (var threshold in new byte[] { 125, 155, 185, 215 })
+            {
+                var recognized = await RecognizeThresholdedTokenCropAsync(decoder, numericEngine ?? primaryEngine, timeRegion,
+                    imageWidth, imageHeight, threshold);
+                if (TryExtractTimeAnywhere(recognized, out var time)) timeCandidates.Add(time);
+            }
+            if (timeCandidates.Count == 0) continue;
+            var timeGroups = timeCandidates.GroupBy(value => value, StringComparer.Ordinal).OrderByDescending(group => group.Count()).ToList();
+            var timeWinner = timeGroups[0].Key;
+            var timeNote = originalTime.Length > 0 && !string.Equals(originalTime, timeWinner, StringComparison.Ordinal)
+                ? $"时间经固定区域多轮识别从 {originalTime} 校正为 {timeWinner}"
+                : timeGroups.Count > 1 && timeGroups[0].Count() == timeGroups[1].Count()
+                    ? $"时间多轮识别存在分歧：{string.Join("、", timeGroups.Select(group => group.Key))}"
+                    : null;
+            output.Add(timeRegion with { Text = timeWinner, RecognitionNote = timeNote });
+        }
+        return output;
     }
 
     private static async Task<List<ScreenshotOcrToken>> EnhanceAmountTokensAsync(BitmapDecoder decoder, OcrEngine primaryEngine,
@@ -105,6 +191,59 @@ public sealed class ScreenshotBillImporter
         return result;
     }
 
+    private static List<ScreenshotOcrToken> CombineSplitAmountTokens(List<ScreenshotOcrToken> tokens, int imageWidth)
+    {
+        var result = new List<ScreenshotOcrToken>(tokens);
+        foreach (var number in tokens.Where(token => token.X >= imageWidth * 0.62 && IsStandaloneAmountToken(token.Text) && ExplicitSign(token.Text) == '\0'))
+        {
+            var sign = tokens.Where(token => token.Right <= number.X + 8 && token.X >= imageWidth * 0.55)
+                .Where(token => Math.Abs(token.CenterY - number.CenterY) <= Math.Max(12, number.Height * 0.7))
+                .Where(token => ExplicitSign(token.Text) != '\0')
+                .OrderBy(token => number.X - token.Right)
+                .FirstOrDefault();
+            if (sign is null) continue;
+            var explicitSign = ExplicitSign(sign.Text);
+            result.Add(number with
+            {
+                Text = $"{explicitSign}{number.Text}",
+                X = sign.X,
+                Width = number.Right - sign.X
+            });
+        }
+        return result;
+    }
+
+    private static async Task<List<ScreenshotOcrToken>> EnhanceTimeTokensAsync(BitmapDecoder decoder, OcrEngine primaryEngine,
+        List<ScreenshotOcrToken> tokens, int imageWidth, int imageHeight)
+    {
+        var numericEngine = TryCreateNumericEngine();
+        var result = new List<ScreenshotOcrToken>(tokens.Count);
+        foreach (var token in tokens)
+        {
+            if (!TryExtractStandaloneTime(token.Text, out var original))
+            {
+                result.Add(token);
+                continue;
+            }
+            var candidates = new List<string> { original };
+            foreach (var (engine, format) in RecognitionPasses(primaryEngine, numericEngine))
+            {
+                var recognized = await RecognizeTokenCropAsync(decoder, engine, format, token, imageWidth, imageHeight, 0.35, 0.55);
+                if (TryExtractStandaloneTime(recognized, out var time)) candidates.Add(time);
+            }
+            var groups = candidates.GroupBy(value => value, StringComparer.Ordinal).OrderByDescending(group => group.Count()).ToList();
+            var winner = groups[0];
+            var enhanced = winner.Count() >= 2 ? winner.Key : original;
+            var note = !string.Equals(enhanced, original, StringComparison.Ordinal)
+                ? $"时间经裁剪放大和多轮识别从 {original} 校正为 {enhanced}"
+                : groups.Count > 1 && groups[0].Count() == groups[1].Count()
+                    ? $"时间多轮识别存在分歧：{string.Join("、", groups.Select(group => group.Key))}"
+                    : token.RecognitionNote;
+            result.Add(token with { Text = enhanced, RecognitionNote = note });
+        }
+        return result;
+    }
+
     private static IEnumerable<(OcrEngine Engine, BitmapPixelFormat Format)> RecognitionPasses(OcrEngine primary, OcrEngine? numeric)
     {
         yield return (primary, BitmapPixelFormat.Bgra8);
@@ -117,8 +256,21 @@ public sealed class ScreenshotBillImporter
     {
         try
         {
-            var paddingX = Math.Max(12, token.Width * 0.16);
-            var paddingY = Math.Max(8, token.Height * 0.45);
+            return await RecognizeTokenCropAsync(decoder, engine, format, token, imageWidth, imageHeight, 0.16, 0.45);
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    private static async Task<string> RecognizeTokenCropAsync(BitmapDecoder decoder, OcrEngine engine, BitmapPixelFormat format,
+        ScreenshotOcrToken token, int imageWidth, int imageHeight, double horizontalPaddingFactor, double verticalPaddingFactor)
+    {
+        try
+        {
+            var paddingX = Math.Max(12, token.Width * horizontalPaddingFactor);
+            var paddingY = Math.Max(8, token.Height * verticalPaddingFactor);
             var left = Math.Max(0, (int)Math.Floor(token.X - paddingX));
             var top = Math.Max(0, (int)Math.Floor(token.Y - paddingY));
             var right = Math.Min(imageWidth, (int)Math.Ceiling(token.Right + paddingX));
@@ -127,15 +279,7 @@ public sealed class ScreenshotBillImporter
             var cropWidth = right - left;
             var cropHeight = bottom - top;
             var scale = Math.Min(4, Math.Max(2, (int)Math.Floor(OcrEngine.MaxImageDimension / (double)Math.Max(cropWidth, cropHeight))));
-            var transform = new BitmapTransform
-            {
-                Bounds = new BitmapBounds { X = (uint)left, Y = (uint)top, Width = (uint)cropWidth, Height = (uint)cropHeight },
-                ScaledWidth = (uint)(cropWidth * scale),
-                ScaledHeight = (uint)(cropHeight * scale),
-                InterpolationMode = BitmapInterpolationMode.Cubic
-            };
-            using var bitmap = await decoder.GetSoftwareBitmapAsync(format, BitmapAlphaMode.Ignore, transform,
-                ExifOrientationMode.RespectExifOrientation, ColorManagementMode.ColorManageToSRgb);
+            using var bitmap = await GetScaledCropAsync(decoder, format, left, top, cropWidth, cropHeight, scale);
             var result = await engine.RecognizeAsync(bitmap);
             return string.Concat(result.Lines.Select(line => line.Text));
         }
@@ -143,6 +287,63 @@ public sealed class ScreenshotBillImporter
         {
             return "";
         }
+    }
+
+    private static async Task<string> RecognizeThresholdedTokenCropAsync(BitmapDecoder decoder, OcrEngine engine,
+        ScreenshotOcrToken token, int imageWidth, int imageHeight, byte threshold)
+    {
+        try
+        {
+            var paddingX = Math.Max(4, token.Width * 0.02);
+            var paddingY = Math.Max(4, token.Height * 0.08);
+            var left = Math.Max(0, (int)Math.Floor(token.X - paddingX));
+            var top = Math.Max(0, (int)Math.Floor(token.Y - paddingY));
+            var right = Math.Min(imageWidth, (int)Math.Ceiling(token.Right + paddingX));
+            var bottom = Math.Min(imageHeight, (int)Math.Ceiling(token.Y + token.Height + paddingY));
+            if (right <= left || bottom <= top) return "";
+            var cropWidth = right - left;
+            var cropHeight = bottom - top;
+            const int scale = 4;
+            using var gray = await GetScaledCropAsync(decoder, BitmapPixelFormat.Gray8, left, top, cropWidth, cropHeight, scale);
+            var buffer = new Windows.Storage.Streams.Buffer((uint)(gray.PixelWidth * gray.PixelHeight));
+            gray.CopyToBuffer(buffer);
+            CryptographicBuffer.CopyToByteArray(buffer, out var pixels);
+            for (var index = 0; index < pixels.Length; index++) pixels[index] = pixels[index] < threshold ? (byte)0 : (byte)255;
+            var thresholdBuffer = CryptographicBuffer.CreateFromByteArray(pixels);
+            using var bitmap = SoftwareBitmap.CreateCopyFromBuffer(thresholdBuffer, BitmapPixelFormat.Gray8,
+                gray.PixelWidth, gray.PixelHeight, BitmapAlphaMode.Ignore);
+            var result = await engine.RecognizeAsync(bitmap);
+            return string.Concat(result.Lines.Select(line => line.Text));
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    private static async Task<SoftwareBitmap> GetScaledCropAsync(BitmapDecoder decoder, BitmapPixelFormat format,
+        int left, int top, int cropWidth, int cropHeight, int scale)
+    {
+        var cropTransform = new BitmapTransform
+        {
+            Bounds = new BitmapBounds { X = (uint)left, Y = (uint)top, Width = (uint)cropWidth, Height = (uint)cropHeight }
+        };
+        using var crop = await decoder.GetSoftwareBitmapAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Ignore, cropTransform,
+            ExifOrientationMode.RespectExifOrientation, ColorManagementMode.ColorManageToSRgb);
+        using var stream = new InMemoryRandomAccessStream();
+        var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream);
+        encoder.SetSoftwareBitmap(crop);
+        await encoder.FlushAsync();
+        stream.Seek(0);
+        var cropDecoder = await BitmapDecoder.CreateAsync(stream);
+        var scaleTransform = new BitmapTransform
+        {
+            ScaledWidth = (uint)(cropWidth * scale),
+            ScaledHeight = (uint)(cropHeight * scale),
+            InterpolationMode = BitmapInterpolationMode.Cubic
+        };
+        return await cropDecoder.GetSoftwareBitmapAsync(format, BitmapAlphaMode.Ignore, scaleTransform,
+            ExifOrientationMode.IgnoreExifOrientation, ColorManagementMode.ColorManageToSRgb);
     }
 
     private static OcrEngine? TryCreateNumericEngine()
@@ -154,7 +355,7 @@ public sealed class ScreenshotBillImporter
     private static char ExplicitSign(string value)
     {
         if (value.IndexOfAny(['+', '＋']) >= 0) return '+';
-        if (value.IndexOfAny(['-', '−', '–', '—']) >= 0) return '-';
+        if (value.IndexOfAny(['-', '−', '–', '—', '一']) >= 0) return '-';
         return '\0';
     }
 
@@ -164,7 +365,7 @@ public sealed class ScreenshotBillImporter
         var text = value.Replace(" ", "").Replace("O", "0", StringComparison.OrdinalIgnoreCase)
             .Replace("I", "1", StringComparison.OrdinalIgnoreCase).Replace("l", "1")
             .Replace("S", "5", StringComparison.OrdinalIgnoreCase).Replace("．", ".").Replace("·", ".")
-            .Replace("−", "-").Replace("–", "-").Replace("—", "-").Replace("＋", "+");
+            .Replace("，", ",").Replace("−", "-").Replace("–", "-").Replace("—", "-").Replace("一", "-").Replace("＋", "+");
         var match = AmountCandidateRegex.Match(text);
         if (!match.Success) return false;
         var amountText = match.Value.Replace("¥", "").Replace("￥", "").Replace("$", "").TrimStart('+', '-');
@@ -180,6 +381,29 @@ public sealed class ScreenshotBillImporter
         var compact = value.Replace(" ", "");
         var match = AmountCandidateRegex.Match(compact);
         return match.Success && match.Index == 0 && match.Length == compact.Length;
+    }
+
+    private static bool TryExtractStandaloneTime(string value, out string normalized)
+    {
+        normalized = "";
+        var compact = value.Replace(" ", "").Replace("O", "0", StringComparison.OrdinalIgnoreCase)
+            .Replace("I", "1", StringComparison.OrdinalIgnoreCase).Replace("l", "1")
+            .Replace("S", "5", StringComparison.OrdinalIgnoreCase).Replace("：", ":");
+        if (!StandaloneTimeCandidateRegex.IsMatch(compact) || !TimeSpan.TryParse(compact, out var time)) return false;
+        normalized = compact.Count(character => character == ':') == 2 ? time.ToString(@"hh\:mm\:ss") : time.ToString(@"hh\:mm");
+        return true;
+    }
+
+    private static bool TryExtractTimeAnywhere(string value, out string normalized)
+    {
+        normalized = "";
+        var compact = value.Replace(" ", "").Replace("O", "0", StringComparison.OrdinalIgnoreCase)
+            .Replace("I", "1", StringComparison.OrdinalIgnoreCase).Replace("l", "1")
+            .Replace("S", "5", StringComparison.OrdinalIgnoreCase).Replace("：", ":");
+        var match = Regex.Match(compact, @"[0-2]?\d:[0-5]\d:[0-5]\d");
+        if (!match.Success || !TimeSpan.TryParse(match.Value, out var time)) return false;
+        normalized = time.ToString(@"hh\:mm\:ss");
+        return true;
     }
 
     private static OcrEngine CreateEngine()
@@ -261,6 +485,8 @@ internal static partial class ScreenshotBillParser
             var merchant = isBank ? FindBankMerchant(rowLines, anchor, imageWidth) : FindMerchant(rowLines, anchor, imageWidth);
             var dateText = rowLines.Select(line => line.Text).FirstOrDefault(IsDateText) ?? "";
             var dateRecognized = TryReadRowDate(platform, rowLines, imageWidth, dateText, headerYear, headerMonth, now, out var occurredOn);
+            var timeRecognitionNote = rowLines.Select(line => line.RecognitionNote)
+                .FirstOrDefault(note => note?.StartsWith("时间", StringComparison.Ordinal) == true);
             var merchantRecognized = !string.IsNullOrWhiteSpace(merchant);
             if (!merchantRecognized) merchant = "⚠ 待核对交易对方";
             if (!dateRecognized)
@@ -273,7 +499,9 @@ internal static partial class ScreenshotBillParser
             var rowText = string.Join(' ', rowLines.Select(line => line.Text));
             var direction = MapDirection(platform, rowText, merchant, sign);
             var category = merchantRecognized ? FindCategory(rowLines, merchant, dateText) : "未分类";
-            var note = $"{platform}账单截图识别" + (amountCorrection is null ? "" : $" · {amountCorrection}");
+            var note = $"{platform}账单截图识别"
+                + (amountCorrection is null ? "" : $" · {amountCorrection}")
+                + (timeRecognitionNote is null ? "" : $" · {timeRecognitionNote}");
             var record = new TransactionRecord
             {
                 OccurredOn = occurredOn,
@@ -283,7 +511,7 @@ internal static partial class ScreenshotBillParser
                 Merchant = merchant,
                 Note = note,
                 Source = $"{platform}截图 · {source}",
-                RequiresReview = !merchantRecognized || !dateRecognized || chronologyMismatch || amountCorrection is not null
+                RequiresReview = !merchantRecognized || !dateRecognized || chronologyMismatch || amountCorrection is not null || timeRecognitionNote is not null
             };
             record.Category = TransactionCategorizer.Suggest(isBank
                 ? new TransactionRecord { Direction = direction, Merchant = $"{merchant} {rowText}", Note = note }
@@ -339,6 +567,17 @@ internal static partial class ScreenshotBillParser
                     Record = record
                 });
             }
+            if (timeRecognitionNote is not null)
+            {
+                issues.Add(new ImportIssue
+                {
+                    Source = source,
+                    RowNumber = index + 1,
+                    Reason = timeRecognitionNote.Contains("分歧", StringComparison.Ordinal) ? "时间多轮识别结果不一致，请核对" : "时间经裁剪二次识别校正，请核对",
+                    RawValue = timeRecognitionNote,
+                    Record = record
+                });
+            }
         }
 
         if (records.Count == 0 && issues.Count == 0)
@@ -385,6 +624,7 @@ internal static partial class ScreenshotBillParser
         var candidates = lines
             .Where(line => line.X > width * 0.05 && line.X < width * 0.76)
             .Where(line => !IsDateText(line.Text) && !IsIgnored(line.Text) && !TryReadAmount(line.Text, out _, out _))
+            .Where(line => !AmountInLineRegex().IsMatch(NormalizeAmount(line.Text)))
             .Where(line => !BankAuxiliaryRegex().IsMatch(NormalizeDateOcr(line.Text)))
             .Where(line => !NormalizeOcr(line.Text).StartsWith("余额", StringComparison.Ordinal))
             .Where(line => Math.Abs(line.CenterY - amount.CenterY) <= Math.Max(125, amount.Height * 4.2))
@@ -464,7 +704,13 @@ internal static partial class ScreenshotBillParser
         if (platform == "工商银行")
         {
             var dayText = rowLines.Where(line => line.X < width * 0.16).Select(line => NormalizeOcr(line.Text).Trim()).FirstOrDefault(text => DayOnlyRegex().IsMatch(text));
-            var timeMatch = rowLines.Select(line => TimeWithSecondsRegex().Match(NormalizeDateOcr(line.Text))).FirstOrDefault(match => match.Success);
+            var timeMatch = rowLines
+                .Select(line => new { Line = line, Match = TimeWithSecondsRegex().Match(NormalizeDateOcr(line.Text)) })
+                .Where(item => item.Match.Success)
+                .OrderByDescending(item => item.Line.RecognitionNote is not null)
+                .ThenBy(item => item.Line.Text.Length)
+                .Select(item => item.Match)
+                .FirstOrDefault();
             if (dayText is not null && timeMatch is not null && int.TryParse(dayText, out var day) && TimeSpan.TryParse(timeMatch.Value, out var time))
             {
                 try { date = new DateTime(year, month, day).Add(time); return true; }
@@ -587,11 +833,11 @@ internal static partial class ScreenshotBillParser
 
     private static List<OcrVisualLine> BuildLines(IReadOnlyList<ScreenshotOcrToken> tokens)
     {
-        return tokens.Select(token => new OcrVisualLine(token.Text, token.X, token.Y, token.Right, token.Y + token.Height))
+        return tokens.Select(token => new OcrVisualLine(token.Text, token.X, token.Y, token.Right, token.Y + token.Height, token.RecognitionNote))
             .OrderBy(line => line.CenterY).ThenBy(line => line.X).ToList();
     }
 
-    private sealed record OcrVisualLine(string Text, double X, double Y, double Right, double Bottom) { public double CenterY => (Y + Bottom) / 2; }
+    private sealed record OcrVisualLine(string Text, double X, double Y, double Right, double Bottom, string? RecognitionNote) { public double CenterY => (Y + Bottom) / 2; }
 
     [GeneratedRegex(@"^[+\-−–—]?[¥￥]?([0-9][0-9,]*\.[0-9]{2})$")]
     private static partial Regex AmountRegex();

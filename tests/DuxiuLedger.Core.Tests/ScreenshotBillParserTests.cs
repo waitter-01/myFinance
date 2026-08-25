@@ -130,4 +130,24 @@ public sealed class ScreenshotBillParserTests
         Assert.Equal(20m, result.Records[0].Amount);
         Assert.DoesNotContain("余额差额", result.Records[0].Note);
     }
+
+    [Fact]
+    public void Parse_UsesWordLevelAmountWhenIcbcMergedLineCannotBeAnAnchor()
+    {
+        var tokens = new List<ScreenshotOcrToken>
+        {
+            new("查询明细", 370, 100, 190, 42), new("工银借记卡5436", 220, 270, 250, 38), new("人民币余额756.17", 220, 320, 260, 34), new("2026年08月", 50, 640, 180, 36),
+            new("25", 40, 780, 55, 42), new("还款-1,330.79", 140, 780, 800, 44), new("还款", 140, 780, 90, 42), new("-1,330.79", 760, 780, 180, 44),
+            new("美团支付-美团月付还款", 140, 835, 360, 36), new("工银借记卡5436 10:15:06", 140, 890, 390, 34), new("10:15:06", 390, 890, 130, 34),
+            new("15", 40, 1030, 55, 42), new("工资+2,086.96", 140, 1030, 800, 44), new("工资", 140, 1030, 90, 42), new("+2,086.96", 760, 1030, 180, 44),
+            new("华夏航空科技（北京）有限公司", 140, 1085, 420, 36), new("工银借记卡5436 01:15:51", 140, 1140, 390, 34), new("01:15:51", 390, 1140, 130, 34)
+        };
+
+        var result = ScreenshotBillParser.Parse(tokens, 1000, 1300, "工商分词.png", new DateTime(2026, 8, 25));
+
+        Assert.Equal(2, result.TotalRows);
+        Assert.Equal(2, result.Records.Count);
+        Assert.Equal("美团支付-美团月付还款", result.Records[0].Merchant);
+        Assert.Equal(1330.79m, result.Records[0].Amount);
+    }
 }
