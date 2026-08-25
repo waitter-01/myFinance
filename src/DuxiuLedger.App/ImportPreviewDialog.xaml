@@ -23,10 +23,10 @@
       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
       <Border Style="{StaticResource CardStyle}" CornerRadius="10" Padding="14"><StackPanel><TextBlock Text="文件" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="FileCountText" FontSize="22" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
       <Border Grid.Column="1" Style="{StaticResource CardStyle}" CornerRadius="10" Padding="14"><StackPanel><TextBlock Text="待导入" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="ValidCountText" FontSize="22" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
-      <Border Grid.Column="2" Style="{StaticResource CardStyle}" CornerRadius="10" Padding="14"><StackPanel><TextBlock Text="重复跳过" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="DuplicateCountText" FontSize="22" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
+      <Border Grid.Column="2" Style="{StaticResource CardStyle}" CornerRadius="10" Padding="14"><StackPanel><TextBlock Text="疑似重复" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="DuplicateCountText" FontSize="22" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
       <Border Grid.Column="3" Style="{StaticResource CardStyle}" CornerRadius="10" Padding="14"><StackPanel><TextBlock Text="问题行" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="IssueCountText" FontSize="22" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel></Border>
     </Grid>
-    <Grid Grid.Row="1" Margin="0,12,0,10" ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="280" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><ComboBox x:Name="AccountBox" Header="导入到账户" DisplayMemberPath="Name" /><InfoBar Grid.Column="1" IsOpen="True" IsClosable="False" Severity="Informational" Message="截图识别结果请逐条核对；选择一条流水后可在下方修正，确认前不会写入账本。" /></Grid>
+    <Grid Grid.Row="1" Margin="0,12,0,10" ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="280" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><ComboBox x:Name="AccountBox" Header="导入到账户" DisplayMemberPath="Name" /><InfoBar Grid.Column="1" IsOpen="True" IsClosable="False" Severity="Informational" Message="疑似重复记录默认不会导入；请在“疑似重复”页核对，确为两笔交易时可选择仍然导入。" /></Grid>
     <Border Grid.Row="2" Style="{StaticResource CardStyle}" CornerRadius="10" Padding="12" Margin="0,0,0,10">
       <Grid ColumnSpacing="10">
         <Grid.ColumnDefinitions><ColumnDefinition Width="110" /><ColumnDefinition Width="120" /><ColumnDefinition Width="150" /><ColumnDefinition Width="*" /><ColumnDefinition Width="165" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -41,6 +41,32 @@
     <TabView Grid.Row="3" IsAddTabButtonVisible="False" CornerRadius="10">
       <TabViewItem Header="待导入流水" IsClosable="False">
         <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions><Grid Padding="12,8" ColumnSpacing="12" Background="{ThemeResource SubtleFillColorSecondaryBrush}"><Grid.ColumnDefinitions><ColumnDefinition Width="145" /><ColumnDefinition Width="65" /><ColumnDefinition Width="105" /><ColumnDefinition Width="120" /><ColumnDefinition Width="*" /><ColumnDefinition Width="205" /></Grid.ColumnDefinitions><TextBlock Text="交易时间" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="类型" FontWeight="SemiBold" /><TextBlock Grid.Column="2" Text="金额" FontWeight="SemiBold" /><TextBlock Grid.Column="3" Text="分类" FontWeight="SemiBold" /><TextBlock Grid.Column="4" Text="交易对方" FontWeight="SemiBold" /><TextBlock Grid.Column="5" Text="来源" FontWeight="SemiBold" /></Grid><ListView x:Name="RecordsList" Grid.Row="1" SelectionMode="Single" SelectionChanged="RecordsSelectionChanged"><ListView.ItemTemplate><DataTemplate x:DataType="models:TransactionRecord"><Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="12,10"><Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="145" /><ColumnDefinition Width="65" /><ColumnDefinition Width="105" /><ColumnDefinition Width="120" /><ColumnDefinition Width="*" /><ColumnDefinition Width="205" /></Grid.ColumnDefinitions><TextBlock Text="{x:Bind DateDisplay}" /><TextBlock Grid.Column="1" Text="{x:Bind Direction}" /><TextBlock Grid.Column="2" Text="{x:Bind AmountDisplay}" FontWeight="SemiBold" /><TextBlock Grid.Column="3" Text="{x:Bind Category}" TextTrimming="CharacterEllipsis" /><TextBlock Grid.Column="4" Text="{x:Bind Merchant}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Merchant}" /><TextBlock Grid.Column="5" Text="{x:Bind Source}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Source}" /></Grid></Border></DataTemplate></ListView.ItemTemplate></ListView></Grid>
+      </TabViewItem>
+      <TabViewItem Header="疑似重复" IsClosable="False">
+        <Grid>
+          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+          <Grid Padding="12" ColumnSpacing="12" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <StackPanel Spacing="3">
+              <TextBlock Text="这些记录与账本已有数据或本批次其他记录相似，默认跳过" FontWeight="SemiBold" />
+              <TextBlock Text="选择一条记录并点击“仍然导入”，可保留时间和金额恰好相同的真实两笔交易。" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+            <Button Grid.Column="1" Content="仍然导入所选" Style="{StaticResource AccentButtonStyle}" VerticalAlignment="Center" Click="ImportDuplicateClick" />
+          </Grid>
+          <ListView x:Name="DuplicateList" Grid.Row="1" SelectionMode="Single">
+            <ListView.ItemTemplate>
+              <DataTemplate x:DataType="models:ImportDuplicateItem">
+                <Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="12,10">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="{x:Bind IncomingDisplay}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Text="{x:Bind ExistingDisplay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                    <TextBlock Text="{x:Bind Reason}" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ListView.ItemTemplate>
+          </ListView>
+        </Grid>
       </TabViewItem>
       <TabViewItem Header="问题与跳过" IsClosable="False">
         <ListView x:Name="IssuesList" SelectionMode="None"><ListView.ItemTemplate><DataTemplate x:DataType="models:ImportIssue"><Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="12,10"><Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="90" /><ColumnDefinition Width="200" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><TextBlock Text="{x:Bind Source}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Source}" /><TextBlock Grid.Column="1" Text="{x:Bind RowDisplay}" /><TextBlock Grid.Column="2" Text="{x:Bind Reason}" /><TextBlock Grid.Column="3" Text="{x:Bind RawValue}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" /></Grid></Border></DataTemplate></ListView.ItemTemplate></ListView>

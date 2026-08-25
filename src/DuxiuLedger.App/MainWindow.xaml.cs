@@ -298,7 +298,7 @@ public sealed partial class MainWindow : Window
                 });
             }
         }
-        var previewDialog = new ImportPreviewDialog(previews, _store.ListAccounts(), _store.ListCategories(), _store.ExistingFingerprints()) { XamlRoot = ContentHost.XamlRoot };
+        var previewDialog = new ImportPreviewDialog(previews, _store.ListAccounts(), _store.ListCategories(), _store.List()) { XamlRoot = ContentHost.XamlRoot };
         if (await previewDialog.ShowAsync() != ContentDialogResult.Primary) return;
         var imported = _store.Import(previewDialog.RowsToImport);
         LoadDashboard();
@@ -433,7 +433,7 @@ public sealed partial class MainWindow : Window
 
     private async Task ShowScreenshotPreviewsAsync(IReadOnlyList<ImportPreviewResult> previews)
     {
-        var previewDialog = new ImportPreviewDialog(previews, _store.ListAccounts(), _store.ListCategories(), _store.ExistingFingerprints()) { XamlRoot = ContentHost.XamlRoot };
+        var previewDialog = new ImportPreviewDialog(previews, _store.ListAccounts(), _store.ListCategories(), _store.List()) { XamlRoot = ContentHost.XamlRoot };
         if (await previewDialog.ShowAsync() != ContentDialogResult.Primary)
         {
             StatusText.Text = "已取消截图导入，识别结果没有写入账本";
