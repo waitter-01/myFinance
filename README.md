@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8">
     <img src="https://img.shields.io/badge/UI-WinUI%203-146C70" alt="WinUI 3">
     <img src="https://img.shields.io/badge/数据库-SQLite-0F80CC" alt="SQLite">
-    <img src="https://img.shields.io/badge/版本-v0.1.0-6B7280" alt="v0.1.0">
+    <img src="https://img.shields.io/badge/版本-v0.2.0-6B7280" alt="v0.2.0">
   </p>
 </div>
 
@@ -26,6 +26,9 @@
 - 自动去重：通过交易时间、金额、方向、交易对方等信息生成指纹，避免重复导入。
 - 财务总览：显示本月收入、支出、结余和最近流水。
 - 手动录入：填写日期、收支、金额、分类、交易对方和备注后直接保存。
+- 流水维护：支持编辑、删除以及收入、支出、转账、退款和报销类型。
+- 账户管理：管理现金、银行卡、信用卡和电子钱包，并计算账户余额。
+- 导入预览：写入数据库前核对有效流水、重复记录和问题行。
 - 自主设置：可调整小额消费阈值、月度预算、提醒计划和订阅识别关键词。
 - 订阅统计：自动归集会员、续费和游戏月卡，按近 12 个月付款折算月均成本。
 - 流水搜索：按交易对方或备注查找记录。
@@ -36,7 +39,7 @@
 
 ## 当前版本
 
-当前版本为 **v0.1.0**，是首个可使用的桌面 MVP。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本为 **v0.2.0**，重点完善流水准确性、账户管理和导入核对。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
 
 版本号采用 `主版本.次版本.修订版本`：
 
@@ -57,7 +60,10 @@
 | 手动新增流水 | 可用 | 保存后立即刷新总览和流水列表 |
 | 偏好设置 | 可用 | 财务阈值、预算、提醒和订阅关键词持久化保存 |
 | 订阅与月卡统计 | 可用 | 关键词识别、本月实付和近 12 个月月均分摊 |
-| 编辑和删除流水 | 开发中 | 尚未接入操作入口 |
+| 编辑和删除流水 | 可用 | 编辑保留来源和指纹，删除前二次确认 |
+| 完整交易类型 | 可用 | 支出、收入、转账、退款和报销 |
+| 账户管理 | 可用 | 期初余额、动态余额、停用和流水关联 |
+| 导入预览 | 可用 | 有效记录、重复项和问题行报告 |
 | 预算管理 | 规划中 | 已有页面框架，业务功能尚未接入 |
 | 分类编辑 | 规划中 | 已有页面框架，业务功能尚未接入 |
 
@@ -89,7 +95,7 @@ dotnet run --project .\desktop\DuxiuLedger.Desktop\DuxiuLedger.Desktop.csproj
 
 ```text
 desktop\publish\win-x64\DuxiuLedger.exe
-desktop\publish\DuxiuLedger-v0.1.0-win-x64.zip
+desktop\publish\DuxiuLedger-v0.2.0-win-x64.zip
 ```
 
 单文件 EXE 可以单独复制运行，首次启动时会将 WinUI 3 运行依赖释放到临时目录，因此第一次启动可能稍慢。发布目录已被 Git 忽略，不会提交到仓库。
@@ -113,7 +119,7 @@ winget install --id JRSoftware.InnoSetup -e
 生成文件：
 
 ```text
-desktop\publish\installer\DuxiuLedger-Setup-v0.1.0-win-x64.exe
+desktop\publish\installer\DuxiuLedger-Setup-v0.2.0-win-x64.exe
 ```
 
 安装程序默认安装到当前用户的 `%LOCALAPPDATA%\Programs\DuxiuLedger`，不要求管理员权限，并提供开始菜单、可选桌面快捷方式和标准卸载入口。
@@ -225,10 +231,13 @@ dotnet build .\desktop\DuxiuLedger.Desktop\DuxiuLedger.Desktop.csproj -c Release
 - [x] 手动新增流水
 - [x] 可持久化的财务偏好设置
 - [x] 订阅、会员与游戏月卡成本统计
-- [ ] 编辑和删除流水
+- [x] 编辑和删除流水
+- [x] 收入、支出、转账、退款和报销类型
+- [x] 本地账户管理和流水关联
 - [ ] 可编辑分类与自动分类规则
 - [ ] 月度预算设置和使用进度
-- [ ] 导入预览、字段映射和错误行报告
+- [x] 导入预览和错误行报告
+- [ ] 银行账单字段映射向导
 - [ ] 图表、月报和年度汇总
 - [x] Inno Setup 安装程序配置
 - [ ] 代码签名和 GitHub Releases

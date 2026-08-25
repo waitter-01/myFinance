@@ -14,7 +14,7 @@
 .\\desktop\\publish-win-x64.ps1
 ```
 
-生成文件为 `desktop/publish/win-x64/DuxiuLedger.exe`，压缩包为 `desktop/publish/DuxiuLedger-v0.1.0-win-x64.zip`。目标电脑不需要安装 .NET Runtime 或 Windows App SDK Runtime。
+生成文件为 `desktop/publish/win-x64/DuxiuLedger.exe`，压缩包为 `desktop/publish/DuxiuLedger-v0.2.0-win-x64.zip`。目标电脑不需要安装 .NET Runtime 或 Windows App SDK Runtime。
 
 单文件 EXE 会在首次启动时释放 WinUI 3 运行依赖到临时目录，可以独立复制和运行。
 
@@ -24,8 +24,8 @@
 .\desktop\build-installer.ps1
 ```
 
-安装程序输出到 `desktop/publish/installer/DuxiuLedger-Setup-v0.1.0-win-x64.exe`，支持当前用户安装、开始菜单快捷方式、可选桌面快捷方式和卸载。
+安装程序输出到 `desktop/publish/installer/DuxiuLedger-Setup-v0.2.0-win-x64.exe`，支持当前用户安装、开始菜单快捷方式、可选桌面快捷方式和卸载。
 
-当前版本为 `v0.1.0`，版本变更记录位于仓库根目录的 `CHANGELOG.md`。
+当前版本为 `v0.2.0`，版本变更记录位于仓库根目录的 `CHANGELOG.md`。
 
-支付宝或微信导出文件可能因版本和导出语言产生不同表头；遇到无法识别的文件，程序会提示缺少日期/金额列。应用也支持手动录入日期、收支、金额、分类、交易对方和备注。下一步可以增加表头映射向导，以及流水编辑和删除功能。
+支付宝或微信导出文件可能因版本和导出语言产生不同表头；导入预览会列出无法解析的行。应用支持流水编辑、删除、账户关联以及退款、报销和转账。下一步将增加银行账单字段映射向导和可编辑分类规则。
