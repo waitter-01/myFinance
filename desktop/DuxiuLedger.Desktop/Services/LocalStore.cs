@@ -79,6 +79,15 @@ public sealed class LocalStore
         tx.Commit(); return count;
     }
 
+    public IReadOnlySet<string> ExistingFingerprints()
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT fingerprint FROM transactions";
+        using var reader = cmd.ExecuteReader(); var values = new HashSet<string>(StringComparer.Ordinal);
+        while (reader.Read()) values.Add(reader.GetString(0));
+        return values;
+    }
+
     public bool Update(TransactionRecord row)
     {
         using var c = Open(); using var cmd = c.CreateCommand();
