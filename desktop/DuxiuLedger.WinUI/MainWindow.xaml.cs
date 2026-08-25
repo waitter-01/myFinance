@@ -353,8 +353,19 @@ public sealed partial class MainWindow : Window
 
     private async void PasteScreenshotAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (IsTextInputFocused())
+        {
+            args.Handled = false;
+            return;
+        }
         args.Handled = true;
         await PasteScreenshotAsync();
+    }
+
+    private bool IsTextInputFocused()
+    {
+        var focused = FocusManager.GetFocusedElement(Content.XamlRoot);
+        return focused is TextBox or PasswordBox or RichEditBox or NumberBox or AutoSuggestBox;
     }
 
     private async Task PasteScreenshotAsync()
