@@ -15,21 +15,23 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>DuxiuLedger</AssemblyName>
-    <Version>0.12.1-ocr-test.2</Version>
+    <Version>0.12.1-ocr-test.3</Version>
     <AssemblyVersion>0.12.1.0</AssemblyVersion>
     <FileVersion>0.12.1.0</FileVersion>
-    <InformationalVersion>0.12.1-ocr-test.2</InformationalVersion>
+    <InformationalVersion>0.12.1-ocr-test.3</InformationalVersion>
     <Product>独秀账本</Product>
     <Authors>waitter-01</Authors>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.7705" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260317003" />
+    <PackageReference Include="Tesseract" Version="5.2.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DuxiuLedger.Core\DuxiuLedger.Core.csproj" />
     <Content Include="..\..\assets\duxiu-logo.png" Link="Assets\duxiu-logo.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\assets\duxiu-logo.ico" Link="Assets\duxiu-logo.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\assets\tessdata\eng.traineddata" Link="Assets\tessdata\eng.traineddata" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <Target Name="CopyWinUiMarkupToPublishDirectory" AfterTargets="Publish" Condition="'$(PublishSingleFile)' != 'true'">
     <ItemGroup>
