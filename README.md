@@ -8,6 +8,7 @@
     <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8">
     <img src="https://img.shields.io/badge/UI-WinUI%203-146C70" alt="WinUI 3">
     <img src="https://img.shields.io/badge/数据库-SQLite-0F80CC" alt="SQLite">
+    <img src="https://img.shields.io/badge/版本-v0.1.0-6B7280" alt="v0.1.0">
   </p>
 </div>
 
@@ -31,7 +32,17 @@
 - 数据备份：可直接导出 SQLite 数据库备份并打开数据目录。
 - 原生 WinUI 3：使用 Windows App SDK 的 NavigationView、Mica、ContentDialog 和主题控件。
 - 统一字体：中文界面统一使用 Microsoft YaHei UI，支持系统深浅色主题。
-- 独立运行：可发布为自包含便携目录，目标电脑无需安装 .NET Runtime 或 Windows App SDK Runtime。
+- 独立运行：可发布为真正的单文件 EXE，目标电脑无需安装 .NET Runtime 或 Windows App SDK Runtime。
+
+## 当前版本
+
+当前版本为 **v0.1.0**，是首个可使用的桌面 MVP。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
+
+版本号采用 `主版本.次版本.修订版本`：
+
+- 新增一组向后兼容功能：增加次版本，例如 `v0.2.0`。
+- 只修复问题且不新增功能：增加修订版本，例如 `v0.1.1`。
+- 出现不兼容的数据或使用方式变更：增加主版本，例如 `v1.0.0` 到 `v2.0.0`。
 
 ## 当前状态
 
@@ -78,10 +89,52 @@ dotnet run --project .\desktop\DuxiuLedger.Desktop\DuxiuLedger.Desktop.csproj
 
 ```text
 desktop\publish\win-x64\DuxiuLedger.exe
-desktop\publish\DuxiuLedger-win-x64.zip
+desktop\publish\DuxiuLedger-v0.1.0-win-x64.zip
 ```
 
-WinUI 3 自包含版需要保留发布目录中的运行库和 XAML 资源，不能只复制一个 EXE。将 ZIP 完整解压后可直接运行，也可以执行其中的 `安装独秀账本.ps1` 安装到当前用户目录并创建开始菜单快捷方式。发布目录已被 Git 忽略，不会提交到仓库。
+单文件 EXE 可以单独复制运行，首次启动时会将 WinUI 3 运行依赖释放到临时目录，因此第一次启动可能稍慢。发布目录已被 Git 忽略，不会提交到仓库。
+
+### 生成安装程序
+
+项目提供 Inno Setup 配置，可以把应用封装为单个带安装和卸载向导的 `Setup.exe`。
+
+先安装 [Inno Setup](https://jrsoftware.org/isinfo.php)：
+
+```powershell
+winget install --id JRSoftware.InnoSetup -e
+```
+
+然后在仓库根目录执行：
+
+```powershell
+.\desktop\build-installer.ps1
+```
+
+生成文件：
+
+```text
+desktop\publish\installer\DuxiuLedger-Setup-v0.1.0-win-x64.exe
+```
+
+安装程序默认安装到当前用户的 `%LOCALAPPDATA%\Programs\DuxiuLedger`，不要求管理员权限，并提供开始菜单、可选桌面快捷方式和标准卸载入口。
+
+### 发布新版本
+
+每次发布版本时按以下顺序操作：
+
+1. 修改 `desktop/DuxiuLedger.WinUI/DuxiuLedger.WinUI.csproj` 中的 `Version`、`AssemblyVersion`、`FileVersion` 和 `InformationalVersion`。
+2. 在 `CHANGELOG.md` 顶部增加新版本、发布日期、新增内容、修复内容和已知限制。
+3. 更新 README 顶部版本徽章以及文档中的安装包文件名。
+4. 执行 `desktop/publish-win-x64.ps1` 和 `desktop/build-installer.ps1`，验证 EXE 与安装程序。
+5. 使用中文提交版本变更，然后创建并推送 Git 标签：
+
+```powershell
+git tag -a v0.2.0 -m "版本：发布 v0.2.0"
+git push origin master
+git push origin v0.2.0
+```
+
+6. 在 GitHub Releases 中使用相同标签创建发行版，并上传单文件 EXE、ZIP 和安装程序。发布说明以 `CHANGELOG.md` 对应版本内容为准。
 
 ## 导入账单
 
@@ -125,7 +178,9 @@ myFinance/
 │   ├── DuxiuLedger.WinUI/      # 当前 WinUI 3 桌面应用源码
 │   ├── DuxiuLedger.Desktop/    # 保留的 WPF 回退版本与共享业务源码
 │   ├── templates/              # Excel 导入模板
-│   ├── publish-win-x64.ps1     # Windows 自包含发布脚本
+│   ├── installer/              # Inno Setup 安装程序定义
+│   ├── publish-win-x64.ps1     # Windows 单文件 EXE 发布脚本
+│   ├── build-installer.ps1     # 安装程序自动构建脚本
 │   └── README.md               # 桌面端补充说明
 ├── src/                        # 早期 Next.js Web 原型
 ├── prisma/                     # Web 原型数据库模型
@@ -175,7 +230,8 @@ dotnet build .\desktop\DuxiuLedger.Desktop\DuxiuLedger.Desktop.csproj -c Release
 - [ ] 月度预算设置和使用进度
 - [ ] 导入预览、字段映射和错误行报告
 - [ ] 图表、月报和年度汇总
-- [ ] 安装包、代码签名和 GitHub Releases
+- [x] Inno Setup 安装程序配置
+- [ ] 代码签名和 GitHub Releases
 - [ ] 自动化测试和持续集成
 
 ## 参与贡献
