@@ -6,7 +6,7 @@
   <p>
     <img src="https://img.shields.io/badge/平台-Windows%2010%20%7C%2011-0078D4" alt="Windows">
     <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8">
-    <img src="https://img.shields.io/badge/UI-WPF%20%2F%20Fluent-146C70" alt="WPF Fluent">
+    <img src="https://img.shields.io/badge/UI-WinUI%203-146C70" alt="WinUI 3">
     <img src="https://img.shields.io/badge/数据库-SQLite-0F80CC" alt="SQLite">
   </p>
 </div>
@@ -29,8 +29,9 @@
 - 订阅统计：自动归集会员、续费和游戏月卡，按近 12 个月付款折算月均成本。
 - 流水搜索：按交易对方或备注查找记录。
 - 数据备份：可直接导出 SQLite 数据库备份并打开数据目录。
-- Fluent 风格：采用 WPF 实现接近 WinUI 3 的导航、卡片和交互样式。
-- 独立运行：可发布为自包含的单文件 EXE，目标电脑无需安装 .NET Runtime。
+- 原生 WinUI 3：使用 Windows App SDK 的 NavigationView、Mica、ContentDialog 和主题控件。
+- 统一字体：中文界面统一使用 Microsoft YaHei UI，支持系统深浅色主题。
+- 独立运行：可发布为自包含便携目录，目标电脑无需安装 .NET Runtime 或 Windows App SDK Runtime。
 
 ## 当前状态
 
@@ -77,9 +78,10 @@ dotnet run --project .\desktop\DuxiuLedger.Desktop\DuxiuLedger.Desktop.csproj
 
 ```text
 desktop\publish\win-x64\DuxiuLedger.exe
+desktop\publish\DuxiuLedger-win-x64.zip
 ```
 
-发布目录已被 Git 忽略，不会提交到仓库。正式发行版后续建议通过 GitHub Releases 提供下载。
+WinUI 3 自包含版需要保留发布目录中的运行库和 XAML 资源，不能只复制一个 EXE。将 ZIP 完整解压后可直接运行，也可以执行其中的 `安装独秀账本.ps1` 安装到当前用户目录并创建开始菜单快捷方式。发布目录已被 Git 忽略，不会提交到仓库。
 
 ## 导入账单
 
@@ -120,7 +122,8 @@ desktop\publish\win-x64\DuxiuLedger.exe
 ```text
 myFinance/
 ├── desktop/
-│   ├── DuxiuLedger.Desktop/    # WPF 桌面应用源码
+│   ├── DuxiuLedger.WinUI/      # 当前 WinUI 3 桌面应用源码
+│   ├── DuxiuLedger.Desktop/    # 保留的 WPF 回退版本与共享业务源码
 │   ├── templates/              # Excel 导入模板
 │   ├── publish-win-x64.ps1     # Windows 自包含发布脚本
 │   └── README.md               # 桌面端补充说明
@@ -131,7 +134,7 @@ myFinance/
 
 桌面端主要组件：
 
-- `MainWindow.xaml`：Fluent 风格主界面和页面导航。
+- `DuxiuLedger.WinUI/MainWindow.xaml`：原生 WinUI 3 主界面和页面导航。
 - `LocalStore.cs`：SQLite 数据持久化和查询。
 - `BillImporter.cs`：Excel、CSV 和账单格式识别。
 - `TransactionRecord.cs`：本地流水数据模型。
@@ -159,8 +162,8 @@ dotnet build .\desktop\DuxiuLedger.Desktop\DuxiuLedger.Desktop.csproj -c Release
 
 ## 路线图
 
-- [x] WPF 桌面应用框架
-- [x] Fluent 风格导航与财务总览
+- [x] 原生 WinUI 3 桌面应用框架
+- [x] Mica、NavigationView 与统一中文字体
 - [x] 本地 SQLite 持久化
 - [x] Excel、CSV、微信和支付宝账单基础导入
 - [x] 导入去重与数据备份
