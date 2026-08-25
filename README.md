@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8">
     <img src="https://img.shields.io/badge/UI-WinUI%203-146C70" alt="WinUI 3">
     <img src="https://img.shields.io/badge/同步-S3%20兼容-0F80CC" alt="S3 compatible">
-    <img src="https://img.shields.io/badge/版本-v0.6.1-6B7280" alt="v0.6.1">
+    <img src="https://img.shields.io/badge/版本-v0.6.2-6B7280" alt="v0.6.2">
   </p>
 </div>
 
@@ -46,7 +46,7 @@
 
 ## 当前版本
 
-当前版本为 **v0.6.1**，支持从访问地址自动识别 S3 存储桶，并修复凭据输入时 `Ctrl+V` 被截图识别占用的问题。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本为 **v0.6.2**，修复旧版完整 URL 被误当作 S3 Bucket 而导致 RainS3 拒绝连接的问题。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
 
 版本号采用 `主版本.次版本.修订版本`：
 
@@ -108,7 +108,7 @@ dotnet run --project .\desktop\DuxiuLedger.WinUI\DuxiuLedger.WinUI.csproj -p:Pla
 
 ```text
 desktop\publish\win-x64\DuxiuLedger.exe
-desktop\publish\DuxiuLedger-v0.6.1-win-x64.zip
+desktop\publish\DuxiuLedger-v0.6.2-win-x64.zip
 ```
 
 单文件 EXE 可以单独复制运行，首次启动时会将 WinUI 3 运行依赖释放到临时目录，因此第一次启动可能稍慢。发布目录已被 Git 忽略，不会提交到仓库。
@@ -132,7 +132,7 @@ winget install --id JRSoftware.InnoSetup -e
 生成文件：
 
 ```text
-desktop\publish\installer\DuxiuLedger-Setup-v0.6.1-win-x64.exe
+desktop\publish\installer\DuxiuLedger-Setup-v0.6.2-win-x64.exe
 ```
 
 安装程序默认安装到当前用户的 `%LOCALAPPDATA%\Programs\DuxiuLedger`，不要求管理员权限，并提供开始菜单、可选桌面快捷方式和标准卸载入口。
@@ -148,9 +148,9 @@ desktop\publish\installer\DuxiuLedger-Setup-v0.6.1-win-x64.exe
 5. 使用中文提交版本变更，然后创建并推送 Git 标签：
 
 ```powershell
-git tag -a v0.6.1 -m "版本：发布 v0.6.1"
+git tag -a v0.6.2 -m "版本：发布 v0.6.2"
 git push origin master
-git push origin v0.6.1
+git push origin v0.6.2
 ```
 
 6. 在 GitHub Releases 中使用相同标签创建发行版，并上传单文件 EXE、ZIP 和安装程序。发布说明以 `CHANGELOG.md` 对应版本内容为准。
@@ -203,6 +203,8 @@ git push origin v0.6.1
 - `Secret Key`。
 
 应用会比较访问地址和 API 端点并自动识别 Bucket，上述示例会识别为 `zxx`。Region、Bucket 手动覆盖、同步对象路径、Session Token 和 Path Style 位于高级设置，一般无需修改。
+
+如果从 v0.6.0 或 v0.6.1 升级且曾把完整访问地址填写进 Bucket，高级设置可能留有旧值。v0.6.2 会自动忽略并在下次保存时清理该值，无需手动删除本地设置。
 
 Secret Key 和 Session Token 只通过 Windows DPAPI 加密保存在当前 Windows 用户配置中，不会写入仓库、日志或同步对象。更换电脑时需要重新输入凭据。应用采用本地优先模式，断网时仍可记账，恢复网络后再合并。
 

@@ -2,6 +2,18 @@
 
 本项目采用[语义化版本](https://semver.org/lang/zh-CN/)管理版本，版本号格式为 `主版本.次版本.修订版本`。
 
+## [0.6.2] - 2026-08-25
+
+### 修复
+
+- 自动识别并忽略旧版本中误存为完整访问 URL 的 Bucket 配置，重新从访问地址与 API 端点提取真实桶名。
+- 修复旧错误配置导致 RainS3 返回 `InvalidBucketName / The specified bucket is not valid` 的问题。
+- 补全 S3 同步服务的显式文件流引用，使 WinUI 3 和保留的 WPF 工程均可独立编译。
+
+### 验证
+
+- 使用 RainS3 实际端点完成只读连接验证，Bucket 自动识别为 `zxx`；服务返回 `NoSuchKey`，表明端点、签名凭据和桶访问均已通过，等待应用首次创建同步对象。
+
 ## [0.6.1] - 2026-08-25
 
 ### 新增
@@ -192,6 +204,7 @@
 - 提醒时间可以保存，但 Windows 系统通知尚未接入。
 - 云同步、账户管理、资产负债和多端客户端尚未实现。
 
+[0.6.2]: https://github.com/waitter-01/myFinance/releases/tag/v0.6.2
 [0.6.1]: https://github.com/waitter-01/myFinance/releases/tag/v0.6.1
 [0.6.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.6.0
 [0.2.0]: https://github.com/waitter-01/myFinance/releases/tag/v0.2.0
