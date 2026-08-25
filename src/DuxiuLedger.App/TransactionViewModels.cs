@@ -4,6 +4,14 @@ using System.ComponentModel;
 
 namespace DuxiuLedger.WinUI;
 
+public enum TransactionGroupMode
+{
+    None,
+    Day,
+    Week,
+    Month
+}
+
 public sealed class TransactionFilterOption : INotifyPropertyChanged
 {
     private bool _isSelected;
@@ -43,9 +51,17 @@ public sealed class TransactionDateGroup : ObservableCollection<TransactionRecor
         Summary = string.Join(" · ", parts);
     }
 
-    public TransactionDateGroup(string label, IEnumerable<TransactionRecord> rows) : base(rows)
+    public TransactionDateGroup(string label, IEnumerable<TransactionRecord> rows, bool includeFinancialSummary = false) : base(rows)
     {
         DateLabel = label;
-        Summary = $"{Count} 笔";
+        if (!includeFinancialSummary) { Summary = $"{Count} 笔"; return; }
+        var expense = this.Where(row => row.Direction == "支出").Sum(row => row.Amount);
+        var refunds = this.Where(row => row.Direction is "退款" or "报销").Sum(row => row.Amount);
+        var income = this.Where(row => row.Direction == "收入").Sum(row => row.Amount);
+        var parts = new List<string>();
+        if (expense > 0 || refunds > 0) parts.Add($"净支出 ¥{expense - refunds:N2}");
+        if (income > 0) parts.Add($"收入 ¥{income:N2}");
+        parts.Add($"{Count} 笔");
+        Summary = string.Join(" · ", parts);
     }
 }

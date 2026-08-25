@@ -25,6 +25,7 @@ public sealed partial class MainWindow : Window
     private AnalysisPeriodKind _analysisPeriod = AnalysisPeriodKind.Month;
     private DateTime _analysisAnchor = DateTime.Today;
     private TransactionQuery _transactionQuery = new();
+    private TransactionGroupMode _transactionGroupMode = TransactionGroupMode.Day;
     private readonly CollectionViewSource _transactionGroupsSource = new() { IsSourceGrouped = true };
     private readonly List<TransactionFilterOption> _transactionCategoryOptions = [];
     private readonly List<TransactionFilterOption> _transactionAccountOptions = [];
@@ -668,10 +669,16 @@ public sealed partial class MainWindow : Window
     {
         RefreshTransactionFilterOptions();
         var result = _store.QueryTransactions(_transactionQuery);
-        IReadOnlyList<TransactionDateGroup> groups = _transactionQuery.SortBy is TransactionSortOption.DateAscending or TransactionSortOption.DateDescending
-            ? result.Rows.GroupBy(row => row.OccurredOn.Date).Select(group => new TransactionDateGroup(group.Key, group)).ToList()
-            : [new TransactionDateGroup(TransactionSortLabel(_transactionQuery.SortBy), result.Rows)];
-        _transactionGroupsSource.Source = groups;
+        if (_transactionGroupMode == TransactionGroupMode.None)
+        {
+            _transactionGroupsSource.IsSourceGrouped = false;
+            _transactionGroupsSource.Source = result.Rows;
+        }
+        else
+        {
+            _transactionGroupsSource.IsSourceGrouped = true;
+            _transactionGroupsSource.Source = BuildTransactionGroups(result.Rows);
+        }
         TransactionsList.ItemsSource = _transactionGroupsSource.View;
         TransactionsList.Visibility = result.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         TransactionsEmptyState.Visibility = result.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -691,6 +698,39 @@ public sealed partial class MainWindow : Window
         TransactionSortOption.MerchantAscending => "按商户名称排序",
         _ => "筛选结果"
     };
+
+    private IReadOnlyList<TransactionDateGroup> BuildTransactionGroups(IReadOnlyList<TransactionRecord> rows)
+    {
+        DateTime GroupStart(TransactionRecord row) => _transactionGroupMode switch
+        {
+            TransactionGroupMode.Week => row.OccurredOn.Date.AddDays(-(((int)row.OccurredOn.DayOfWeek + 6) % 7)),
+            TransactionGroupMode.Month => new DateTime(row.OccurredOn.Year, row.OccurredOn.Month, 1),
+            _ => row.OccurredOn.Date
+        };
+        var groups = rows.GroupBy(GroupStart);
+        groups = _transactionQuery.SortBy == TransactionSortOption.DateAscending ? groups.OrderBy(group => group.Key) : groups.OrderByDescending(group => group.Key);
+        return groups.Select(group => _transactionGroupMode switch
+        {
+            TransactionGroupMode.Week => new TransactionDateGroup(FormatWeekLabel(group.Key), group, true),
+            TransactionGroupMode.Month => new TransactionDateGroup(group.Key.ToString("yyyy年M月"), group, true),
+            _ => new TransactionDateGroup(group.Key, group)
+        }).ToList();
+    }
+
+    private static string FormatWeekLabel(DateTime start)
+    {
+        var end = start.AddDays(6);
+        return start.Year == end.Year
+            ? start.Month == end.Month ? $"{start:yyyy年M月d日}—{end:d日}" : $"{start:yyyy年M月d日}—{end:M月d日}"
+            : $"{start:yyyy年M月d日}—{end:yyyy年M月d日}";
+    }
+
+    private void TransactionGroupChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_transactionFiltersReady) return;
+        _transactionGroupMode = (TransactionGroupMode)Math.Max(0, TransactionGroupBox.SelectedIndex);
+        ApplyTransactionQuery();
+    }
 
     private void UpdateTransactionFilterPresentation()
     {

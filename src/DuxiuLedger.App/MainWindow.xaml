@@ -221,13 +221,14 @@
             <Grid>
               <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
               <Grid ColumnSpacing="8">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="150" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="138" /><ColumnDefinition Width="118" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <AutoSuggestBox x:Name="TransactionsSearchBox" PlaceholderText="搜索商户、备注、分类、账户或来源" QueryIcon="Find" TextChanged="TransactionsSearchTextChanged" QuerySubmitted="TransactionsSearchSubmitted" />
                 <ComboBox x:Name="TransactionDatePresetBox" Grid.Column="1" SelectedIndex="0" SelectionChanged="TransactionDatePresetChanged"><ComboBoxItem Content="全部时间" /><ComboBoxItem Content="本月" /><ComboBoxItem Content="上月" /><ComboBoxItem Content="最近 7 天" /><ComboBoxItem Content="最近 30 天" /><ComboBoxItem Content="本年度" /><ComboBoxItem Content="自定义日期" /></ComboBox>
-                <Button x:Name="DirectionFilterButton" Grid.Column="2" Content="收支类型" Click="OpenTransactionFiltersClick" />
-                <Button x:Name="CategoryFilterButton" Grid.Column="3" Content="分类" Click="OpenTransactionFiltersClick" />
-                <Button x:Name="AccountFilterButton" Grid.Column="4" Content="账户" Click="OpenTransactionFiltersClick" />
-                <Button x:Name="MoreTransactionFiltersButton" Grid.Column="5" Content="更多筛选" Click="OpenTransactionFiltersClick" />
+                <ComboBox x:Name="TransactionGroupBox" Grid.Column="2" SelectedIndex="1" SelectionChanged="TransactionGroupChanged" ToolTipService.ToolTip="选择流水列表的分隔方式"><ComboBoxItem Content="不分组" /><ComboBoxItem Content="按天分组" /><ComboBoxItem Content="按周分组" /><ComboBoxItem Content="按月分组" /></ComboBox>
+                <Button x:Name="DirectionFilterButton" Grid.Column="3" Content="收支类型" Click="OpenTransactionFiltersClick" />
+                <Button x:Name="CategoryFilterButton" Grid.Column="4" Content="分类" Click="OpenTransactionFiltersClick" />
+                <Button x:Name="AccountFilterButton" Grid.Column="5" Content="账户" Click="OpenTransactionFiltersClick" />
+                <Button x:Name="MoreTransactionFiltersButton" Grid.Column="6" Content="更多筛选" Click="OpenTransactionFiltersClick" />
               </Grid>
               <Grid Grid.Row="1" Margin="0,10,0,8" ColumnSpacing="10">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
