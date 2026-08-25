@@ -18,6 +18,12 @@ public sealed class TransactionRecord
     public int SubscriptionMonths { get; set; } = 1;
     public string DateDisplay => OccurredOn.ToString("yyyy-MM-dd HH:mm");
     public string AmountDisplay => $"¥{Amount:N2}";
+    public string SignedAmountDisplay => Direction switch
+    {
+        "支出" => $"-¥{Amount:N2}",
+        "收入" or "退款" or "报销" => $"+¥{Amount:N2}",
+        _ => $"¥{Amount:N2}"
+    };
     public string AccountDisplay => Direction == "转账" && !string.IsNullOrWhiteSpace(ToAccountName)
         ? $"{AccountName} → {ToAccountName}"
         : AccountName;

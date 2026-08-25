@@ -131,20 +131,28 @@
                 <ListView x:Name="RecentList" Grid.Row="1" SelectionMode="None">
                   <ListView.ItemTemplate>
                     <DataTemplate x:DataType="models:TransactionRecord">
-                      <Grid Padding="8" ColumnSpacing="12">
-                        <Grid.ColumnDefinitions>
-                          <ColumnDefinition Width="150" />
-                          <ColumnDefinition Width="72" />
-                          <ColumnDefinition Width="110" />
-                          <ColumnDefinition Width="*" />
-                          <ColumnDefinition Width="150" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="{x:Bind DateDisplay}" />
-                        <TextBlock Grid.Column="1" Text="{x:Bind Direction}" />
-                        <TextBlock Grid.Column="2" Text="{x:Bind AmountDisplay}" FontWeight="SemiBold" />
-                        <TextBlock Grid.Column="3" Text="{x:Bind Merchant}" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Grid.Column="4" Text="{x:Bind Source}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                      </Grid>
+                      <Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="4,9">
+                        <Grid ColumnSpacing="12">
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="4" />
+                            <ColumnDefinition Width="140" />
+                            <ColumnDefinition Width="80" />
+                            <ColumnDefinition Width="112" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="132" />
+                          </Grid.ColumnDefinitions>
+                          <Border Width="3" CornerRadius="2" Background="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionForeground}" />
+                          <TextBlock Grid.Column="1" Text="{x:Bind DateDisplay}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                          <Border Grid.Column="2" Padding="9,3" CornerRadius="10" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionBackground}">
+                            <TextBlock Text="{x:Bind Direction}" FontWeight="SemiBold" Foreground="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionForeground}" />
+                          </Border>
+                          <TextBlock Grid.Column="3" Text="{x:Bind SignedAmountDisplay}" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionForeground}" />
+                          <TextBlock Grid.Column="4" Text="{x:Bind Merchant}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                          <Border Grid.Column="5" Padding="9,3" CornerRadius="10" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding Category, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=CategoryBackground}" BorderBrush="{Binding Category, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=CategoryBorder}" BorderThickness="1">
+                            <TextBlock Text="{x:Bind Category}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                          </Border>
+                        </Grid>
+                      </Border>
                     </DataTemplate>
                   </ListView.ItemTemplate>
                 </ListView>
@@ -164,26 +172,32 @@
               <ListView x:Name="TransactionsList" SelectionMode="None">
                 <ListView.ItemTemplate>
                   <DataTemplate x:DataType="models:TransactionRecord">
-                    <Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="8,10">
+                    <Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="4,10">
                       <Grid ColumnSpacing="10">
                         <Grid.ColumnDefinitions>
-                          <ColumnDefinition Width="140" />
-                          <ColumnDefinition Width="60" />
-                          <ColumnDefinition Width="96" />
-                          <ColumnDefinition Width="96" />
-                          <ColumnDefinition Width="120" />
+                          <ColumnDefinition Width="4" />
+                          <ColumnDefinition Width="130" />
+                          <ColumnDefinition Width="74" />
+                          <ColumnDefinition Width="104" />
+                          <ColumnDefinition Width="116" />
+                          <ColumnDefinition Width="116" />
                           <ColumnDefinition Width="*" />
                           <ColumnDefinition Width="*" />
                           <ColumnDefinition Width="136" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="{x:Bind DateDisplay}" />
-                        <TextBlock Grid.Column="1" Text="{x:Bind Direction}" />
-                        <TextBlock Grid.Column="2" Text="{x:Bind AmountDisplay}" FontWeight="SemiBold" />
-                        <TextBlock Grid.Column="3" Text="{x:Bind Category}" />
-                        <TextBlock Grid.Column="4" Text="{x:Bind AccountDisplay}" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Grid.Column="5" Text="{x:Bind Merchant}" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Grid.Column="6" Text="{x:Bind Note}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
-                        <StackPanel Grid.Column="7" Orientation="Horizontal" Spacing="6">
+                        <Border Width="3" CornerRadius="2" Background="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionForeground}" />
+                        <TextBlock Grid.Column="1" Text="{x:Bind DateDisplay}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Border Grid.Column="2" Padding="8,3" CornerRadius="10" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionBackground}">
+                          <TextBlock Text="{x:Bind Direction}" FontWeight="SemiBold" Foreground="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionForeground}" />
+                        </Border>
+                        <TextBlock Grid.Column="3" Text="{x:Bind SignedAmountDisplay}" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionForeground}" />
+                        <Border Grid.Column="4" Padding="8,3" CornerRadius="10" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding Category, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=CategoryBackground}" BorderBrush="{Binding Category, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=CategoryBorder}" BorderThickness="1">
+                          <TextBlock Text="{x:Bind Category}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                        </Border>
+                        <TextBlock Grid.Column="5" Text="{x:Bind AccountDisplay}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="6" Text="{x:Bind Merchant}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Merchant}" />
+                        <TextBlock Grid.Column="7" Text="{x:Bind Note}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Note}" />
+                        <StackPanel Grid.Column="8" Orientation="Horizontal" Spacing="6">
                           <Button Content="编辑" Tag="{x:Bind}" Click="EditTransactionClick" />
                           <Button Content="删除" Tag="{x:Bind}" Click="DeleteTransactionClick" />
                         </StackPanel>
