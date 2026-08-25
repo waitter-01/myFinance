@@ -96,4 +96,78 @@ public sealed class ScreenshotBillParserTests
         Assert.Equal("收入", result.Records[1].Direction);
         Assert.Equal("工资收入", result.Records[1].Category);
     }
+
+    [Fact]
+    public void Parse_CorrectsCiticThreeMisreadAsFiveUsingAdjacentBalances()
+    {
+        var tokens = new List<ScreenshotOcrToken>
+        {
+            new("交易明细", 280, 120, 180, 40), new("借记卡4054", 290, 260, 180, 36), new("本月", 60, 390, 80, 34),
+            new("支付宝-Sapphire Enter", 65, 520, 390, 42), new("2026-08-24 13:31:34", 65, 575, 330, 34), new("-¥5.75", 760, 520, 170, 42), new("余额961.93", 760, 575, 160, 34),
+            new("支付宝-东莞市海莫智选", 65, 690, 390, 42), new("2026-08-24 11:03:33", 65, 745, 330, 34), new("-¥159.00", 760, 690, 170, 42), new("余额965.68", 760, 745, 160, 34)
+        };
+
+        var result = ScreenshotBillParser.Parse(tokens, 1000, 1000, "中信纠错.png", new DateTime(2026, 8, 25));
+
+        Assert.Equal(3.75m, result.Records[0].Amount);
+        Assert.True(result.Records[0].RequiresReview);
+        Assert.Contains("从 ¥5.75 校正为 ¥3.75", result.Records[0].Note);
+        Assert.Contains(result.Issues, issue => issue.Record == result.Records[0] && issue.Reason.Contains("余额自动校正"));
+    }
+
+    [Fact]
+    public void Parse_DoesNotReplaceAmountWhenBalanceDifferenceIsNotTypicalDigitConfusion()
+    {
+        var tokens = new List<ScreenshotOcrToken>
+        {
+            new("交易明细", 280, 120, 180, 40), new("借记卡4054", 290, 260, 180, 36), new("本月", 60, 390, 80, 34),
+            new("商户一", 65, 520, 220, 42), new("2026-08-24 13:31:34", 65, 575, 330, 34), new("-¥20.00", 760, 520, 170, 42), new("余额900.00", 760, 575, 160, 34),
+            new("商户二", 65, 690, 220, 42), new("2026-08-24 11:03:33", 65, 745, 330, 34), new("-¥100.00", 760, 690, 170, 42), new("余额950.00", 760, 745, 160, 34)
+        };
+
+        var result = ScreenshotBillParser.Parse(tokens, 1000, 1000, "中信保守校验.png", new DateTime(2026, 8, 25));
+
+        Assert.Equal(20m, result.Records[0].Amount);
+        Assert.DoesNotContain("余额差额", result.Records[0].Note);
+    }
+
+    [Fact]
+    public void Parse_UsesWordLevelAmountWhenIcbcMergedLineCannotBeAnAnchor()
+    {
+        var tokens = new List<ScreenshotOcrToken>
+        {
+            new("查询明细", 370, 100, 190, 42), new("工银借记卡5436", 220, 270, 250, 38), new("人民币余额756.17", 220, 320, 260, 34), new("2026年08月", 50, 640, 180, 36),
+            new("25", 40, 780, 55, 42), new("还款-1,330.79", 140, 780, 800, 44), new("还款", 140, 780, 90, 42), new("-1,330.79", 760, 780, 180, 44),
+            new("美团支付-美团月付还款", 140, 835, 360, 36), new("工银借记卡5436 10:15:06", 140, 890, 390, 34), new("10:15:06", 390, 890, 130, 34),
+            new("15", 40, 1030, 55, 42), new("工资+2,086.96", 140, 1030, 800, 44), new("工资", 140, 1030, 90, 42), new("+2,086.96", 760, 1030, 180, 44),
+            new("华夏航空科技（北京）有限公司", 140, 1085, 420, 36), new("工银借记卡5436 01:15:51", 140, 1140, 390, 34), new("01:15:51", 390, 1140, 130, 34)
+        };
+
+        var result = ScreenshotBillParser.Parse(tokens, 1000, 1300, "工商分词.png", new DateTime(2026, 8, 25));
+
+        Assert.Equal(2, result.TotalRows);
+        Assert.Equal(2, result.Records.Count);
+        Assert.Equal("美团支付-美团月付还款", result.Records[0].Merchant);
+        Assert.Equal(1330.79m, result.Records[0].Amount);
+    }
+
+    [Fact]
+    public void Parse_UsesTrustedDigitCorrectionWithoutMarkingRecordAsUncertain()
+    {
+        var tokens = new List<ScreenshotOcrToken>
+        {
+            new("交易明细", 280, 120, 180, 40), new("借记卡4054", 290, 260, 180, 36),
+            new("测试商户", 65, 500, 220, 42), new("2026-08-20 19:25:12", 65, 555, 330, 34),
+            new("2026-08-20 19:23:12", 65, 555, 330, 34, "时间经固定区域多轮识别从 2026-08-20 19:25:12 校正为 2026-08-20 19:23:12", false),
+            new("-¥11.90", 760, 500, 170, 42), new("余额1215.30", 760, 555, 160, 34)
+        };
+
+        var result = ScreenshotBillParser.Parse(tokens, 1000, 800, "中信时间纠错.png", new DateTime(2026, 8, 25));
+
+        var record = Assert.Single(result.Records);
+        Assert.Equal(new DateTime(2026, 8, 20, 19, 23, 12), record.OccurredOn);
+        Assert.False(record.RequiresReview);
+        Assert.Empty(result.Issues);
+        Assert.Contains("时间经固定区域多轮识别", record.Note);
+    }
 }
