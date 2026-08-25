@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DuxiuLedger.App", "src\Duxi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DuxiuLedger.Core", "src\DuxiuLedger.Core\DuxiuLedger.Core.csproj", "{C9AF0A66-6BB8-4AD8-986A-88E73B3DBF1E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DuxiuLedger.Core.Tests", "tests\DuxiuLedger.Core.Tests\DuxiuLedger.Core.Tests.csproj", "{EBAA2B68-F44C-4D1C-9A5D-8C51EE80A691}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -20,5 +22,9 @@ Global
 		{C9AF0A66-6BB8-4AD8-986A-88E73B3DBF1E}.Debug|x64.Build.0 = Debug|Any CPU
 		{C9AF0A66-6BB8-4AD8-986A-88E73B3DBF1E}.Release|x64.ActiveCfg = Release|Any CPU
 		{C9AF0A66-6BB8-4AD8-986A-88E73B3DBF1E}.Release|x64.Build.0 = Release|Any CPU
+		{EBAA2B68-F44C-4D1C-9A5D-8C51EE80A691}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{EBAA2B68-F44C-4D1C-9A5D-8C51EE80A691}.Debug|x64.Build.0 = Debug|Any CPU
+		{EBAA2B68-F44C-4D1C-9A5D-8C51EE80A691}.Release|x64.ActiveCfg = Release|Any CPU
+		{EBAA2B68-F44C-4D1C-9A5D-8C51EE80A691}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
