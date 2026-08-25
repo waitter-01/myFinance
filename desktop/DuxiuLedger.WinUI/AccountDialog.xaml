@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentDialog
+    x:Class="DuxiuLedger.WinUI.AccountDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="新增账户"
+    PrimaryButtonText="保存"
+    CloseButtonText="取消"
+    DefaultButton="Primary"
+    PrimaryButtonClick="OnPrimaryButtonClick">
+  <StackPanel Width="420" Spacing="12">
+    <TextBox x:Name="NameBox" Header="账户名称" PlaceholderText="例如：工资卡、微信零钱" />
+    <ComboBox x:Name="TypeBox" Header="账户类型" HorizontalAlignment="Stretch" />
+    <NumberBox x:Name="OpeningBalanceBox" Header="期初余额（元）" SpinButtonPlacementMode="Compact" />
+    <ToggleSwitch x:Name="ActiveSwitch" Header="账户状态" OnContent="使用中" OffContent="已停用" IsOn="True" />
+    <InfoBar x:Name="ValidationInfo" IsOpen="False" Severity="Error" IsClosable="False" />
+  </StackPanel>
+</ContentDialog>
