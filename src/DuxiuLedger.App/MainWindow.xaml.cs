@@ -298,12 +298,12 @@ public sealed partial class MainWindow : Window
                 });
             }
         }
-        var previewDialog = new ImportPreviewDialog(previews, _store.ListAccounts(), _store.ListCategories(), _store.List()) { XamlRoot = ContentHost.XamlRoot };
-        if (await previewDialog.ShowAsync() != ContentDialogResult.Primary) return;
-        var imported = _store.Import(previewDialog.RowsToImport);
+        var previewWindow = new ImportPreviewWindow(previews, _store.ListAccounts(), _store.ListCategories(), _store.List());
+        if (!await previewWindow.ShowAsync(this)) return;
+        var imported = _store.Import(previewWindow.RowsToImport);
         LoadDashboard();
         SelectNavigation("Transactions");
-        StatusText.Text = $"导入完成：新增 {imported} 条，重复 {previewDialog.DuplicateCount} 条，问题行 {previewDialog.IssueCount} 条";
+        StatusText.Text = $"导入完成：新增 {imported} 条，重复 {previewWindow.DuplicateCount} 条，问题行 {previewWindow.IssueCount} 条";
     }
 
     private async void ScreenshotImportClick(object sender, RoutedEventArgs e)
@@ -433,16 +433,16 @@ public sealed partial class MainWindow : Window
 
     private async Task ShowScreenshotPreviewsAsync(IReadOnlyList<ImportPreviewResult> previews)
     {
-        var previewDialog = new ImportPreviewDialog(previews, _store.ListAccounts(), _store.ListCategories(), _store.List()) { XamlRoot = ContentHost.XamlRoot };
-        if (await previewDialog.ShowAsync() != ContentDialogResult.Primary)
+        var previewWindow = new ImportPreviewWindow(previews, _store.ListAccounts(), _store.ListCategories(), _store.List());
+        if (!await previewWindow.ShowAsync(this))
         {
             StatusText.Text = "已取消截图导入，识别结果没有写入账本";
             return;
         }
-        var imported = _store.Import(previewDialog.RowsToImport);
+        var imported = _store.Import(previewWindow.RowsToImport);
         LoadDashboard();
         SelectNavigation("Transactions");
-        StatusText.Text = $"截图导入完成：新增 {imported} 条，重复 {previewDialog.DuplicateCount} 条，问题记录 {previewDialog.IssueCount} 条";
+        StatusText.Text = $"截图导入完成：新增 {imported} 条，重复 {previewWindow.DuplicateCount} 条，问题记录 {previewWindow.IssueCount} 条";
     }
 
     private static bool IsSupportedScreenshot(StorageFile file) => ScreenshotExtensions.Contains(Path.GetExtension(file.Name));
