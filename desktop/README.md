@@ -16,7 +16,7 @@
 .\\desktop\\publish-win-x64.ps1
 ```
 
-生成文件为 `desktop/publish/win-x64/DuxiuLedger.exe`，压缩包为 `desktop/publish/DuxiuLedger-v0.6.3-win-x64.zip`。目标电脑不需要安装 .NET Runtime 或 Windows App SDK Runtime。
+生成文件为 `desktop/publish/win-x64/DuxiuLedger.exe`，压缩包为 `desktop/publish/DuxiuLedger-v0.6.4-win-x64.zip`。目标电脑不需要安装 .NET Runtime 或 Windows App SDK Runtime。
 
 单文件 EXE 会在首次启动时释放 WinUI 3 运行依赖到临时目录，可以独立复制和运行。
 
@@ -26,9 +26,9 @@
 .\desktop\build-installer.ps1
 ```
 
-安装程序输出到 `desktop/publish/installer/DuxiuLedger-Setup-v0.6.3-win-x64.exe`，支持当前用户安装、开始菜单快捷方式、可选桌面快捷方式和卸载。
+安装程序输出到 `desktop/publish/installer/DuxiuLedger-Setup-v0.6.4-win-x64.exe`，支持当前用户安装、开始菜单快捷方式、可选桌面快捷方式和卸载。
 
-当前版本为 `v0.6.3`，版本变更记录位于仓库根目录的 `CHANGELOG.md`。
+当前版本为 `v0.6.4`，版本变更记录位于仓库根目录的 `CHANGELOG.md`。
 
 ## S3 同步
 

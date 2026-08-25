@@ -20,6 +20,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=..\publish\installer
 OutputBaseFilename=DuxiuLedger-Setup-v{#MyAppVersion}-win-x64
+SetupIconFile=..\DuxiuLedger.Desktop\Assets\duxiu-logo.ico
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern

@@ -2,6 +2,18 @@
 
 本项目采用[语义化版本](https://semver.org/lang/zh-CN/)管理版本，版本号格式为 `主版本.次版本.修订版本`。
 
+## [0.6.4] - 2026-08-25
+
+### 改进
+
+- 安装程序构建脚本支持自动发现 `D:\APPs\Inno Setup 7` 和 `D:\APPs\Inno Setup 6`，优先使用 Inno Setup 7。
+- 支持通过 `-InnoCompiler` 参数或 `INNO_SETUP_ISCC` 环境变量指定其他 `ISCC.exe` 路径。
+- Setup.exe 使用独秀账本多尺寸图标，与应用、快捷方式和卸载列表保持一致。
+
+### 验证
+
+- 已使用 Inno Setup 7.1.0 成功生成中文 x64 安装程序，并核对产品版本、安装包图标和 SHA-256。
+
 ## [0.6.3] - 2026-08-25
 
 ### 修复
@@ -216,6 +228,7 @@
 - 提醒时间可以保存，但 Windows 系统通知尚未接入。
 - 云同步、账户管理、资产负债和多端客户端尚未实现。
 
+[0.6.4]: https://github.com/waitter-01/myFinance/releases/tag/v0.6.4
 [0.6.3]: https://github.com/waitter-01/myFinance/releases/tag/v0.6.3
 [0.6.2]: https://github.com/waitter-01/myFinance/releases/tag/v0.6.2
 [0.6.1]: https://github.com/waitter-01/myFinance/releases/tag/v0.6.1

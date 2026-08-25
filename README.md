@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/.NET-8.0-512BD4" alt=".NET 8">
     <img src="https://img.shields.io/badge/UI-WinUI%203-146C70" alt="WinUI 3">
     <img src="https://img.shields.io/badge/同步-S3%20兼容-0F80CC" alt="S3 compatible">
-    <img src="https://img.shields.io/badge/版本-v0.6.3-6B7280" alt="v0.6.3">
+    <img src="https://img.shields.io/badge/版本-v0.6.4-6B7280" alt="v0.6.4">
   </p>
 </div>
 
@@ -46,7 +46,7 @@
 
 ## 当前版本
 
-当前版本为 **v0.6.3**，统一窗口标题栏、任务栏、Alt+Tab、快捷方式和安装程序使用的独秀账本 Logo。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本为 **v0.6.4**，完善 Inno Setup 6/7 自定义目录发现并正式生成统一图标的安装程序。完整变更内容参见 [CHANGELOG.md](CHANGELOG.md)。
 
 版本号采用 `主版本.次版本.修订版本`：
 
@@ -108,7 +108,7 @@ dotnet run --project .\desktop\DuxiuLedger.WinUI\DuxiuLedger.WinUI.csproj -p:Pla
 
 ```text
 desktop\publish\win-x64\DuxiuLedger.exe
-desktop\publish\DuxiuLedger-v0.6.3-win-x64.zip
+desktop\publish\DuxiuLedger-v0.6.4-win-x64.zip
 ```
 
 单文件 EXE 可以单独复制运行，首次启动时会将 WinUI 3 运行依赖释放到临时目录，因此第一次启动可能稍慢。发布目录已被 Git 忽略，不会提交到仓库。
@@ -132,7 +132,7 @@ winget install --id JRSoftware.InnoSetup -e
 生成文件：
 
 ```text
-desktop\publish\installer\DuxiuLedger-Setup-v0.6.3-win-x64.exe
+desktop\publish\installer\DuxiuLedger-Setup-v0.6.4-win-x64.exe
 ```
 
 安装程序默认安装到当前用户的 `%LOCALAPPDATA%\Programs\DuxiuLedger`，不要求管理员权限，并提供开始菜单、可选桌面快捷方式和标准卸载入口。
@@ -148,9 +148,9 @@ desktop\publish\installer\DuxiuLedger-Setup-v0.6.3-win-x64.exe
 5. 使用中文提交版本变更，然后创建并推送 Git 标签：
 
 ```powershell
-git tag -a v0.6.3 -m "版本：发布 v0.6.3"
+git tag -a v0.6.4 -m "版本：发布 v0.6.4"
 git push origin master
-git push origin v0.6.3
+git push origin v0.6.4
 ```
 
 6. 在 GitHub Releases 中使用相同标签创建发行版，并上传单文件 EXE、ZIP 和安装程序。发布说明以 `CHANGELOG.md` 对应版本内容为准。
