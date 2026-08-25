@@ -51,6 +51,42 @@ public sealed class TransactionDuplicateDetectorTests
         Assert.Equal(TransactionFingerprint.Create(first), TransactionFingerprint.Create(second));
     }
 
+    [Fact]
+    public void FindMatch_DetectsBankDeductionAndAlipayAsSamePayment()
+    {
+        var bank = Row(new DateTime(2026, 8, 24, 11, 3, 33), "支出", 159m, "支付宝-东莞市海莫智选", "BANK");
+        bank.Source = "中信银行截图 · 中信.png";
+        var alipay = Row(new DateTime(2026, 8, 24, 11, 3, 0), "支出", 159m, "东莞市海莫智选", "ALIPAY");
+        alipay.Source = "支付宝截图 · 支付宝.png";
+
+        var match = _detector.FindMatch(bank, [alipay]);
+
+        Assert.NotNull(match);
+        Assert.Contains("同一笔支付", match.Reason);
+    }
+
+    [Fact]
+    public void FindMatch_DoesNotTreatRepaymentAsOriginalPlatformPurchase()
+    {
+        var repayment = Row(new DateTime(2026, 8, 25, 10, 15, 6), "转账", 1330.79m, "美团支付-美团月付还款", "BANK");
+        repayment.Source = "工商银行截图 · 工行.png";
+        var purchase = Row(new DateTime(2026, 8, 25, 10, 15, 0), "支出", 1330.79m, "美团支付", "PLATFORM");
+        purchase.Source = "微信截图 · 微信.png";
+
+        Assert.Null(_detector.FindMatch(repayment, [purchase]));
+    }
+
+    [Fact]
+    public void FindMatch_DoesNotMergeSameAmountAcrossBankAndPlatformWhenTimeIsFarApart()
+    {
+        var bank = Row(new DateTime(2026, 8, 24, 11, 30, 0), "支出", 20m, "支付宝", "BANK");
+        bank.Source = "中信银行截图";
+        var alipay = Row(new DateTime(2026, 8, 24, 11, 0, 0), "支出", 20m, "便利店", "ALIPAY");
+        alipay.Source = "支付宝截图";
+
+        Assert.Null(_detector.FindMatch(bank, [alipay]));
+    }
+
     private static TransactionRecord Row(DateTime occurredOn, string direction, decimal amount, string merchant, string fingerprint)
         => new() { OccurredOn = occurredOn, Direction = direction, Amount = amount, Merchant = merchant, Fingerprint = fingerprint };
 }
