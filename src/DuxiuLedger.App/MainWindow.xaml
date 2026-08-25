@@ -195,14 +195,124 @@
             </Border>
           </Grid>
           <ScrollViewer x:Name="InsightsPage" Visibility="Collapsed">
-            <StackPanel Spacing="14">
-              <Grid>
+            <StackPanel Spacing="16" Padding="0,0,4,18">
+              <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
                 <StackPanel>
-                  <TextBlock Text="本月消费画像" Style="{StaticResource SectionTitleStyle}" />
-                  <TextBlock Text="分析规则可以在偏好设置中调整" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                  <TextBlock Text="周期财务总结" Style="{StaticResource SectionTitleStyle}" />
+                  <TextBlock Text="从收支、结余、消费结构与变化趋势理解钱的去向" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 </StackPanel>
-                <Button Content="导出本月 CSV" HorizontalAlignment="Right" Click="ExportMonthlyReportClick" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <ComboBox x:Name="AnalysisPeriodBox" Width="104" SelectedIndex="1" SelectionChanged="AnalysisPeriodChanged">
+                    <ComboBoxItem Content="周度" />
+                    <ComboBoxItem Content="月度" />
+                    <ComboBoxItem Content="年度" />
+                  </ComboBox>
+                  <Button Content="&#xE76B;" FontFamily="Segoe Fluent Icons" ToolTipService.ToolTip="上一个周期" Click="AnalysisPreviousClick" />
+                  <Button Content="本期" Click="AnalysisTodayClick" />
+                  <Button x:Name="AnalysisNextButton" Content="&#xE76C;" FontFamily="Segoe Fluent Icons" ToolTipService.ToolTip="下一个周期" Click="AnalysisNextClick" />
+                  <Button Content="导出 CSV" Click="ExportAnalysisReportClick" />
+                </StackPanel>
               </Grid>
+
+              <TextBlock x:Name="AnalysisRangeText" Text="当前统计周期" FontSize="14" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+
+              <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Style="{StaticResource CardStyle}" Padding="18">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="收入" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock x:Name="AnalysisIncomeText" Text="¥0.00" FontSize="25" FontWeight="SemiBold" />
+                    <TextBlock Text="不含转账与退款" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                  </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource CardStyle}" Padding="18">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="净支出" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock x:Name="AnalysisExpenseText" Text="¥0.00" FontSize="25" FontWeight="SemiBold" />
+                    <TextBlock x:Name="AnalysisExpenseDetailText" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                  </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="18">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="结余" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock x:Name="AnalysisBalanceText" Text="¥0.00" FontSize="25" FontWeight="SemiBold" />
+                    <TextBlock Text="收入减去净支出" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                  </StackPanel>
+                </Border>
+                <Border Grid.Column="3" Style="{StaticResource CardStyle}" Padding="18">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="储蓄率" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock x:Name="AnalysisSavingsRateText" Text="0%" FontSize="25" FontWeight="SemiBold" />
+                    <TextBlock x:Name="AnalysisSavingsDetailText" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                  </StackPanel>
+                </Border>
+              </Grid>
+
+              <Border Style="{StaticResource CardStyle}" Padding="18">
+                <Grid ColumnSpacing="18">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Spacing="5">
+                    <TextBlock Text="本期概览" Style="{StaticResource SectionTitleStyle}" />
+                    <TextBlock x:Name="AnalysisSummaryText" TextWrapping="Wrap" />
+                    <TextBlock x:Name="AnalysisComparisonText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Width="260" Spacing="5">
+                    <TextBlock Text="最大单笔支出" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock x:Name="AnalysisLargestText" FontWeight="SemiBold" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Grid>
+              </Border>
+
+              <Border Style="{StaticResource CardStyle}" Padding="18">
+                <Grid>
+                  <StackPanel Orientation="Horizontal" Spacing="14">
+                    <TextBlock x:Name="AnalysisTrendTitle" Text="收支趋势" Style="{StaticResource SectionTitleStyle}" />
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                      <Border Width="9" Height="9" CornerRadius="3" Background="#2AA876" />
+                      <TextBlock Text="收入" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                      <Border Width="9" Height="9" CornerRadius="3" Background="{ThemeResource AccentFillColorDefaultBrush}" />
+                      <TextBlock Text="支出" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                  </StackPanel>
+                  <ScrollViewer Margin="0,42,0,0" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
+                    <ItemsControl x:Name="AnalysisTrendList" HorizontalAlignment="Stretch">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <StackPanel Orientation="Horizontal" Spacing="8" />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="models:AnalysisTrendItem">
+                          <StackPanel Width="72" Spacing="7">
+                            <Grid Height="156">
+                              <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center" VerticalAlignment="Bottom">
+                                <Border Width="18" Height="{x:Bind IncomeHeight}" MinHeight="2" CornerRadius="4,4,1,1" Background="#2AA876" ToolTipService.ToolTip="{x:Bind IncomeDisplay}" />
+                                <Border Width="18" Height="{x:Bind ExpenseHeight}" MinHeight="2" CornerRadius="4,4,1,1" Background="{ThemeResource AccentFillColorDefaultBrush}" ToolTipService.ToolTip="{x:Bind ExpenseDisplay}" />
+                              </StackPanel>
+                            </Grid>
+                            <TextBlock Text="{x:Bind Label}" HorizontalAlignment="Center" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                          </StackPanel>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Grid>
+              </Border>
+
               <Grid ColumnSpacing="12">
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="*" />
@@ -213,32 +323,33 @@
                 <Border Style="{StaticResource CardStyle}" Padding="18">
                   <StackPanel>
                     <TextBlock Text="小额消费" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <TextBlock x:Name="InsightSmallText" Text="¥0.00" FontSize="24" FontWeight="SemiBold" Margin="0,7,0,0" />
+                    <TextBlock x:Name="InsightSmallText" Text="¥0.00" FontSize="22" FontWeight="SemiBold" Margin="0,7,0,0" />
                     <TextBlock x:Name="InsightSmallDetailText" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                   </StackPanel>
                 </Border>
                 <Border Grid.Column="1" Style="{StaticResource CardStyle}" Padding="18">
                   <StackPanel>
-                    <TextBlock Text="系统建议可减少" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <TextBlock x:Name="InsightOptionalText" Text="¥0.00" FontSize="24" FontWeight="SemiBold" Margin="0,7,0,0" />
+                    <TextBlock Text="可优化消费" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock x:Name="InsightOptionalText" Text="¥0.00" FontSize="22" FontWeight="SemiBold" Margin="0,7,0,0" />
                     <TextBlock x:Name="InsightOptionalDetailText" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                   </StackPanel>
                 </Border>
                 <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="18">
                   <StackPanel>
                     <TextBlock Text="最大支出分类" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <TextBlock x:Name="InsightTopCategoryText" Text="暂无数据" FontSize="24" FontWeight="SemiBold" Margin="0,7,0,0" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="InsightTopCategoryText" Text="暂无数据" FontSize="22" FontWeight="SemiBold" Margin="0,7,0,0" TextTrimming="CharacterEllipsis" />
                     <TextBlock x:Name="InsightTopCategoryDetailText" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                   </StackPanel>
                 </Border>
                 <Border Grid.Column="3" Style="{StaticResource CardStyle}" Padding="18">
                   <StackPanel>
-                    <TextBlock Text="下月建议额度" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <TextBlock x:Name="InsightBudgetText" Text="¥0" FontSize="24" FontWeight="SemiBold" Margin="0,7,0,0" />
+                    <TextBlock Text="建议支出上限" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock x:Name="InsightBudgetText" Text="¥0" FontSize="22" FontWeight="SemiBold" Margin="0,7,0,0" />
                     <TextBlock x:Name="InsightBudgetDetailText" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextWrapping="Wrap" />
                   </StackPanel>
                 </Border>
               </Grid>
+
               <Grid ColumnSpacing="14">
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="*" />
@@ -246,23 +357,20 @@
                 </Grid.ColumnDefinitions>
                 <Border Style="{StaticResource CardStyle}" Padding="18">
                   <StackPanel>
-                    <TextBlock Text="分类排行" Style="{StaticResource SectionTitleStyle}" />
-                    <TextBlock Text="本月支出按详细分类汇总" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,4,0,10" />
+                    <TextBlock Text="分类去向" Style="{StaticResource SectionTitleStyle}" />
+                    <TextBlock Text="净支出按详细分类汇总" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,4,0,10" />
                     <ListView x:Name="CategoryRankingList" SelectionMode="None">
                       <ListView.ItemTemplate>
                         <DataTemplate x:DataType="models:SpendingRankItem">
-                          <Grid Padding="6" ColumnSpacing="10">
-                            <Grid.ColumnDefinitions>
-                              <ColumnDefinition Width="*" />
-                              <ColumnDefinition Width="72" />
-                              <ColumnDefinition Width="95" />
-                              <ColumnDefinition Width="64" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" />
-                            <TextBlock Grid.Column="1" Text="{x:Bind CountDisplay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                            <TextBlock Grid.Column="2" Text="{x:Bind AmountDisplay}" HorizontalAlignment="Right" />
-                            <TextBlock Grid.Column="3" Text="{x:Bind ShareDisplay}" HorizontalAlignment="Right" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                          </Grid>
+                          <StackPanel Padding="6" Spacing="6">
+                            <Grid ColumnSpacing="8">
+                              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="72" /></Grid.ColumnDefinitions>
+                              <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" />
+                              <TextBlock Grid.Column="1" Text="{x:Bind AmountDisplay}" />
+                              <TextBlock Grid.Column="2" Text="{x:Bind ShareDisplay}" HorizontalAlignment="Right" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </Grid>
+                            <ProgressBar Maximum="100" Value="{x:Bind SharePercent}" Height="4" />
+                          </StackPanel>
                         </DataTemplate>
                       </ListView.ItemTemplate>
                     </ListView>
@@ -276,12 +384,7 @@
                       <ListView.ItemTemplate>
                         <DataTemplate x:DataType="models:SpendingRankItem">
                           <Grid Padding="6" ColumnSpacing="10">
-                            <Grid.ColumnDefinitions>
-                              <ColumnDefinition Width="*" />
-                              <ColumnDefinition Width="72" />
-                              <ColumnDefinition Width="95" />
-                              <ColumnDefinition Width="64" />
-                            </Grid.ColumnDefinitions>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="72" /><ColumnDefinition Width="95" /><ColumnDefinition Width="64" /></Grid.ColumnDefinitions>
                             <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                             <TextBlock Grid.Column="1" Text="{x:Bind CountDisplay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             <TextBlock Grid.Column="2" Text="{x:Bind AmountDisplay}" HorizontalAlignment="Right" />
@@ -293,33 +396,11 @@
                   </StackPanel>
                 </Border>
               </Grid>
+
               <Border Style="{StaticResource CardStyle}" Padding="18">
                 <StackPanel>
-                  <TextBlock Text="近 6 个月趋势" Style="{StaticResource SectionTitleStyle}" Margin="0,0,0,8" />
-                  <ListView x:Name="MonthlyTrendList" SelectionMode="None">
-                    <ListView.ItemTemplate>
-                      <DataTemplate x:DataType="models:MonthlyTrendItem">
-                        <Grid Padding="6" ColumnSpacing="12">
-                          <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="100" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                          </Grid.ColumnDefinitions>
-                          <TextBlock Text="{x:Bind Month}" FontWeight="SemiBold" />
-                          <TextBlock Grid.Column="1" Text="{x:Bind IncomeDisplay}" />
-                          <TextBlock Grid.Column="2" Text="{x:Bind ExpenseDisplay}" />
-                          <TextBlock Grid.Column="3" Text="{x:Bind BalanceDisplay}" />
-                        </Grid>
-                      </DataTemplate>
-                    </ListView.ItemTemplate>
-                  </ListView>
-                </StackPanel>
-              </Border>
-              <Border Style="{StaticResource CardStyle}" Padding="18">
-                <StackPanel>
-                  <TextBlock Text="本月建议" Style="{StaticResource SectionTitleStyle}" />
-                  <TextBlock Text="系统按你设置的分类范围给出建议" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,4,0,10" />
+                  <TextBlock Text="分析与行动建议" Style="{StaticResource SectionTitleStyle}" />
+                  <TextBlock Text="结合周期变化、消费结构与偏好设置生成" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,4,0,10" />
                   <ListView x:Name="InsightSuggestionsList" SelectionMode="None">
                     <ListView.ItemTemplate>
                       <DataTemplate x:DataType="models:InsightSuggestion">

@@ -20,6 +20,10 @@ public sealed partial class MainWindow : Window
     private readonly BillImporter _importer = new();
     private readonly ScreenshotBillImporter _screenshotImporter = new();
     private readonly S3SyncService _syncService;
+    private readonly FinancialAnalysisService _analysisService = new();
+    private AnalysisPeriodKind _analysisPeriod = AnalysisPeriodKind.Month;
+    private DateTime _analysisAnchor = DateTime.Today;
+    private bool _isInitialized;
     private readonly Dictionary<string, (string Title, string Subtitle)> _pages = new()
     {
         ["Dashboard"] = ("总览", "查看本月财务情况和最近流水"),
@@ -48,6 +52,7 @@ public sealed partial class MainWindow : Window
         WeeklySummaryDayBox.ItemsSource = new[] { "星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日" };
         DataPathText.Text = _store.DatabasePath;
         LoadSettings();
+        _isInitialized = true;
         LoadDashboard();
         TrySyncOnStartup();
     }
@@ -97,66 +102,62 @@ public sealed partial class MainWindow : Window
 
     private void LoadInsights(IReadOnlyList<TransactionRecord> allRecords)
     {
-        var today = DateTime.Today;
-        var monthStart = new DateTime(today.Year, today.Month, 1);
-        var nextMonth = monthStart.AddMonths(1);
-        var previousMonth = monthStart.AddMonths(-1);
-        var previousCompareEnd = previousMonth.AddDays(Math.Min(today.Day, DateTime.DaysInMonth(previousMonth.Year, previousMonth.Month)));
-        var expenses = allRecords.Where(row => row.Direction == "支出" && row.OccurredOn >= monthStart && row.OccurredOn < nextMonth).ToList();
-        var previousExpenses = allRecords.Where(row => row.Direction == "支出" && row.OccurredOn >= previousMonth && row.OccurredOn < previousCompareEnd).ToList();
-        var total = expenses.Sum(row => row.Amount);
         var settings = _store.LoadSettings();
-        var threshold = settings.SmallExpenseThreshold;
-        var small = expenses.Where(row => row.Amount <= threshold).ToList();
-        var optionalNames = settings.OptionalCategories.Split([',', '，', ';', '；', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var optional = expenses.Where(row => optionalNames.Contains(row.Category)).ToList();
-        var previousOptional = previousExpenses.Where(row => optionalNames.Contains(row.Category)).Sum(row => row.Amount);
-        var categoryRanks = BuildRanks(expenses, row => row.Category, total);
-        var merchantRanks = BuildRanks(expenses, row => string.IsNullOrWhiteSpace(row.Merchant) ? "未注明交易对方" : row.Merchant.Trim(), total);
-        var forecast = today.Day == 0 ? total : total / today.Day * DateTime.DaysInMonth(today.Year, today.Month);
-        var suggestedBudget = settings.MonthlyBudget > 0 ? settings.MonthlyBudget : Math.Round(forecast * 0.9m, 0);
-
-        InsightSmallText.Text = $"¥{small.Sum(row => row.Amount):N2}";
-        InsightSmallDetailText.Text = $"{small.Count} 笔 · 单笔不超过 ¥{threshold:N0}";
-        InsightOptionalText.Text = $"¥{optional.Sum(row => row.Amount):N2}";
-        InsightOptionalDetailText.Text = total > 0 ? $"占本月支出 {optional.Sum(row => row.Amount) / total:P1}" : "本月暂无支出";
-        InsightTopCategoryText.Text = categoryRanks.Count == 0 ? "暂无数据" : categoryRanks[0].Name;
-        InsightTopCategoryDetailText.Text = categoryRanks.Count == 0 ? "导入或录入流水后生成" : $"{categoryRanks[0].AmountDisplay} · {categoryRanks[0].ShareDisplay}";
-        InsightBudgetText.Text = $"¥{suggestedBudget:N0}";
-        InsightBudgetDetailText.Text = settings.MonthlyBudget > 0 ? "采用你设置的月度总预算" : "按本月日均预测后预留 10% 空间";
-        CategoryRankingList.ItemsSource = categoryRanks.Take(6).ToList();
-        MerchantRankingList.ItemsSource = merchantRanks.Take(6).ToList();
-        MonthlyTrendList.ItemsSource = Enumerable.Range(0, 6).Select(offset => monthStart.AddMonths(offset - 5)).Select(start =>
-        {
-            var end = start.AddMonths(1); var rows = allRecords.Where(row => row.OccurredOn >= start && row.OccurredOn < end).ToList();
-            var income = rows.Where(row => row.Direction == "收入").Sum(row => row.Amount);
-            var expense = rows.Where(row => row.Direction == "支出").Sum(row => row.Amount) - rows.Where(row => row.Direction is "退款" or "报销").Sum(row => row.Amount);
-            return new MonthlyTrendItem { Month = start.ToString("yyyy-MM"), Income = income, Expense = expense };
-        }).ToList();
-
-        var smallTotal = small.Sum(row => row.Amount);
-        var optionalTotal = optional.Sum(row => row.Amount);
-        var suggestions = new List<InsightSuggestion>();
-        suggestions.Add(total == 0
-            ? new InsightSuggestion { Title = "等待消费数据", Detail = "导入或录入本月支出后，系统会生成针对性的控制建议。" }
-            : new InsightSuggestion { Title = smallTotal / total >= 0.2m ? "小额消费需要留意" : "小额消费目前可控", Detail = $"本月 {small.Count} 笔小额支出合计 ¥{smallTotal:N2}，占支出 {smallTotal / total:P1}。" });
-        suggestions.Add(new InsightSuggestion
-        {
-            Title = optionalTotal > previousOptional ? "可选消费有所提高" : "可选消费未明显增加",
-            Detail = $"零食、娱乐、游戏、订阅和杂项合计 ¥{optionalTotal:N2}；上月同期 ¥{previousOptional:N2}。"
-        });
-        suggestions.Add(categoryRanks.Count == 0
-            ? new InsightSuggestion { Title = "主要去向尚不明确", Detail = "建议为流水选择详细分类，分析会更准确。" }
-            : new InsightSuggestion { Title = $"钱主要花在“{categoryRanks[0].Name}”", Detail = $"共 {categoryRanks[0].Count} 笔、¥{categoryRanks[0].Amount:N2}，占本月支出 {categoryRanks[0].Share:P1}。" });
-        suggestions.Add(new InsightSuggestion { Title = $"下月建议控制在 ¥{suggestedBudget:N0}", Detail = settings.MonthlyBudget > 0 ? "这是你设定的月度总额度，可在偏好设置中随时调整。" : "这是系统根据当前消费速度给出的初步建议，后续可在设置中改成自己的目标。" });
-        InsightSuggestionsList.ItemsSource = suggestions;
+        var result = _analysisService.Analyze(allRecords, settings, _analysisPeriod, _analysisAnchor);
+        var currentStart = FinancialAnalysisService.GetRange(_analysisPeriod, DateTime.Today).Start;
+        AnalysisRangeText.Text = result.PeriodLabel;
+        AnalysisNextButton.IsEnabled = result.Start < currentStart;
+        AnalysisIncomeText.Text = $"¥{result.Income:N2}";
+        AnalysisExpenseText.Text = $"¥{result.NetExpense:N2}";
+        AnalysisExpenseDetailText.Text = result.Refunds > 0 ? $"原支出 ¥{result.GrossExpense:N2} · 已扣退款/报销 ¥{result.Refunds:N2}" : $"{result.TransactionCount} 笔非转账记录";
+        AnalysisBalanceText.Text = $"¥{result.Balance:N2}";
+        AnalysisSavingsRateText.Text = result.Income <= 0 ? "—" : $"{result.SavingsRate:P1}";
+        AnalysisSavingsDetailText.Text = result.Income <= 0 ? "录入收入后计算" : result.SavingsRate >= 0.2m ? "高于 20%，结余空间良好" : "建议提高到 20% 以上";
+        InsightSmallText.Text = $"¥{result.SmallExpense:N2}";
+        InsightSmallDetailText.Text = $"{result.SmallExpenseCount} 笔 · 单笔不超过 ¥{settings.SmallExpenseThreshold:N0}";
+        InsightOptionalText.Text = $"¥{result.OptionalExpense:N2}";
+        InsightOptionalDetailText.Text = result.GrossExpense > 0 ? $"占支出 {result.OptionalExpense / result.GrossExpense:P1}" : "暂无支出";
+        InsightTopCategoryText.Text = result.CategoryRanks.Count == 0 ? "暂无数据" : result.CategoryRanks[0].Name;
+        InsightTopCategoryDetailText.Text = result.CategoryRanks.Count == 0 ? "完善分类后生成" : $"{result.CategoryRanks[0].AmountDisplay} · {result.CategoryRanks[0].ShareDisplay}";
+        InsightBudgetText.Text = $"¥{result.SuggestedLimit:N0}";
+        InsightBudgetDetailText.Text = "当前周期的系统建议控制额度";
+        AnalysisSummaryText.Text = $"{result.PeriodLabel}共记录 {result.TransactionCount} 笔非转账流水，收入 ¥{result.Income:N2}，净支出 ¥{result.NetExpense:N2}，结余 ¥{result.Balance:N2}，日均支出 ¥{result.DailyAverage:N2}。";
+        AnalysisComparisonText.Text = result.ExpenseChangeRate is null
+            ? $"{result.PreviousPeriodLabel}暂无足够支出，继续记录后可进行同期对比。"
+            : $"与{result.PreviousPeriodLabel}同期相比，净支出{(result.ExpenseChangeRate >= 0 ? "增加" : "减少")} {Math.Abs(result.ExpenseChangeRate.Value):P1}（上期 ¥{result.PreviousNetExpense:N2}）。";
+        AnalysisLargestText.Text = result.LargestExpense is null ? "暂无单笔支出" : $"最大单笔：{result.LargestExpense.Merchant} · ¥{result.LargestExpense.Amount:N2} · {result.LargestExpense.OccurredOn:MM-dd}";
+        AnalysisTrendTitle.Text = _analysisPeriod switch { AnalysisPeriodKind.Week => "每日收支趋势", AnalysisPeriodKind.Year => "月度收支趋势", _ => "每周收支趋势" };
+        AnalysisTrendList.ItemsSource = result.Trend;
+        CategoryRankingList.ItemsSource = result.CategoryRanks.Take(8).ToList();
+        MerchantRankingList.ItemsSource = result.MerchantRanks.Take(8).ToList();
+        InsightSuggestionsList.ItemsSource = result.Suggestions;
     }
 
-    private static List<SpendingRankItem> BuildRanks(IEnumerable<TransactionRecord> rows, Func<TransactionRecord, string> nameSelector, decimal total)
-        => rows.GroupBy(nameSelector, StringComparer.OrdinalIgnoreCase)
-            .Select(group => new SpendingRankItem { Name = group.Key, Amount = group.Sum(row => row.Amount), Count = group.Count(), Share = total <= 0 ? 0 : group.Sum(row => row.Amount) / total })
-            .OrderByDescending(item => item.Amount)
-            .ToList();
+    private void AnalysisPeriodChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_isInitialized || AnalysisPeriodBox.SelectedIndex < 0) return;
+        _analysisPeriod = (AnalysisPeriodKind)AnalysisPeriodBox.SelectedIndex;
+        _analysisAnchor = DateTime.Today;
+        LoadInsights(_store.List().ToList());
+    }
+
+    private void AnalysisPreviousClick(object sender, RoutedEventArgs e)
+    {
+        _analysisAnchor = _analysisPeriod switch { AnalysisPeriodKind.Week => _analysisAnchor.AddDays(-7), AnalysisPeriodKind.Year => _analysisAnchor.AddYears(-1), _ => _analysisAnchor.AddMonths(-1) };
+        LoadInsights(_store.List().ToList());
+    }
+
+    private void AnalysisNextClick(object sender, RoutedEventArgs e)
+    {
+        _analysisAnchor = _analysisPeriod switch { AnalysisPeriodKind.Week => _analysisAnchor.AddDays(7), AnalysisPeriodKind.Year => _analysisAnchor.AddYears(1), _ => _analysisAnchor.AddMonths(1) };
+        LoadInsights(_store.List().ToList());
+    }
+
+    private void AnalysisTodayClick(object sender, RoutedEventArgs e)
+    {
+        _analysisAnchor = DateTime.Today;
+        LoadInsights(_store.List().ToList());
+    }
 
     private void LoadSubscriptions(IReadOnlyList<TransactionRecord> allRecords)
     {
@@ -699,19 +700,29 @@ public sealed partial class MainWindow : Window
         return message.Length > 300 ? message[..300] : message;
     }
 
-    private async void ExportMonthlyReportClick(object sender, RoutedEventArgs e)
+    private async void ExportAnalysisReportClick(object sender, RoutedEventArgs e)
     {
-        var picker = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = $"独秀账本月报-{DateTime.Now:yyyy-MM}" };
+        var result = _analysisService.Analyze(_store.List().ToList(), _store.LoadSettings(), _analysisPeriod, _analysisAnchor);
+        var reportName = _analysisPeriod switch { AnalysisPeriodKind.Week => "周报", AnalysisPeriodKind.Year => "年报", _ => "月报" };
+        var picker = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = $"独秀账本{reportName}-{result.Start:yyyyMMdd}" };
         picker.FileTypeChoices.Add("CSV 表格", [".csv"]);
         WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
         var file = await picker.PickSaveFileAsync();
         if (file is null) return;
-        var month = DateTime.Now.ToString("yyyy-MM");
-        var rows = _store.List().Where(row => row.OccurredOn.ToString("yyyy-MM") == month).ToList();
-        var lines = new List<string> { "月份,交易时间,类型,金额,分类,交易对方,账户,备注" };
-        lines.AddRange(rows.Select(row => string.Join(',', Csv(month), Csv(row.DateDisplay), Csv(row.Direction), row.Amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture), Csv(row.Category), Csv(row.Merchant), Csv(row.AccountDisplay), Csv(row.Note))));
+        var rows = _store.List().Where(row => row.OccurredOn >= result.Start && row.OccurredOn < result.EndExclusive).ToList();
+        var lines = new List<string>
+        {
+            $"周期,{Csv(result.PeriodLabel)}",
+            $"收入,{result.Income:0.00}",
+            $"净支出,{result.NetExpense:0.00}",
+            $"结余,{result.Balance:0.00}",
+            $"储蓄率,{result.SavingsRate:P2}",
+            "",
+            "周期,交易时间,类型,金额,分类,交易对方,账户,备注"
+        };
+        lines.AddRange(rows.Select(row => string.Join(',', Csv(result.PeriodLabel), Csv(row.DateDisplay), Csv(row.Direction), row.Amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture), Csv(row.Category), Csv(row.Merchant), Csv(row.AccountDisplay), Csv(row.Note))));
         await File.WriteAllTextAsync(file.Path, "\uFEFF" + string.Join(Environment.NewLine, lines));
-        StatusText.Text = $"月报已导出：{file.Path}";
+        StatusText.Text = $"{reportName}已导出：{file.Path}";
     }
 
     private static string Csv(string value) => $"\"{value.Replace("\"", "\"\"")}\"";
