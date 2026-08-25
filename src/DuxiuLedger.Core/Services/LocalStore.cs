@@ -122,23 +122,94 @@ public sealed class LocalStore
         alter.ExecuteNonQuery();
     }
     public IReadOnlyList<TransactionRecord> List(string? search = null)
+        => QueryTransactions(new TransactionQuery { SearchText = search ?? "" }).Rows;
+
+    public TransactionQueryResult QueryTransactions(TransactionQuery query)
     {
         using var c = Open(); using var cmd = c.CreateCommand();
-        cmd.CommandText = """
+        var where = new List<string>();
+        if (!string.IsNullOrWhiteSpace(query.SearchText))
+        {
+            where.Add("(t.merchant LIKE $like OR t.note LIKE $like OR t.category LIKE $like OR t.source LIKE $like OR t.direction LIKE $like OR a.name LIKE $like OR ta.name LIKE $like)");
+            cmd.Parameters.AddWithValue("$like", $"%{query.SearchText.Trim()}%");
+        }
+        if (query.StartDate is not null)
+        {
+            where.Add("t.occurred_on >= $start");
+            cmd.Parameters.AddWithValue("$start", query.StartDate.Value.Date.ToString("yyyy-MM-dd HH:mm:ss"));
+        }
+        if (query.EndDate is not null)
+        {
+            where.Add("t.occurred_on < $end");
+            cmd.Parameters.AddWithValue("$end", query.EndDate.Value.Date.AddDays(1).ToString("yyyy-MM-dd HH:mm:ss"));
+        }
+        AddTextSetFilter(cmd, where, "t.direction", "direction", query.Directions);
+        AddTextSetFilter(cmd, where, "t.category", "category", query.Categories);
+        AddTextSetFilter(cmd, where, "t.source", "source", query.Sources);
+        if (query.AccountIds.Count > 0)
+        {
+            var parameters = query.AccountIds.Select((id, index) => (id, name: $"$account{index}")).ToList();
+            where.Add($"(t.account_id IN ({string.Join(',', parameters.Select(item => item.name))}) OR t.to_account_id IN ({string.Join(',', parameters.Select(item => item.name))}))");
+            foreach (var item in parameters) cmd.Parameters.AddWithValue(item.name, item.id);
+        }
+        if (query.MinimumAmount is not null)
+        {
+            where.Add("t.amount >= $minimumAmount");
+            cmd.Parameters.AddWithValue("$minimumAmount", query.MinimumAmount.Value);
+        }
+        if (query.MaximumAmount is not null)
+        {
+            where.Add("t.amount <= $maximumAmount");
+            cmd.Parameters.AddWithValue("$maximumAmount", query.MaximumAmount.Value);
+        }
+        if (query.UncategorizedOnly) where.Add("t.category = '未分类'");
+        if (query.SubscriptionOnly) where.Add("(t.category = '订阅消费' OR COALESCE(t.subscription_months,1) > 1)");
+        if (query.UnassignedAccountOnly) where.Add("t.account_id IS NULL AND t.to_account_id IS NULL");
+        var orderBy = query.SortBy switch
+        {
+            TransactionSortOption.DateAscending => "t.occurred_on ASC, t.id ASC",
+            TransactionSortOption.AmountDescending => "t.amount DESC, t.occurred_on DESC, t.id DESC",
+            TransactionSortOption.AmountAscending => "t.amount ASC, t.occurred_on DESC, t.id DESC",
+            TransactionSortOption.MerchantAscending => "t.merchant COLLATE NOCASE ASC, t.occurred_on DESC, t.id DESC",
+            _ => "t.occurred_on DESC, t.id DESC"
+        };
+        cmd.CommandText = $"""
             SELECT t.id, t.occurred_on, t.direction, t.amount, t.category, t.merchant, t.note,
               t.source, t.fingerprint, t.account_id, t.to_account_id,
               COALESCE(a.name,''), COALESCE(ta.name,''), COALESCE(t.subscription_months,1)
             FROM transactions t
             LEFT JOIN accounts a ON a.id=t.account_id
             LEFT JOIN accounts ta ON ta.id=t.to_account_id
-            WHERE $search = '' OR t.merchant LIKE $like OR t.note LIKE $like OR t.category LIKE $like
-              OR a.name LIKE $like OR ta.name LIKE $like
-            ORDER BY t.occurred_on DESC, t.id DESC
+            {(where.Count == 0 ? "" : $"WHERE {string.Join(" AND ", where)}")}
+            ORDER BY {orderBy}
             """;
-        cmd.Parameters.AddWithValue("$search", search ?? ""); cmd.Parameters.AddWithValue("$like", $"%{search}%");
         using var reader = cmd.ExecuteReader(); var rows = new List<TransactionRecord>();
         while (reader.Read()) rows.Add(new TransactionRecord { Id = reader.GetInt64(0), OccurredOn = DateTime.Parse(reader.GetString(1)), Direction = reader.GetString(2), Amount = reader.GetDecimal(3), Category = reader.GetString(4), Merchant = reader.GetString(5), Note = reader.GetString(6), Source = reader.GetString(7), Fingerprint = reader.GetString(8), AccountId = reader.IsDBNull(9) ? null : reader.GetInt64(9), ToAccountId = reader.IsDBNull(10) ? null : reader.GetInt64(10), AccountName = reader.GetString(11), ToAccountName = reader.GetString(12), SubscriptionMonths = reader.GetInt32(13) });
-        return rows;
+        return new TransactionQueryResult
+        {
+            Rows = rows,
+            Income = rows.Where(row => row.Direction == "收入").Sum(row => row.Amount),
+            GrossExpense = rows.Where(row => row.Direction == "支出").Sum(row => row.Amount),
+            Refunds = rows.Where(row => row.Direction is "退款" or "报销").Sum(row => row.Amount)
+        };
+    }
+
+    public IReadOnlyList<string> ListTransactionSources()
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT DISTINCT source FROM transactions WHERE source <> '' ORDER BY source COLLATE NOCASE";
+        using var reader = cmd.ExecuteReader();
+        var sources = new List<string>();
+        while (reader.Read()) sources.Add(reader.GetString(0));
+        return sources;
+    }
+
+    private static void AddTextSetFilter(SqliteCommand command, ICollection<string> where, string column, string prefix, IReadOnlyCollection<string> values)
+    {
+        if (values.Count == 0) return;
+        var parameters = values.Select((value, index) => (value, name: $"${prefix}{index}")).ToList();
+        where.Add($"{column} IN ({string.Join(',', parameters.Select(item => item.name))})");
+        foreach (var item in parameters) command.Parameters.AddWithValue(item.name, item.value);
     }
     public int Import(IEnumerable<TransactionRecord> rows)
     {
