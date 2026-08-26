@@ -1,3 +1,7 @@
+param(
+    [string]$Version
+)
+
 $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = Split-Path $PSScriptRoot -Parent
@@ -5,9 +9,10 @@ $project = Join-Path $repositoryRoot 'src/DuxiuLedger.App/DuxiuLedger.App.csproj
 $publishRoot = Join-Path $repositoryRoot 'artifacts'
 $output = Join-Path $publishRoot 'win-x64'
 [xml]$projectXml = Get-Content -LiteralPath $project
-$version = [string]($projectXml.Project.PropertyGroup.Version | Select-Object -First 1)
-if ([string]::IsNullOrWhiteSpace($version)) { throw '项目文件中没有设置 Version。' }
-$archive = Join-Path $publishRoot "DuxiuLedger-v$version-win-x64.zip"
+$projectVersion = [string]($projectXml.Project.PropertyGroup.Version | Select-Object -First 1)
+$releaseVersion = if ([string]::IsNullOrWhiteSpace($Version)) { $projectVersion } else { $Version }
+if ([string]::IsNullOrWhiteSpace($releaseVersion)) { throw '项目文件中没有设置 Version。' }
+$archive = Join-Path $publishRoot "DuxiuLedger-v$releaseVersion-win-x64.zip"
 
 $resolvedRepository = [System.IO.Path]::GetFullPath($repositoryRoot)
 $resolvedOutput = [System.IO.Path]::GetFullPath($output)
@@ -23,13 +28,13 @@ New-Item -ItemType Directory -Path $output -Force | Out-Null
 dotnet restore $project -p:Platform=x64
 dotnet publish $project -c Release -r win-x64 `
     -p:Platform=x64 `
+    -p:Version=$releaseVersion `
+    -p:InformationalVersion=$releaseVersion `
     -p:WindowsPackageType=None `
     -p:WindowsAppSDKSelfContained=true `
     -p:SelfContained=true `
     -p:EnableMsixTooling=true `
-    -p:PublishSingleFile=true `
-    -p:IncludeAllContentForSelfExtract=true `
-    -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:PublishSingleFile=false `
     -p:DebugType=None `
     -p:DebugSymbols=false `
     -o $output
@@ -42,8 +47,8 @@ if (-not (Test-Path -LiteralPath $executable)) {
 if (Test-Path -LiteralPath $archive) {
     Remove-Item -LiteralPath $archive -Force
 }
-Compress-Archive -LiteralPath $executable -DestinationPath $archive -CompressionLevel Optimal
+Compress-Archive -Path (Join-Path $output '*') -DestinationPath $archive -CompressionLevel Optimal
 
-Write-Host "WinUI 3 单文件 EXE 已生成：$executable"
+Write-Host "WinUI 3 自包含程序目录已生成：$output"
 Write-Host "分发压缩包已生成：$archive"
-Write-Host '该 EXE 可单独复制运行，首次启动时会释放运行依赖到临时目录。'
+Write-Host '请保留压缩包内全部文件；推荐使用安装程序分发。'

@@ -1,5 +1,7 @@
 param(
     [switch]$SkipPublish,
+    [switch]$SkipSmokeTest,
+    [string]$Version,
     [string]$InnoCompiler
 )
 
@@ -9,11 +11,17 @@ $repositoryRoot = Split-Path $PSScriptRoot -Parent
 $project = Join-Path $repositoryRoot 'src/DuxiuLedger.App/DuxiuLedger.App.csproj'
 $definition = Join-Path $repositoryRoot 'installer/DuxiuLedger.iss'
 $publishScript = Join-Path $PSScriptRoot 'publish-win-x64.ps1'
+$smokeTestScript = Join-Path $PSScriptRoot 'test-published-app.ps1'
 [xml]$projectXml = Get-Content -LiteralPath $project
-$version = [string]($projectXml.Project.PropertyGroup.Version | Select-Object -First 1)
+$projectVersion = [string]($projectXml.Project.PropertyGroup.Version | Select-Object -First 1)
+$releaseVersion = if ([string]::IsNullOrWhiteSpace($Version)) { $projectVersion } else { $Version }
 
 if (-not $SkipPublish) {
-    & $publishScript
+    & $publishScript -Version $releaseVersion
+}
+
+if (-not $SkipSmokeTest) {
+    & $smokeTestScript
 }
 
 $compiler = if ($InnoCompiler) { $InnoCompiler } elseif ($env:INNO_SETUP_ISCC) { $env:INNO_SETUP_ISCC } else { (Get-Command 'ISCC.exe' -ErrorAction SilentlyContinue).Source }
@@ -34,12 +42,12 @@ if (-not $compiler) {
 if (-not (Test-Path -LiteralPath $compiler)) { throw "Inno Setup 编译器不存在：$compiler" }
 
 Write-Host "使用 Inno Setup 编译器：$compiler"
-& $compiler "/DMyAppVersion=$version" $definition
+& $compiler "/DMyAppVersion=$releaseVersion" $definition
 if ($LASTEXITCODE -ne 0) {
     throw "Inno Setup 编译失败，退出代码：$LASTEXITCODE"
 }
 
-$installer = Join-Path $repositoryRoot "artifacts/installer/DuxiuLedger-Setup-v$version-win-x64.exe"
+$installer = Join-Path $repositoryRoot "artifacts/installer/DuxiuLedger-Setup-v$releaseVersion-win-x64.exe"
 if (-not (Test-Path -LiteralPath $installer)) {
     throw "安装程序没有生成：$installer"
 }

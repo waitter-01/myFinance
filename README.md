@@ -91,7 +91,7 @@
 
 - Windows 10 或 Windows 11，64 位
 - 构建源码需要 [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- 运行自包含 EXE 不需要预装 .NET
+- 运行自包含便携版或安装版不需要预装 .NET
 
 ### 从源码运行
 
@@ -101,7 +101,7 @@ cd myFinance
 dotnet run --project .\src\DuxiuLedger.App\DuxiuLedger.App.csproj -p:Platform=x64
 ```
 
-### 生成独立 EXE
+### 生成便携版
 
 在仓库根目录执行：
 
@@ -116,7 +116,7 @@ artifacts\win-x64\DuxiuLedger.exe
 artifacts\DuxiuLedger-v0.12.1-win-x64.zip
 ```
 
-单文件 EXE 可以单独复制运行，首次启动时会将 WinUI 3 运行依赖释放到临时目录，因此第一次启动可能稍慢。发布目录已被 Git 忽略，不会提交到仓库。
+ZIP 中包含主程序、WinUI 3 和 Windows App SDK 运行文件。解压后运行 `DuxiuLedger.exe`，不要把 EXE 单独移出目录。这样可以避免不同电脑缺少对应运行时而无法启动。发布目录已被 Git 忽略，不会提交到仓库。
 
 ### 生成安装程序
 
@@ -149,7 +149,7 @@ artifacts\installer\DuxiuLedger-Setup-v0.12.1-win-x64.exe
 1. 修改 `src/DuxiuLedger.App/DuxiuLedger.App.csproj` 中的 `Version`、`AssemblyVersion`、`FileVersion` 和 `InformationalVersion`。
 2. 在 `CHANGELOG.md` 顶部增加新版本、发布日期、新增内容、修复内容和已知限制。
 3. 更新 README 顶部版本徽章以及文档中的安装包文件名。
-4. 执行 `scripts/publish-win-x64.ps1` 和 `scripts/build-installer.ps1`，验证 EXE 与安装程序。
+4. 执行 `scripts/publish-win-x64.ps1` 和 `scripts/build-installer.ps1`；打包脚本会在生成安装程序前实际启动应用并验证主窗口。
 5. 使用中文提交版本变更，然后创建并推送 Git 标签：
 
 ```powershell
