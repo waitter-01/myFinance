@@ -412,19 +412,25 @@
               </Border>
 
               <Border Style="{StaticResource CardStyle}" Padding="18">
-                <Grid>
-                  <StackPanel Orientation="Horizontal" Spacing="14">
-                    <TextBlock x:Name="AnalysisTrendTitle" Text="收支趋势" Style="{StaticResource SectionTitleStyle}" />
-                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                      <Border Width="9" Height="9" CornerRadius="3" Background="#2AA876" />
-                      <TextBlock Text="收入" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Grid RowSpacing="16">
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                  </Grid.RowDefinitions>
+                  <Grid>
+                    <TextBlock x:Name="AnalysisTrendTitle" Text="收支趋势" Style="{StaticResource SectionTitleStyle}" VerticalAlignment="Center" />
+                    <StackPanel Orientation="Horizontal" Spacing="14" HorizontalAlignment="Right" VerticalAlignment="Center">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Border Width="9" Height="9" CornerRadius="3" Background="#2AA876" VerticalAlignment="Center" />
+                        <TextBlock Text="收入" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                      </StackPanel>
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Border Width="9" Height="9" CornerRadius="3" Background="{ThemeResource AccentFillColorDefaultBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="支出" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                      </StackPanel>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                      <Border Width="9" Height="9" CornerRadius="3" Background="{ThemeResource AccentFillColorDefaultBrush}" />
-                      <TextBlock Text="支出" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    </StackPanel>
-                  </StackPanel>
-                  <ScrollViewer Margin="0,42,0,0" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
+                  </Grid>
+                  <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
                     <ItemsControl x:Name="AnalysisTrendList" HorizontalAlignment="Stretch">
                       <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -435,6 +441,7 @@
                         <DataTemplate x:DataType="models:AnalysisTrendItem">
                           <StackPanel Width="72" Spacing="7">
                             <Grid Height="156">
+                              <Border Height="1" VerticalAlignment="Bottom" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
                               <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center" VerticalAlignment="Bottom">
                                 <Border Width="18" Height="{x:Bind IncomeHeight}" MinHeight="2" CornerRadius="4,4,1,1" Background="#2AA876" Opacity="0.8" PointerEntered="AnalysisBarPointerEntered" PointerExited="AnalysisBarPointerExited" ToolTipService.ToolTip="{x:Bind IncomeDisplay}" ToolTipService.Placement="Top" />
                                 <Border Width="18" Height="{x:Bind ExpenseHeight}" MinHeight="2" CornerRadius="4,4,1,1" Background="{ThemeResource AccentFillColorDefaultBrush}" Opacity="0.8" PointerEntered="AnalysisBarPointerEntered" PointerExited="AnalysisBarPointerExited" ToolTipService.ToolTip="{x:Bind ExpenseDisplay}" ToolTipService.Placement="Top" />
@@ -450,34 +457,18 @@
               </Border>
 
               <Border Style="{StaticResource CardStyle}" Padding="18">
-                <Grid ColumnSpacing="24">
-                  <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                  <StackPanel Spacing="4">
+                <StackPanel Spacing="4">
                     <TextBlock Text="主要消费占比" Style="{StaticResource SectionTitleStyle}" />
                     <TextBlock Text="将详细分类归并为主要生活支出，避免类别过细" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                    <Grid Width="220" Height="220" Margin="0,12,0,0" HorizontalAlignment="Left">
-                      <Canvas x:Name="CategoryPieCanvas" Width="220" Height="220" />
-                      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="2">
+                    <Grid Height="310" MinWidth="640" Margin="0,8,0,0">
+                      <Canvas x:Name="CategoryPieCanvas" HorizontalAlignment="Stretch" SizeChanged="CategoryPieCanvasSizeChanged" />
+                      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="2" IsHitTestVisible="False">
                         <TextBlock Text="总支出" HorizontalAlignment="Center" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <TextBlock x:Name="CategoryPieTotalText" Text="¥0.00" HorizontalAlignment="Center" FontSize="18" FontWeight="SemiBold" />
                       </StackPanel>
                       <TextBlock x:Name="CategoryPieEmptyText" Text="暂无支出" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </Grid>
-                  </StackPanel>
-                  <ItemsControl x:Name="CategoryPieLegend" Grid.Column="1" VerticalAlignment="Center">
-                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><ItemsWrapGrid MaximumRowsOrColumns="5" Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                      <DataTemplate x:DataType="local:CategoryPieSliceViewModel">
-                        <Grid Width="210" Padding="8" ColumnSpacing="9">
-                          <Grid.ColumnDefinitions><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                          <Border Width="10" Height="10" CornerRadius="5" Background="{x:Bind Fill}" VerticalAlignment="Center" />
-                          <StackPanel Grid.Column="1"><TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" /><TextBlock Text="{x:Bind AmountDisplay}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel>
-                          <TextBlock Grid.Column="2" Text="{x:Bind ShareDisplay}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        </Grid>
-                      </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                  </ItemsControl>
-                </Grid>
+                </StackPanel>
               </Border>
 
               <Grid ColumnSpacing="12">

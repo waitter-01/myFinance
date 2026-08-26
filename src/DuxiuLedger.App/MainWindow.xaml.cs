@@ -28,6 +28,8 @@ public sealed partial class MainWindow : Window
     private AnalysisPeriodKind _analysisPeriod = AnalysisPeriodKind.Month;
     private DateTime _analysisAnchor = DateTime.Today;
     private FinancialAnalysisResult? _currentAnalysisResult;
+    private IReadOnlyList<SpendingRankItem> _currentPieRanks = [];
+    private decimal _currentPieTotal;
     private TransactionQuery _transactionQuery = new();
     private TransactionGroupMode _transactionGroupMode = TransactionGroupMode.Day;
     private readonly CollectionViewSource _transactionGroupsSource = new() { IsSourceGrouped = true };
@@ -163,15 +165,24 @@ public sealed partial class MainWindow : Window
 
     private void DrawCategoryPie(IReadOnlyList<SpendingRankItem> ranks, decimal total)
     {
+        _currentPieRanks = ranks;
+        _currentPieTotal = total;
+        DrawCategoryPieVisuals();
+    }
+
+    private void CategoryPieCanvasSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (!_isInitialized || Math.Abs(e.NewSize.Width - e.PreviousSize.Width) < 1) return;
+        DrawCategoryPieVisuals();
+    }
+
+    private void DrawCategoryPieVisuals()
+    {
         CategoryPieCanvas.Children.Clear();
-        CategoryPieTotalText.Text = $"¥{total:N2}";
-        CategoryPieEmptyText.Visibility = total <= 0 ? Visibility.Visible : Visibility.Collapsed;
-        CategoryPieTotalText.Visibility = total <= 0 ? Visibility.Collapsed : Visibility.Visible;
-        if (total <= 0)
-        {
-            CategoryPieLegend.ItemsSource = Array.Empty<CategoryPieSliceViewModel>();
-            return;
-        }
+        CategoryPieTotalText.Text = $"¥{_currentPieTotal:N2}";
+        CategoryPieEmptyText.Visibility = _currentPieTotal <= 0 ? Visibility.Visible : Visibility.Collapsed;
+        CategoryPieTotalText.Visibility = _currentPieTotal <= 0 ? Visibility.Collapsed : Visibility.Visible;
+        if (_currentPieTotal <= 0) return;
 
         var colors = new[]
         {
@@ -181,30 +192,117 @@ public sealed partial class MainWindow : Window
             ColorHelper.FromArgb(255, 249, 115, 22), ColorHelper.FromArgb(255, 6, 182, 212),
             ColorHelper.FromArgb(255, 100, 116, 139), ColorHelper.FromArgb(255, 148, 163, 184)
         };
-        var visibleRanks = ranks.Take(10).ToList();
-        var legend = new List<CategoryPieSliceViewModel>();
+        var canvasWidth = Math.Max(640, CategoryPieCanvas.ActualWidth);
+        var canvasHeight = Math.Max(280, CategoryPieCanvas.ActualHeight);
+        var centerX = canvasWidth / 2;
+        var centerY = canvasHeight / 2;
+        const double outerRadius = 98;
+        const double innerRadius = 60;
+        var visibleRanks = _currentPieRanks.Take(8).ToList();
+        var labels = new List<PieLabelLayout>();
         var angle = -90d;
         for (var index = 0; index < visibleRanks.Count; index++)
         {
             var item = visibleRanks[index];
-            var sweep = Math.Min(359.999, (double)(item.Amount / total) * 360);
+            var sweep = Math.Min(359.999, (double)(item.Amount / _currentPieTotal) * 360);
+            var midAngle = angle + sweep / 2;
             var brush = new SolidColorBrush(colors[index % colors.Length]);
             var path = new XamlPath
             {
-                Data = CreateDonutSegment(110, 110, 96, 58, angle, sweep),
+                Data = CreateDonutSegment(centerX, centerY, outerRadius, innerRadius, angle, sweep),
                 Fill = brush,
                 Opacity = 0.9,
-                Tag = item,
+                Tag = new PieSliceTag(item, midAngle, centerX, centerY),
                 StrokeThickness = 2
             };
             ToolTipService.SetToolTip(path, $"{item.Name}  {item.AmountDisplay}  ·  {item.ShareDisplay}");
             path.PointerEntered += CategoryPieSlicePointerEntered;
             path.PointerExited += CategoryPieSlicePointerExited;
             CategoryPieCanvas.Children.Add(path);
-            legend.Add(new CategoryPieSliceViewModel { Name = item.Name, AmountDisplay = item.AmountDisplay, ShareDisplay = item.ShareDisplay, Fill = brush });
+            labels.Add(new PieLabelLayout(item, brush, midAngle));
             angle += sweep;
         }
-        CategoryPieLegend.ItemsSource = legend;
+
+        DrawPieLabels(labels, canvasWidth, canvasHeight, centerX, centerY, outerRadius);
+    }
+
+    private void DrawPieLabels(IReadOnlyList<PieLabelLayout> labels, double canvasWidth, double canvasHeight, double centerX, double centerY, double outerRadius)
+    {
+        const double labelWidth = 166;
+        const double labelHeight = 42;
+        var left = labels.Where(item => Math.Cos(item.MidAngle * Math.PI / 180) < 0).OrderBy(item => Math.Sin(item.MidAngle * Math.PI / 180)).ToList();
+        var right = labels.Where(item => Math.Cos(item.MidAngle * Math.PI / 180) >= 0).OrderBy(item => Math.Sin(item.MidAngle * Math.PI / 180)).ToList();
+
+        DrawSide(left, false);
+        DrawSide(right, true);
+        return;
+
+        void DrawSide(IReadOnlyList<PieLabelLayout> sideLabels, bool isRight)
+        {
+            if (sideLabels.Count == 0) return;
+            var top = 18d;
+            var bottom = canvasHeight - labelHeight - 18;
+            var step = sideLabels.Count == 1 ? 0 : (bottom - top) / (sideLabels.Count - 1);
+            var labelX = isRight ? canvasWidth - labelWidth - 12 : 12;
+
+            for (var index = 0; index < sideLabels.Count; index++)
+            {
+                var label = sideLabels[index];
+                var labelY = sideLabels.Count == 1 ? centerY - labelHeight / 2 : top + step * index;
+                var radians = label.MidAngle * Math.PI / 180;
+                var start = new Point(centerX + Math.Cos(radians) * (outerRadius + 4), centerY + Math.Sin(radians) * (outerRadius + 4));
+                var elbow = new Point(centerX + (isRight ? outerRadius + 25 : -outerRadius - 25), labelY + 18);
+                var end = new Point(isRight ? labelX - 8 : labelX + labelWidth + 8, labelY + 18);
+                var connectorFigure = new PathFigure { StartPoint = start };
+                connectorFigure.Segments.Add(new LineSegment { Point = elbow });
+                connectorFigure.Segments.Add(new LineSegment { Point = end });
+                CategoryPieCanvas.Children.Add(new XamlPath
+                {
+                    Data = new PathGeometry { Figures = [connectorFigure] },
+                    Stroke = label.Brush,
+                    StrokeThickness = 1.25,
+                    Opacity = 0.48,
+                    IsHitTestVisible = false
+                });
+
+                var labelPanel = CreatePieLabel(label, labelWidth, labelHeight, isRight);
+                Canvas.SetLeft(labelPanel, labelX);
+                Canvas.SetTop(labelPanel, labelY);
+                Canvas.SetZIndex(labelPanel, 2);
+                CategoryPieCanvas.Children.Add(labelPanel);
+            }
+        }
+    }
+
+    private static Grid CreatePieLabel(PieLabelLayout label, double width, double height, bool isRight)
+    {
+        var panel = new Grid { Width = width, Height = height, IsHitTestVisible = false };
+        panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        panel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
+        panel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        panel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var dot = new Border { Width = 7, Height = 7, CornerRadius = new CornerRadius(4), Background = label.Brush, VerticalAlignment = VerticalAlignment.Center };
+        var name = new TextBlock { Text = label.Item.Name, FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
+        var share = new TextBlock { Text = label.Item.ShareDisplay, FontSize = 11, Opacity = 0.62, VerticalAlignment = VerticalAlignment.Center };
+        var amount = new TextBlock { Text = label.Item.AmountDisplay, FontSize = 11, Opacity = 0.66, Margin = new Thickness(0, 2, 0, 0) };
+        if (!isRight)
+        {
+            name.TextAlignment = TextAlignment.Right;
+            amount.TextAlignment = TextAlignment.Right;
+        }
+        Grid.SetColumn(dot, 0);
+        Grid.SetColumn(name, 1);
+        Grid.SetColumn(share, 2);
+        Grid.SetRow(amount, 1);
+        Grid.SetColumn(amount, 1);
+        Grid.SetColumnSpan(amount, 2);
+        panel.Children.Add(dot);
+        panel.Children.Add(name);
+        panel.Children.Add(share);
+        panel.Children.Add(amount);
+        return panel;
     }
 
     private static Geometry CreateDonutSegment(double centerX, double centerY, double outerRadius, double innerRadius, double startAngle, double sweepAngle)
@@ -243,10 +341,20 @@ public sealed partial class MainWindow : Window
 
     private void CategoryPieSlicePointerEntered(object sender, PointerRoutedEventArgs e)
     {
-        if (sender is not XamlPath path) return;
+        if (sender is not XamlPath { Tag: PieSliceTag tag } path) return;
+        var radians = tag.MidAngle * Math.PI / 180;
         path.Opacity = 1;
         path.Stroke = new SolidColorBrush(Colors.White);
-        Canvas.SetZIndex(path, 1);
+        path.RenderTransform = new CompositeTransform
+        {
+            CenterX = tag.CenterX,
+            CenterY = tag.CenterY,
+            ScaleX = 1.025,
+            ScaleY = 1.025,
+            TranslateX = Math.Cos(radians) * 4,
+            TranslateY = Math.Sin(radians) * 4
+        };
+        Canvas.SetZIndex(path, 3);
     }
 
     private void CategoryPieSlicePointerExited(object sender, PointerRoutedEventArgs e)
@@ -254,8 +362,12 @@ public sealed partial class MainWindow : Window
         if (sender is not XamlPath path) return;
         path.Opacity = 0.9;
         path.Stroke = null;
+        path.RenderTransform = null;
         Canvas.SetZIndex(path, 0);
     }
+
+    private sealed record PieSliceTag(SpendingRankItem Item, double MidAngle, double CenterX, double CenterY);
+    private sealed record PieLabelLayout(SpendingRankItem Item, SolidColorBrush Brush, double MidAngle);
 
     private async void CategoryRankingItemClick(object sender, ItemClickEventArgs e)
     {
