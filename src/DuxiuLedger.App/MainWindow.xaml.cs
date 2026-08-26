@@ -243,28 +243,15 @@ public sealed partial class MainWindow : Window
             var top = 18d;
             var bottom = canvasHeight - labelHeight - 18;
             var step = sideLabels.Count == 1 ? 0 : (bottom - top) / (sideLabels.Count - 1);
-            var labelX = isRight ? canvasWidth - labelWidth - 12 : 12;
+            var preferredX = isRight
+                ? centerX + outerRadius + 38
+                : centerX - outerRadius - labelWidth - 38;
+            var labelX = Math.Clamp(preferredX, 12, canvasWidth - labelWidth - 12);
 
             for (var index = 0; index < sideLabels.Count; index++)
             {
                 var label = sideLabels[index];
                 var labelY = sideLabels.Count == 1 ? centerY - labelHeight / 2 : top + step * index;
-                var radians = label.MidAngle * Math.PI / 180;
-                var start = new Point(centerX + Math.Cos(radians) * (outerRadius + 4), centerY + Math.Sin(radians) * (outerRadius + 4));
-                var elbow = new Point(centerX + (isRight ? outerRadius + 25 : -outerRadius - 25), labelY + 18);
-                var end = new Point(isRight ? labelX - 8 : labelX + labelWidth + 8, labelY + 18);
-                var connectorFigure = new PathFigure { StartPoint = start };
-                connectorFigure.Segments.Add(new LineSegment { Point = elbow });
-                connectorFigure.Segments.Add(new LineSegment { Point = end });
-                CategoryPieCanvas.Children.Add(new XamlPath
-                {
-                    Data = new PathGeometry { Figures = [connectorFigure] },
-                    Stroke = label.Brush,
-                    StrokeThickness = 1.25,
-                    Opacity = 0.48,
-                    IsHitTestVisible = false
-                });
-
                 var labelPanel = CreatePieLabel(label, labelWidth, labelHeight, isRight);
                 Canvas.SetLeft(labelPanel, labelX);
                 Canvas.SetTop(labelPanel, labelY);
@@ -279,28 +266,29 @@ public sealed partial class MainWindow : Window
         var panel = new Grid { Width = width, Height = height, IsHitTestVisible = false };
         panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        panel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
-        panel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        panel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var dot = new Border { Width = 7, Height = 7, CornerRadius = new CornerRadius(4), Background = label.Brush, VerticalAlignment = VerticalAlignment.Center };
-        var name = new TextBlock { Text = label.Item.Name, FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
-        var share = new TextBlock { Text = label.Item.ShareDisplay, FontSize = 11, Opacity = 0.62, VerticalAlignment = VerticalAlignment.Center };
-        var amount = new TextBlock { Text = label.Item.AmountDisplay, FontSize = 11, Opacity = 0.66, Margin = new Thickness(0, 2, 0, 0) };
-        if (!isRight)
+        var heading = new StackPanel
         {
-            name.TextAlignment = TextAlignment.Right;
-            amount.TextAlignment = TextAlignment.Right;
-        }
-        Grid.SetColumn(dot, 0);
-        Grid.SetColumn(name, 1);
-        Grid.SetColumn(share, 2);
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            HorizontalAlignment = isRight ? HorizontalAlignment.Left : HorizontalAlignment.Right
+        };
+        var dot = new Border { Width = 7, Height = 7, CornerRadius = new CornerRadius(4), Background = label.Brush, VerticalAlignment = VerticalAlignment.Center };
+        var name = new TextBlock { Text = label.Item.Name, MaxWidth = 104, FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
+        var share = new TextBlock { Text = label.Item.ShareDisplay, FontSize = 11, Opacity = 0.62, VerticalAlignment = VerticalAlignment.Center };
+        var amount = new TextBlock
+        {
+            Text = label.Item.AmountDisplay,
+            FontSize = 11,
+            Opacity = 0.66,
+            Margin = new Thickness(13, 2, 0, 0),
+            HorizontalAlignment = isRight ? HorizontalAlignment.Left : HorizontalAlignment.Right
+        };
+        heading.Children.Add(dot);
+        heading.Children.Add(name);
+        heading.Children.Add(share);
         Grid.SetRow(amount, 1);
-        Grid.SetColumn(amount, 1);
-        Grid.SetColumnSpan(amount, 2);
-        panel.Children.Add(dot);
-        panel.Children.Add(name);
-        panel.Children.Add(share);
+        panel.Children.Add(heading);
         panel.Children.Add(amount);
         return panel;
     }
