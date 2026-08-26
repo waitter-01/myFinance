@@ -1,5 +1,6 @@
 using DuxiuLedger.Desktop.Models;
 using DuxiuLedger.Desktop.Services;
+using Microsoft.Data.Sqlite;
 using Xunit;
 
 namespace DuxiuLedger.Core.Tests;
@@ -56,6 +57,30 @@ public sealed class DashboardServiceTests
         Assert.Contains(result.AttentionItems, item => item.ActionKey == "review");
         Assert.Contains(result.AttentionItems, item => item.ActionKey == "duplicates");
         Assert.Contains(result.AttentionItems, item => item.ActionKey == "budgets");
+    }
+
+    [Fact]
+    public void Store_PersistsDashboardLayoutPreferences()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "duxiu-dashboard-tests", Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(folder, "ledger.db");
+        try
+        {
+            var store = new LocalStore(path);
+            var settings = store.LoadSettings();
+            settings.DashboardCardOrder = "action,overview,recent,analysis";
+            settings.DashboardHiddenCards = "recent";
+            store.SaveSettings(settings);
+
+            var loaded = store.LoadSettings();
+            Assert.Equal("action,overview,recent,analysis", loaded.DashboardCardOrder);
+            Assert.Equal("recent", loaded.DashboardHiddenCards);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(folder)) Directory.Delete(folder, true);
+        }
     }
 
     private static TransactionRecord Row(string date, string direction, decimal amount, string category = "未分类")

@@ -21,4 +21,6 @@ public sealed class AppSettings
     public string S3ObjectKey { get; set; } = "duxiu-ledger/sync-v1.json";
     public string S3AccessKeyId { get; set; } = "";
     public bool S3ForcePathStyle { get; set; }
+    public string DashboardCardOrder { get; set; } = "overview,analysis,action,recent";
+    public string DashboardHiddenCards { get; set; } = "";
 }

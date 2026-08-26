@@ -40,6 +40,20 @@ public sealed class CategoryPieSliceViewModel
     public Brush Fill { get; init; } = new SolidColorBrush(Microsoft.UI.Colors.Gray);
 }
 
+public sealed class DashboardCardOption : INotifyPropertyChanged
+{
+    private bool _isVisible = true;
+    public string Key { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string Description { get; set; } = "";
+    public bool IsVisible
+    {
+        get => _isVisible;
+        set { if (_isVisible == value) return; _isVisible = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsVisible))); }
+    }
+    public event PropertyChangedEventHandler? PropertyChanged;
+}
+
 public sealed class TransactionDateGroup : ObservableCollection<TransactionRecord>
 {
     public string DateLabel { get; }

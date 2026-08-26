@@ -76,6 +76,7 @@
             <TextBlock x:Name="PageSubtitle" Text="查看本月财务情况和最近流水" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,4,0,0" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="8">
+            <Button x:Name="DashboardCustomizeButton" Content="自定义总览" Click="DashboardCustomizeClick" />
             <Button Content="导入表格" Click="ImportClick" />
             <Button Content="识别账单截图" Click="ScreenshotImportClick" />
             <Button Content="粘贴截图" ToolTipService.ToolTip="从剪贴板粘贴图片，快捷键 Ctrl+V" Click="PasteScreenshotClick">
@@ -87,9 +88,10 @@
           </StackPanel>
         </Grid>
         <Grid x:Name="ContentHost" Grid.Row="1" Margin="0,22,0,0">
-          <ScrollViewer x:Name="DashboardPage" VerticalScrollBarVisibility="Auto">
-            <StackPanel Spacing="14" Padding="0,0,8,18">
-              <Grid ColumnSpacing="14">
+          <ScrollViewer x:Name="DashboardPage" VerticalScrollBarVisibility="Auto" SizeChanged="DashboardPageSizeChanged">
+            <StackPanel x:Name="DashboardSectionsPanel" Spacing="14" Padding="0,0,8,18">
+              <Grid x:Name="DashboardOverviewSection" ColumnSpacing="14">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="0" /></Grid.RowDefinitions>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="1.45*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                 <Border Style="{StaticResource CardStyle}" Padding="24">
                   <Grid RowSpacing="14">
@@ -113,7 +115,8 @@
                 </Grid>
               </Grid>
 
-              <Grid ColumnSpacing="14">
+              <Grid x:Name="DashboardAnalysisSection" ColumnSpacing="14">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="0" /></Grid.RowDefinitions>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="1.45*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                 <Border Style="{StaticResource CardStyle}" Padding="20">
                   <Grid RowSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="220" /></Grid.RowDefinitions>
@@ -132,6 +135,7 @@
               </Grid>
 
               <Grid x:Name="DashboardActionSection" ColumnSpacing="14">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="0" /></Grid.RowDefinitions>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="1.45*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                 <Border Style="{StaticResource CardStyle}" Padding="20">
                   <Grid RowSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
@@ -145,7 +149,7 @@
                   <Grid RowSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                     <Grid><StackPanel><TextBlock Text="即将发生" Style="{StaticResource SectionTitleStyle}" /><TextBlock Text="本月待支付的周期性支出" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel><Button Content="查看全部" HorizontalAlignment="Right" Click="DashboardUpcomingViewAllClick" /></Grid>
                     <ListView x:Name="DashboardUpcomingList" Grid.Row="1" SelectionMode="None">
-                      <ListView.ItemTemplate><DataTemplate x:DataType="models:DashboardUpcomingItem"><Grid Padding="4,9" ColumnSpacing="10"><Grid.ColumnDefinitions><ColumnDefinition Width="44" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><Border Width="40" Height="40" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"><TextBlock Text="&#xE823;" FontFamily="Segoe Fluent Icons" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border><StackPanel Grid.Column="1" Spacing="2"><TextBlock Text="{x:Bind Merchant}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock Text="{x:Bind MonthlyCostDisplay}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel><StackPanel Grid.Column="2" Spacing="2" HorizontalAlignment="Right"><TextBlock Text="{x:Bind AmountDisplay}" FontWeight="SemiBold" HorizontalAlignment="Right" /><TextBlock Text="{x:Bind DateDisplay}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Right" /></StackPanel></Grid></DataTemplate></ListView.ItemTemplate>
+                      <ListView.ItemTemplate><DataTemplate x:DataType="models:DashboardUpcomingItem"><Grid Padding="4,9" ColumnSpacing="10"><Grid.ColumnDefinitions><ColumnDefinition Width="44" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><Border Width="40" Height="40" CornerRadius="12" Background="{ThemeResource AccentFillColorSecondaryBrush}"><TextBlock Text="&#xE823;" FontFamily="Segoe Fluent Icons" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border><StackPanel Grid.Column="1" Spacing="2"><TextBlock Text="{x:Bind Merchant}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock Text="{x:Bind MonthlyCostDisplay}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel><StackPanel Grid.Column="2" Spacing="2" HorizontalAlignment="Right"><TextBlock Text="{x:Bind AmountDisplay}" FontWeight="SemiBold" HorizontalAlignment="Right" /><TextBlock Text="{x:Bind DateDisplay}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Right" /></StackPanel></Grid></DataTemplate></ListView.ItemTemplate>
                     </ListView>
                   </Grid>
                 </Border>

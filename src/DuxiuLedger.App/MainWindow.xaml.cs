@@ -107,6 +107,7 @@ public sealed partial class MainWindow : Window
         DashboardAttentionList.ItemsSource = snapshot.AttentionItems;
         DashboardUpcomingList.ItemsSource = snapshot.UpcomingItems;
         RecentList.ItemsSource = snapshot.RecentTransactions;
+        ApplyDashboardLayout(settings);
         DrawDashboardTrend();
         if (_transactionFiltersReady)
         {
@@ -202,6 +203,76 @@ public sealed partial class MainWindow : Window
 
     private void DashboardUpcomingViewAllClick(object sender, RoutedEventArgs e) => SelectNavigation("Subscriptions");
     private void DashboardViewAllClick(object sender, RoutedEventArgs e) => SelectNavigation("Transactions");
+
+    private async void DashboardCustomizeClick(object sender, RoutedEventArgs e)
+    {
+        var settings = _store.LoadSettings();
+        var definitions = DashboardCardDefinitions();
+        var hidden = ParseDashboardKeys(settings.DashboardHiddenCards).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var orderedKeys = ParseDashboardKeys(settings.DashboardCardOrder).Concat(definitions.Select(item => item.Key)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var options = orderedKeys.Select(key => definitions.FirstOrDefault(item => item.Key.Equals(key, StringComparison.OrdinalIgnoreCase)))
+            .Where(item => !string.IsNullOrWhiteSpace(item.Key)).Select(item => new DashboardCardOption { Key = item.Key, Title = item.Title, Description = item.Description, IsVisible = !hidden.Contains(item.Key) }).ToList();
+        var dialog = new DashboardCustomizeDialog(options) { XamlRoot = Content.XamlRoot };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        settings.DashboardCardOrder = dialog.CardOrder;
+        settings.DashboardHiddenCards = dialog.HiddenCards;
+        _store.SaveSettings(settings);
+        ApplyDashboardLayout(settings);
+        StatusText.Text = "总览布局已保存";
+        ScheduleCloudSync();
+    }
+
+    private void ApplyDashboardLayout(AppSettings settings)
+    {
+        var sections = new Dictionary<string, FrameworkElement>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["overview"] = DashboardOverviewSection, ["analysis"] = DashboardAnalysisSection,
+            ["action"] = DashboardActionSection, ["recent"] = DashboardRecentSection
+        };
+        var hidden = ParseDashboardKeys(settings.DashboardHiddenCards).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var order = ParseDashboardKeys(settings.DashboardCardOrder).Concat(sections.Keys).Distinct(StringComparer.OrdinalIgnoreCase).Where(sections.ContainsKey).ToList();
+        foreach (var element in sections.Values) DashboardSectionsPanel.Children.Remove(element);
+        foreach (var key in order)
+        {
+            var element = sections[key];
+            element.Visibility = hidden.Contains(key) ? Visibility.Collapsed : Visibility.Visible;
+            DashboardSectionsPanel.Children.Add(element);
+        }
+        ApplyDashboardResponsiveLayout(DashboardPage.ActualWidth);
+    }
+
+    private void DashboardPageSizeChanged(object sender, SizeChangedEventArgs e) => ApplyDashboardResponsiveLayout(e.NewSize.Width);
+
+    private void ApplyDashboardResponsiveLayout(double width)
+    {
+        var narrow = width > 0 && width < 920;
+        ApplyResponsiveGrid(DashboardOverviewSection, narrow);
+        ApplyResponsiveGrid(DashboardAnalysisSection, narrow);
+        ApplyResponsiveGrid(DashboardActionSection, narrow);
+    }
+
+    private static void ApplyResponsiveGrid(Grid grid, bool narrow)
+    {
+        if (grid.Children.Count < 2 || grid.RowDefinitions.Count < 2 || grid.ColumnDefinitions.Count < 2) return;
+        if (grid.Children[1] is not FrameworkElement second) return;
+        Grid.SetColumn(second, narrow ? 0 : 1);
+        Grid.SetRow(second, narrow ? 1 : 0);
+        grid.RowDefinitions[1].Height = narrow ? GridLength.Auto : new GridLength(0);
+        grid.RowSpacing = narrow ? 14 : 0;
+        grid.ColumnDefinitions[0].Width = narrow ? new GridLength(1, GridUnitType.Star) : new GridLength(1.45, GridUnitType.Star);
+        grid.ColumnDefinitions[1].Width = narrow ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+    }
+
+    private static IReadOnlyList<(string Key, string Title, string Description)> DashboardCardDefinitions() =>
+    [
+        ("overview", "核心概览", "可安心支配、收入、支出、结余和储蓄目标"),
+        ("analysis", "消费分析", "本月消费速度和主要消费去向"),
+        ("action", "关注与即将发生", "待处理问题和本月周期性支出"),
+        ("recent", "最近流水", "最近录入或导入的账目")
+    ];
+
+    private static IEnumerable<string> ParseDashboardKeys(string value)
+        => value.Split([',', '，', ';', '；'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     private void LoadAccounts() => AccountsList.ItemsSource = _store.ListAccounts();
     private void LoadCategories() => CategoriesList.ItemsSource = _store.ListCategories();
@@ -558,6 +629,7 @@ public sealed partial class MainWindow : Window
         PageTitle.Text = page.Title;
         PageSubtitle.Text = page.Subtitle;
         DashboardPage.Visibility = key == "Dashboard" ? Visibility.Visible : Visibility.Collapsed;
+        DashboardCustomizeButton.Visibility = key == "Dashboard" ? Visibility.Visible : Visibility.Collapsed;
         TransactionsPage.Visibility = key == "Transactions" ? Visibility.Visible : Visibility.Collapsed;
         InsightsPage.Visibility = key == "Insights" ? Visibility.Visible : Visibility.Collapsed;
         BudgetsPage.Visibility = key == "Budgets" ? Visibility.Visible : Visibility.Collapsed;
@@ -1562,6 +1634,7 @@ public sealed partial class MainWindow : Window
     private AppSettings CollectSettings()
     {
         var dayIndex = Math.Max(0, WeeklySummaryDayBox.SelectedIndex);
+        var current = _store.LoadSettings();
         return new AppSettings
         {
             SmallExpenseThreshold = (decimal)Math.Max(0, SmallExpenseThresholdBox.Value), MonthlyBudget = (decimal)Math.Max(0, MonthlyBudgetBox.Value),
@@ -1569,7 +1642,8 @@ public sealed partial class MainWindow : Window
             WeeklySummaryEnabled = WeeklySummaryCheck.IsChecked == true, WeeklySummaryDay = dayIndex == 6 ? DayOfWeek.Sunday : (DayOfWeek)(dayIndex + 1), WeeklySummaryTime = WeeklySummaryTimePicker.Time.ToString(@"hh\:mm"),
             SubscriptionKeywords = SubscriptionKeywordsBox.Text.Trim(), OptionalCategories = OptionalCategoriesBox.Text.Trim(), S3SyncEnabled = S3SyncEnabledCheck.IsChecked == true, SyncOnStartup = SyncOnStartupCheck.IsChecked == true, AutoSyncChanges = AutoSyncChangesCheck.IsChecked == true,
             S3AccessUrl = S3AccessUrlBox.Text.Trim(), S3Endpoint = S3EndpointBox.Text.Trim(), S3Region = S3RegionBox.Text.Trim(), S3Bucket = S3BucketBox.Text.Trim(), S3ObjectKey = S3ObjectKeyBox.Text.Trim(),
-            S3AccessKeyId = S3AccessKeyIdBox.Text.Trim(), S3ForcePathStyle = S3ForcePathStyleCheck.IsChecked == true
+            S3AccessKeyId = S3AccessKeyIdBox.Text.Trim(), S3ForcePathStyle = S3ForcePathStyleCheck.IsChecked == true,
+            DashboardCardOrder = current.DashboardCardOrder, DashboardHiddenCards = current.DashboardHiddenCards
         };
     }
 

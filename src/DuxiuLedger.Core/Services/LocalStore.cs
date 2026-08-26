@@ -569,6 +569,8 @@ public sealed class LocalStore
         if (values.TryGetValue("s3_object_key", out var objectKey)) settings.S3ObjectKey = objectKey;
         if (values.TryGetValue("s3_access_key_id", out var accessKeyId)) settings.S3AccessKeyId = accessKeyId;
         if (TryBool(values, "s3_force_path_style", out var forcePathStyle)) settings.S3ForcePathStyle = forcePathStyle;
+        if (values.TryGetValue("dashboard_card_order", out var dashboardOrder)) settings.DashboardCardOrder = dashboardOrder;
+        if (values.TryGetValue("dashboard_hidden_cards", out var dashboardHidden)) settings.DashboardHiddenCards = dashboardHidden;
         return settings;
     }
 
@@ -593,7 +595,9 @@ public sealed class LocalStore
             ["s3_bucket"] = settings.S3Bucket,
             ["s3_object_key"] = settings.S3ObjectKey,
             ["s3_access_key_id"] = settings.S3AccessKeyId,
-            ["s3_force_path_style"] = settings.S3ForcePathStyle.ToString()
+            ["s3_force_path_style"] = settings.S3ForcePathStyle.ToString(),
+            ["dashboard_card_order"] = settings.DashboardCardOrder,
+            ["dashboard_hidden_cards"] = settings.DashboardHiddenCards
         };
         using var c = Open(); using var tx = c.BeginTransaction();
         foreach (var pair in values)
