@@ -8,6 +8,8 @@ using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using XamlPath = Microsoft.UI.Xaml.Shapes.Path;
+using XamlLine = Microsoft.UI.Xaml.Shapes.Line;
+using XamlPolyline = Microsoft.UI.Xaml.Shapes.Polyline;
 using Windows.Graphics;
 using Windows.Foundation;
 using Windows.ApplicationModel.DataTransfer;
@@ -25,6 +27,8 @@ public sealed partial class MainWindow : Window
     private readonly ScreenshotBillImporter _screenshotImporter = new();
     private readonly S3SyncService _syncService;
     private readonly FinancialAnalysisService _analysisService = new();
+    private readonly DashboardService _dashboardService = new();
+    private DashboardSnapshot? _dashboardSnapshot;
     private AnalysisPeriodKind _analysisPeriod = AnalysisPeriodKind.Month;
     private DateTime _analysisAnchor = DateTime.Today;
     private FinancialAnalysisResult? _currentAnalysisResult;
@@ -83,29 +87,82 @@ public sealed partial class MainWindow : Window
 
     private void LoadDashboard()
     {
-        var currentMonth = DateTime.Now.ToString("yyyy-MM");
         var allRecords = _store.List().ToList();
-        var records = allRecords.Where(row => row.OccurredOn.ToString("yyyy-MM") == currentMonth).ToList();
-        var income = records.Where(row => row.Direction == "收入").Sum(row => row.Amount);
-        var expense = records.Where(row => row.Direction == "支出").Sum(row => row.Amount)
-            - records.Where(row => row.Direction is "退款" or "报销").Sum(row => row.Amount);
-        IncomeText.Text = $"¥{income:N2}";
-        ExpenseText.Text = $"¥{expense:N2}";
-        BalanceText.Text = $"¥{income - expense:N2}";
-        RecentList.ItemsSource = allRecords.Take(10).ToList();
+        var settings = _store.LoadSettings();
+        var snapshot = _dashboardService.Build(allRecords, settings, _store.ListSavingsGoals());
+        _dashboardSnapshot = snapshot;
+        DashboardPeriodText.Text = snapshot.PeriodLabel;
+        DashboardSafeToSpendText.Text = snapshot.SafeToSpendDisplay;
+        DashboardSafeToSpendDetailText.Text = snapshot.SafeToSpendDetail;
+        DashboardProjectionText.Text = snapshot.ProjectionDisplay;
+        DashboardBudgetProgress.Value = snapshot.BudgetProgress;
+        DashboardBudgetStatusText.Text = snapshot.MonthlyBudget <= 0 ? "尚未设置预算" : snapshot.SafeToSpend < 0 ? "已超出预算" : snapshot.BudgetProgress >= 0.8 ? "接近预算上限" : "消费进度正常";
+        IncomeText.Text = snapshot.IncomeDisplay;
+        ExpenseText.Text = snapshot.ExpenseDisplay;
+        BalanceText.Text = snapshot.BalanceDisplay;
+        DashboardExpenseComparisonText.Text = snapshot.ExpenseComparisonDisplay;
+        DashboardSavingsText.Text = snapshot.SavingsProgressDisplay;
+        DashboardSavingsProgress.Value = (double)snapshot.SavingsProgress;
+        DashboardCategoryList.ItemsSource = snapshot.TopCategories;
+        RecentList.ItemsSource = snapshot.RecentTransactions;
+        DrawDashboardTrend();
         if (_transactionFiltersReady)
         {
             RefreshTransactionBatchChoices();
             ApplyTransactionQuery();
         }
-        RecordCountText.Text = $"共 {allRecords.Count} 条记录 · 本月 {records.Count} 条";
+        RecordCountText.Text = $"共 {allRecords.Count} 条记录 · 本月 {snapshot.CurrentRecordCount} 条";
         LoadSubscriptions(allRecords);
         LoadInsights(allRecords);
         LoadBudgets(allRecords);
         LoadAccounts();
         LoadCategories();
-        StatusText.Text = $"已读取本地账本 · 本月 {records.Count} 条流水";
+        StatusText.Text = $"已读取本地账本 · 本月 {snapshot.CurrentRecordCount} 条流水";
     }
+
+    private void DashboardTrendCanvasSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (!_isInitialized || Math.Abs(e.NewSize.Width - e.PreviousSize.Width) < 1) return;
+        DrawDashboardTrend();
+    }
+
+    private void DrawDashboardTrend()
+    {
+        DashboardTrendCanvas.Children.Clear();
+        if (_dashboardSnapshot is null || _dashboardSnapshot.Trend.Count == 0) return;
+        var width = Math.Max(320, DashboardTrendCanvas.ActualWidth);
+        var height = Math.Max(180, DashboardTrendCanvas.ActualHeight);
+        const double left = 12;
+        const double top = 12;
+        const double bottom = 24;
+        var chartHeight = height - top - bottom;
+        var maximum = _dashboardSnapshot.Trend.SelectMany(item => new[] { Math.Max(0, item.Actual), item.Ideal }).Append(_dashboardSnapshot.ProjectedExpense).DefaultIfEmpty(1).Max();
+        if (maximum <= 0) maximum = 1;
+        var dividerBrush = new SolidColorBrush(ColorHelper.FromArgb(55, 100, 116, 139));
+        for (var index = 0; index <= 3; index++)
+        {
+            var y = top + chartHeight * index / 3;
+            DashboardTrendCanvas.Children.Add(new XamlLine { X1 = left, X2 = width - left, Y1 = y, Y2 = y, Stroke = dividerBrush, StrokeThickness = 1, IsHitTestVisible = false });
+        }
+        var actual = new XamlPolyline { Stroke = new SolidColorBrush(ColorHelper.FromArgb(255, 37, 99, 235)), StrokeThickness = 3, StrokeLineJoin = PenLineJoin.Round };
+        var ideal = new XamlPolyline { Stroke = new SolidColorBrush(ColorHelper.FromArgb(180, 100, 116, 139)), StrokeThickness = 2, StrokeDashArray = [4, 4] };
+        var count = _dashboardSnapshot.Trend.Count;
+        foreach (var item in _dashboardSnapshot.Trend)
+        {
+            var x = left + (width - left * 2) * (item.Day - 1) / Math.Max(1, count - 1);
+            ideal.Points.Add(new Point(x, top + chartHeight * (1 - (double)(item.Ideal / maximum))));
+            if (item.Actual >= 0) actual.Points.Add(new Point(x, top + chartHeight * (1 - (double)(item.Actual / maximum))));
+        }
+        DashboardTrendCanvas.Children.Add(ideal);
+        DashboardTrendCanvas.Children.Add(actual);
+        DashboardTrendCanvas.Children.Add(new TextBlock { Text = "1日", FontSize = 11, Opacity = 0.6 });
+        var endLabel = new TextBlock { Text = $"{count}日", FontSize = 11, Opacity = 0.6 };
+        Canvas.SetLeft(endLabel, width - 34);
+        DashboardTrendCanvas.Children.Add(endLabel);
+    }
+
+    private void DashboardCategoryClick(object sender, ItemClickEventArgs e) => SelectNavigation("Insights");
+    private void DashboardViewAllClick(object sender, RoutedEventArgs e) => SelectNavigation("Transactions");
 
     private void LoadAccounts() => AccountsList.ItemsSource = _store.ListAccounts();
     private void LoadCategories() => CategoriesList.ItemsSource = _store.ListCategories();

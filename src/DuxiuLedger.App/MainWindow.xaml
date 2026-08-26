@@ -87,78 +87,60 @@
           </StackPanel>
         </Grid>
         <Grid x:Name="ContentHost" Grid.Row="1" Margin="0,22,0,0">
-          <Grid x:Name="DashboardPage">
-            <Grid.RowDefinitions>
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
-            <Grid ColumnSpacing="12">
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-              </Grid.ColumnDefinitions>
-              <Border Style="{StaticResource CardStyle}" Padding="20">
-                <StackPanel>
-                  <TextBlock Text="本月收入" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                  <TextBlock x:Name="IncomeText" Text="¥0.00" FontSize="26" FontWeight="SemiBold" Margin="0,8,0,0" />
-                </StackPanel>
-              </Border>
-              <Border Grid.Column="1" Style="{StaticResource CardStyle}" Padding="20">
-                <StackPanel>
-                  <TextBlock Text="本月净支出" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                  <TextBlock x:Name="ExpenseText" Text="¥0.00" FontSize="26" FontWeight="SemiBold" Margin="0,8,0,0" />
-                  <TextBlock Text="支出扣除退款与报销" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Margin="0,5,0,0" />
-                </StackPanel>
-              </Border>
-              <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="20">
-                <StackPanel>
-                  <TextBlock Text="本月结余" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                  <TextBlock x:Name="BalanceText" Text="¥0.00" FontSize="26" FontWeight="SemiBold" Margin="0,8,0,0" />
-                </StackPanel>
-              </Border>
-            </Grid>
-            <Border Grid.Row="1" Style="{StaticResource CardStyle}" Margin="0,14,0,0" Padding="20">
-              <Grid>
-                <Grid.RowDefinitions>
-                  <RowDefinition Height="Auto" />
-                  <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-                <StackPanel>
-                  <TextBlock Text="最近流水" Style="{StaticResource SectionTitleStyle}" />
-                  <TextBlock x:Name="RecordCountText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,4,0,12" />
-                </StackPanel>
-                <ListView x:Name="RecentList" Grid.Row="1" SelectionMode="None">
-                  <ListView.ItemTemplate>
-                    <DataTemplate x:DataType="models:TransactionRecord">
-                      <Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="4,9">
-                        <Grid ColumnSpacing="12">
-                          <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="4" />
-                            <ColumnDefinition Width="140" />
-                            <ColumnDefinition Width="80" />
-                            <ColumnDefinition Width="112" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="132" />
-                          </Grid.ColumnDefinitions>
-                          <Border Width="3" CornerRadius="2" Background="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionForeground}" />
-                          <TextBlock Grid.Column="1" Text="{x:Bind DateDisplay}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                          <Border Grid.Column="2" Padding="9,3" CornerRadius="10" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionBackground}">
-                            <TextBlock Text="{x:Bind Direction}" FontWeight="SemiBold" Foreground="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionForeground}" />
-                          </Border>
-                          <TextBlock Grid.Column="3" Text="{x:Bind SignedAmountDisplay}" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionForeground}" />
-                          <TextBlock Grid.Column="4" Text="{x:Bind Merchant}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                          <Border Grid.Column="5" Padding="9,3" CornerRadius="10" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{Binding Category, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=CategoryBackground}" BorderBrush="{Binding Category, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=CategoryBorder}" BorderThickness="1">
-                            <TextBlock Text="{x:Bind Category}" FontSize="12" TextTrimming="CharacterEllipsis" />
-                          </Border>
-                        </Grid>
-                      </Border>
-                    </DataTemplate>
-                  </ListView.ItemTemplate>
-                </ListView>
+          <ScrollViewer x:Name="DashboardPage" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="14" Padding="0,0,8,18">
+              <Grid ColumnSpacing="14">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="1.45*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <Border Style="{StaticResource CardStyle}" Padding="24">
+                  <Grid RowSpacing="14">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <Grid>
+                      <StackPanel Spacing="3"><TextBlock Text="本月可安心支配" Style="{StaticResource SectionTitleStyle}" /><TextBlock x:Name="DashboardPeriodText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel>
+                      <Border HorizontalAlignment="Right" Padding="10,4" CornerRadius="12" Background="{ThemeResource AccentFillColorSecondaryBrush}"><TextBlock x:Name="DashboardBudgetStatusText" Text="预算状态" FontSize="12" /></Border>
+                    </Grid>
+                    <TextBlock x:Name="DashboardSafeToSpendText" Grid.Row="1" Text="设置月度预算" FontSize="34" FontWeight="SemiBold" />
+                    <StackPanel Grid.Row="2" Spacing="7"><TextBlock x:Name="DashboardSafeToSpendDetailText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" /><ProgressBar x:Name="DashboardBudgetProgress" Height="6" Maximum="1" /></StackPanel>
+                    <TextBlock x:Name="DashboardProjectionText" Grid.Row="3" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                  </Grid>
+                </Border>
+                <Grid Grid.Column="1" RowSpacing="12" ColumnSpacing="12">
+                  <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                  <Border Style="{StaticResource CardStyle}" Padding="18"><StackPanel Spacing="6"><TextBlock Text="本月收入" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="IncomeText" Text="¥0.00" FontSize="23" FontWeight="SemiBold" /><TextBlock Text="本月累计" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" /></StackPanel></Border>
+                  <Border Grid.Column="1" Style="{StaticResource CardStyle}" Padding="18"><StackPanel Spacing="6"><TextBlock Text="本月净支出" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="ExpenseText" Text="¥0.00" FontSize="23" FontWeight="SemiBold" /><TextBlock x:Name="DashboardExpenseComparisonText" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" /></StackPanel></Border>
+                  <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="18"><StackPanel Spacing="6"><TextBlock Text="本月结余" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="BalanceText" Text="¥0.00" FontSize="23" FontWeight="SemiBold" /><TextBlock Text="收入减去净支出" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" /></StackPanel></Border>
+                  <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource CardStyle}" Padding="18"><StackPanel Spacing="6"><TextBlock Text="储蓄目标" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="DashboardSavingsText" Text="尚未设置" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" /><ProgressBar x:Name="DashboardSavingsProgress" Height="5" Maximum="1" /></StackPanel></Border>
+                </Grid>
               </Grid>
-            </Border>
-          </Grid>
+
+              <Grid ColumnSpacing="14">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="1.45*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <Border Style="{StaticResource CardStyle}" Padding="20">
+                  <Grid RowSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="220" /></Grid.RowDefinitions>
+                    <Grid><StackPanel><TextBlock Text="本月消费速度" Style="{StaticResource SectionTitleStyle}" /><TextBlock Text="实际累计支出与理想预算进度" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel><StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Right" VerticalAlignment="Center"><TextBlock Text="━ 实际" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" /><TextBlock Text="┄ 理想" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel></Grid>
+                    <Canvas x:Name="DashboardTrendCanvas" Grid.Row="1" SizeChanged="DashboardTrendCanvasSizeChanged" />
+                  </Grid>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource CardStyle}" Padding="20">
+                  <Grid RowSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <StackPanel><TextBlock Text="主要消费去向" Style="{StaticResource SectionTitleStyle}" /><TextBlock Text="点击可查看完整消费洞察" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel>
+                    <ListView x:Name="DashboardCategoryList" Grid.Row="1" SelectionMode="None" IsItemClickEnabled="True" ItemClick="DashboardCategoryClick">
+                      <ListView.ItemTemplate><DataTemplate x:DataType="models:SpendingRankItem"><StackPanel Spacing="5" Padding="0,7"><Grid><TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" /><TextBlock Text="{x:Bind AmountDisplay}" HorizontalAlignment="Right" /></Grid><ProgressBar Value="{x:Bind SharePercent}" Maximum="100" Height="5" /><TextBlock Text="{x:Bind ShareDisplay}" HorizontalAlignment="Right" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" /></StackPanel></DataTemplate></ListView.ItemTemplate>
+                    </ListView>
+                  </Grid>
+                </Border>
+              </Grid>
+
+              <Border Style="{StaticResource CardStyle}" Padding="20">
+                <Grid RowSpacing="10"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                  <Grid><StackPanel><TextBlock Text="最近流水" Style="{StaticResource SectionTitleStyle}" /><TextBlock x:Name="RecordCountText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel><Button Content="查看全部流水" HorizontalAlignment="Right" Click="DashboardViewAllClick" /></Grid>
+                  <ListView x:Name="RecentList" Grid.Row="1" SelectionMode="None" IsItemClickEnabled="True" ItemClick="TransactionItemClick" MaxHeight="390">
+                    <ListView.ItemTemplate><DataTemplate x:DataType="models:TransactionRecord"><Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="4,9"><Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="4" /><ColumnDefinition Width="140" /><ColumnDefinition Width="92" /><ColumnDefinition Width="120" /><ColumnDefinition Width="*" /><ColumnDefinition Width="132" /></Grid.ColumnDefinitions><Border Width="3" CornerRadius="2" Background="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionForeground}" /><TextBlock Grid.Column="1" Text="{x:Bind DateDisplay}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><Border Grid.Column="2" Padding="9,3" CornerRadius="10" HorizontalAlignment="Left" Background="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionBackground}"><TextBlock Text="{x:Bind Direction}" Foreground="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionForeground}" /></Border><TextBlock Grid.Column="3" Text="{x:Bind SignedAmountDisplay}" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{Binding Direction, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=DirectionForeground}" /><TextBlock Grid.Column="4" Text="{x:Bind Merchant}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" /><Border Grid.Column="5" Padding="9,3" CornerRadius="10" HorizontalAlignment="Left" Background="{Binding Category, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=CategoryBackground}" BorderBrush="{Binding Category, Converter={StaticResource FinanceBrushConverter}, ConverterParameter=CategoryBorder}" BorderThickness="1"><TextBlock Text="{x:Bind Category}" FontSize="12" /></Border></Grid></Border></DataTemplate></ListView.ItemTemplate>
+                  </ListView>
+                </Grid>
+              </Border>
+            </StackPanel>
+          </ScrollViewer>
           <SplitView x:Name="TransactionsPage" Visibility="Collapsed" PanePlacement="Right" DisplayMode="Overlay" OpenPaneLength="394" CompactPaneLength="0" PaneBackground="Transparent">
             <SplitView.Pane>
               <Border Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="16" Padding="20" Margin="10,8,10,8" Translation="0,0,24">
