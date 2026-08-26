@@ -131,7 +131,27 @@
                 </Border>
               </Grid>
 
-              <Border Style="{StaticResource CardStyle}" Padding="20">
+              <Grid x:Name="DashboardActionSection" ColumnSpacing="14">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="1.45*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <Border Style="{StaticResource CardStyle}" Padding="20">
+                  <Grid RowSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <Grid><StackPanel><TextBlock Text="本月需要关注" Style="{StaticResource SectionTitleStyle}" /><TextBlock Text="优先处理会影响分析准确性和预算判断的问题" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel><TextBlock Text="最多显示 4 项" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" /></Grid>
+                    <ListView x:Name="DashboardAttentionList" Grid.Row="1" SelectionMode="None">
+                      <ListView.ItemTemplate><DataTemplate x:DataType="models:DashboardAttentionItem"><Button Tag="{x:Bind}" Click="DashboardAttentionClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Background="Transparent" Padding="8"><Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="34" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><Border Width="30" Height="30" CornerRadius="15" Background="{ThemeResource AccentFillColorSecondaryBrush}"><TextBlock Text="{x:Bind Icon}" FontFamily="Segoe Fluent Icons" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border><StackPanel Grid.Column="1" Spacing="2"><TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextWrapping="Wrap" /><TextBlock Text="{x:Bind Detail}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" /></StackPanel><TextBlock Grid.Column="2" Text="&#xE76C;" FontFamily="Segoe Fluent Icons" VerticalAlignment="Center" /></Grid></Button></DataTemplate></ListView.ItemTemplate>
+                    </ListView>
+                  </Grid>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource CardStyle}" Padding="20">
+                  <Grid RowSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <Grid><StackPanel><TextBlock Text="即将发生" Style="{StaticResource SectionTitleStyle}" /><TextBlock Text="本月待支付的周期性支出" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel><Button Content="查看全部" HorizontalAlignment="Right" Click="DashboardUpcomingViewAllClick" /></Grid>
+                    <ListView x:Name="DashboardUpcomingList" Grid.Row="1" SelectionMode="None">
+                      <ListView.ItemTemplate><DataTemplate x:DataType="models:DashboardUpcomingItem"><Grid Padding="4,9" ColumnSpacing="10"><Grid.ColumnDefinitions><ColumnDefinition Width="44" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><Border Width="40" Height="40" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"><TextBlock Text="&#xE823;" FontFamily="Segoe Fluent Icons" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border><StackPanel Grid.Column="1" Spacing="2"><TextBlock Text="{x:Bind Merchant}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock Text="{x:Bind MonthlyCostDisplay}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel><StackPanel Grid.Column="2" Spacing="2" HorizontalAlignment="Right"><TextBlock Text="{x:Bind AmountDisplay}" FontWeight="SemiBold" HorizontalAlignment="Right" /><TextBlock Text="{x:Bind DateDisplay}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Right" /></StackPanel></Grid></DataTemplate></ListView.ItemTemplate>
+                    </ListView>
+                  </Grid>
+                </Border>
+              </Grid>
+
+              <Border x:Name="DashboardRecentSection" Style="{StaticResource CardStyle}" Padding="20">
                 <Grid RowSpacing="10"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                   <Grid><StackPanel><TextBlock Text="最近流水" Style="{StaticResource SectionTitleStyle}" /><TextBlock x:Name="RecordCountText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel><Button Content="查看全部流水" HorizontalAlignment="Right" Click="DashboardViewAllClick" /></Grid>
                   <ListView x:Name="RecentList" Grid.Row="1" SelectionMode="None" IsItemClickEnabled="True" ItemClick="TransactionItemClick" MaxHeight="390">

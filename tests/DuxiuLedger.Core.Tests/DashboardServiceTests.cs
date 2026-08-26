@@ -17,7 +17,7 @@ public sealed class DashboardServiceTests
             new() { OccurredOn = new DateTime(2026, 7, 1), Direction = "转账", Amount = 600, Merchant = "视频会员", RecurringType = "订阅", NextPaymentDate = new DateTime(2026, 8, 20) }
         };
 
-        var result = new DashboardService().Build(records, new AppSettings { MonthlyBudget = 5000 }, [], new DateTime(2026, 8, 10));
+        var result = new DashboardService().Build(records, new AppSettings { MonthlyBudget = 5000 }, [], today: new DateTime(2026, 8, 10));
 
         Assert.Equal(1400, result.NetExpense);
         Assert.Equal(1000, result.PreviousNetExpense);
@@ -35,10 +35,27 @@ public sealed class DashboardServiceTests
             new TransactionRecord { OccurredOn = new DateTime(2026, 7, 1), Direction = "支出", Amount = 35, Merchant = "云服务", RecurringType = "订阅", NextPaymentDate = new DateTime(2026, 8, 18) }
         };
 
-        var result = new DashboardService().Build(records, new AppSettings { MonthlyBudget = 1000 }, [], new DateTime(2026, 8, 10));
+        var result = new DashboardService().Build(records, new AppSettings { MonthlyBudget = 1000 }, [], today: new DateTime(2026, 8, 10));
 
         Assert.Equal(35, result.UpcomingRecurring);
         Assert.Equal(965, result.SafeToSpend);
+    }
+
+    [Fact]
+    public void Build_CreatesActionableAttentionItems()
+    {
+        var records = new[]
+        {
+            Row("2026-08-03", "支出", 20), Row("2026-08-03", "支出", 20),
+            new TransactionRecord { OccurredOn = new DateTime(2026, 8, 4), Direction = "支出", Amount = 8, Category = "未分类", RequiresReview = true }
+        };
+
+        var result = new DashboardService().Build(records, new AppSettings { MonthlyBudget = 40 }, [], [], new DateTime(2026, 8, 10));
+
+        Assert.Contains(result.AttentionItems, item => item.ActionKey == "uncategorized");
+        Assert.Contains(result.AttentionItems, item => item.ActionKey == "review");
+        Assert.Contains(result.AttentionItems, item => item.ActionKey == "duplicates");
+        Assert.Contains(result.AttentionItems, item => item.ActionKey == "budgets");
     }
 
     private static TransactionRecord Row(string date, string direction, decimal amount, string category = "未分类")

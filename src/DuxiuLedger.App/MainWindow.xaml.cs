@@ -89,7 +89,7 @@ public sealed partial class MainWindow : Window
     {
         var allRecords = _store.List().ToList();
         var settings = _store.LoadSettings();
-        var snapshot = _dashboardService.Build(allRecords, settings, _store.ListSavingsGoals());
+        var snapshot = _dashboardService.Build(allRecords, settings, _store.ListSavingsGoals(), _store.ListBudgets(DateTime.Now.ToString("yyyy-MM")));
         _dashboardSnapshot = snapshot;
         DashboardPeriodText.Text = snapshot.PeriodLabel;
         DashboardSafeToSpendText.Text = snapshot.SafeToSpendDisplay;
@@ -104,6 +104,8 @@ public sealed partial class MainWindow : Window
         DashboardSavingsText.Text = snapshot.SavingsProgressDisplay;
         DashboardSavingsProgress.Value = (double)snapshot.SavingsProgress;
         DashboardCategoryList.ItemsSource = snapshot.TopCategories;
+        DashboardAttentionList.ItemsSource = snapshot.AttentionItems;
+        DashboardUpcomingList.ItemsSource = snapshot.UpcomingItems;
         RecentList.ItemsSource = snapshot.RecentTransactions;
         DrawDashboardTrend();
         if (_transactionFiltersReady)
@@ -161,7 +163,44 @@ public sealed partial class MainWindow : Window
         DashboardTrendCanvas.Children.Add(endLabel);
     }
 
-    private void DashboardCategoryClick(object sender, ItemClickEventArgs e) => SelectNavigation("Insights");
+    private async void DashboardCategoryClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is not SpendingRankItem item) return;
+        var monthStart = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        var rows = _store.List().Where(row => row.Direction == "支出" && row.OccurredOn >= monthStart && row.OccurredOn < monthStart.AddMonths(1)
+            && FinancialAnalysisService.MajorCategory(row.Category) == item.Name).OrderByDescending(row => row.OccurredOn).ToList();
+        var dialog = new CategoryTransactionsDialog(item.Name, rows, $"{DateTime.Today:yyyy年M月}") { XamlRoot = Content.XamlRoot };
+        await dialog.ShowAsync();
+    }
+
+    private async void DashboardAttentionClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: DashboardAttentionItem item }) return;
+        var monthStart = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        var monthRows = _store.List().Where(row => row.OccurredOn >= monthStart && row.OccurredOn < monthStart.AddMonths(1)).ToList();
+        if (item.ActionKey == "uncategorized")
+        {
+            _transactionQuery = new TransactionQuery { UncategorizedOnly = true };
+            ApplyTransactionQuery();
+            SelectNavigation("Transactions");
+            return;
+        }
+        if (item.ActionKey is "review" or "duplicates")
+        {
+            var rows = item.ActionKey == "review"
+                ? monthRows.Where(row => row.RequiresReview).OrderByDescending(row => row.OccurredOn).ToList()
+                : _store.List().Where(row => row.Direction != "转账")
+                    .GroupBy(row => $"{row.OccurredOn:O}|{row.Direction}|{row.Amount:0.00}").Where(group => group.Count() > 1)
+                    .SelectMany(group => group).OrderByDescending(row => row.OccurredOn).ToList();
+            var title = item.ActionKey == "review" ? "待核查流水" : "完全同时间同金额流水";
+            var dialog = new CategoryTransactionsDialog(title, rows, "请逐笔确认") { XamlRoot = Content.XamlRoot };
+            await dialog.ShowAsync();
+            return;
+        }
+        SelectNavigation(item.ActionKey == "budgets" ? "Budgets" : "Insights");
+    }
+
+    private void DashboardUpcomingViewAllClick(object sender, RoutedEventArgs e) => SelectNavigation("Subscriptions");
     private void DashboardViewAllClick(object sender, RoutedEventArgs e) => SelectNavigation("Transactions");
 
     private void LoadAccounts() => AccountsList.ItemsSource = _store.ListAccounts();

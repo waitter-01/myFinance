@@ -16,6 +16,8 @@ public sealed class DashboardSnapshot
     public IReadOnlyList<DashboardTrendPoint> Trend { get; set; } = [];
     public IReadOnlyList<SpendingRankItem> TopCategories { get; set; } = [];
     public IReadOnlyList<TransactionRecord> RecentTransactions { get; set; } = [];
+    public IReadOnlyList<DashboardAttentionItem> AttentionItems { get; set; } = [];
+    public IReadOnlyList<DashboardUpcomingItem> UpcomingItems { get; set; } = [];
     public decimal? ExpenseChangeRate => PreviousNetExpense <= 0 ? null : (NetExpense - PreviousNetExpense) / PreviousNetExpense;
     public double BudgetProgress => MonthlyBudget <= 0 ? 0 : Math.Min(1, (double)(NetExpense / MonthlyBudget));
     public string IncomeDisplay => $"¥{Income:N2}";
@@ -28,6 +30,27 @@ public sealed class DashboardSnapshot
         ? "设置月度总额度后，系统会扣除已花费和本月待支付项目"
         : $"预算 ¥{MonthlyBudget:N0} − 已花 ¥{NetExpense:N0} − 待支付 ¥{UpcomingRecurring:N0}";
     public string SavingsProgressDisplay => SavingsProgress <= 0 ? "尚未建立储蓄目标" : $"储蓄目标完成 {SavingsProgress:P0}";
+}
+
+public sealed class DashboardAttentionItem
+{
+    public string Title { get; set; } = "";
+    public string Detail { get; set; } = "";
+    public string Severity { get; set; } = "info";
+    public string ActionKey { get; set; } = "";
+    public string Icon => Severity == "danger" ? "\uE7BA" : Severity == "warning" ? "\uE7E7" : "\uE946";
+}
+
+public sealed class DashboardUpcomingItem
+{
+    public string Merchant { get; set; } = "";
+    public string RecurringType { get; set; } = "";
+    public DateTime PaymentDate { get; set; }
+    public decimal Amount { get; set; }
+    public int CoverageMonths { get; set; } = 1;
+    public string DateDisplay => PaymentDate.ToString("M月d日");
+    public string AmountDisplay => $"¥{Amount:N2}";
+    public string MonthlyCostDisplay => CoverageMonths <= 1 ? RecurringType : $"{RecurringType} · 月均 ¥{Amount / CoverageMonths:N2}";
 }
 
 public sealed class DashboardTrendPoint
