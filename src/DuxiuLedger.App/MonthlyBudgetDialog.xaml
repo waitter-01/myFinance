@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentDialog
+    x:Class="DuxiuLedger.WinUI.MonthlyBudgetDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="设置月度总预算"
+    PrimaryButtonText="保存预算"
+    SecondaryButtonText="清除预算"
+    CloseButtonText="取消"
+    DefaultButton="Primary"
+    PrimaryButtonClick="OnPrimaryButtonClick"
+    SecondaryButtonClick="OnSecondaryButtonClick">
+  <StackPanel Width="420" Spacing="14">
+    <TextBlock Text="只设置一个每月总额度即可。系统会按照全部支出判断是否超出总预算，分类预算可以不设置。"
+               TextWrapping="Wrap"
+               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+    <NumberBox x:Name="AmountBox"
+               Header="每月总预算（元）"
+               Minimum="0.01"
+               SpinButtonPlacementMode="Compact"
+               PlaceholderText="例如 5000" />
+    <InfoBar Severity="Informational"
+             IsOpen="True"
+             IsClosable="False"
+             Message="该额度会用于总览、预算进度和消费建议；分类预算仅在你需要精细控制时使用。" />
+  </StackPanel>
+</ContentDialog>

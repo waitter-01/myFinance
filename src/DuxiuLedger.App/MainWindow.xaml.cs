@@ -96,7 +96,7 @@ public sealed partial class MainWindow : Window
         DashboardSafeToSpendDetailText.Text = snapshot.SafeToSpendDetail;
         DashboardProjectionText.Text = snapshot.ProjectionDisplay;
         DashboardBudgetProgress.Value = snapshot.BudgetProgress;
-        DashboardBudgetStatusText.Text = snapshot.MonthlyBudget <= 0 ? "尚未设置预算" : snapshot.SafeToSpend < 0 ? "已超出预算" : snapshot.BudgetProgress >= 0.8 ? "接近预算上限" : "消费进度正常";
+        DashboardBudgetStatusText.Text = snapshot.MonthlyBudget <= 0 ? "设置总预算" : snapshot.SafeToSpend < 0 ? "已超出预算" : snapshot.BudgetProgress >= 0.8 ? "接近预算上限" : "预算进度正常";
         IncomeText.Text = snapshot.IncomeDisplay;
         ExpenseText.Text = snapshot.ExpenseDisplay;
         BalanceText.Text = snapshot.BalanceDisplay;
@@ -645,6 +645,28 @@ public sealed partial class MainWindow : Window
     private void BudgetMonthChanged(CalendarDatePicker sender, CalendarDatePickerDateChangedEventArgs args)
     {
         if (sender.Date is not null) LoadBudgets(_store.List());
+    }
+
+    private async void SetMonthlyBudgetClick(object sender, RoutedEventArgs e)
+    {
+        var settings = _store.LoadSettings();
+        var dialog = new MonthlyBudgetDialog(settings.MonthlyBudget) { XamlRoot = ContentHost.XamlRoot };
+        var dialogResult = await dialog.ShowAsync();
+        if (dialogResult == ContentDialogResult.None || dialog.Result is null) return;
+
+        settings.MonthlyBudget = Math.Max(0, dialog.Result.Value);
+        try
+        {
+            _store.SaveSettings(settings);
+            MonthlyBudgetBox.Value = (double)settings.MonthlyBudget;
+            LoadDashboard();
+            StatusText.Text = settings.MonthlyBudget > 0 ? $"月度总预算已设置为 ¥{settings.MonthlyBudget:N2}" : "月度总预算已清除";
+            ScheduleCloudSync();
+        }
+        catch (Exception ex)
+        {
+            await ShowMessage("总预算保存失败", ex.Message);
+        }
     }
 
     private async void AddBudgetClick(object sender, RoutedEventArgs e)

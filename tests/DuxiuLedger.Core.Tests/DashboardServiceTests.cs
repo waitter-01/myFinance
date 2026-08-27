@@ -60,7 +60,7 @@ public sealed class DashboardServiceTests
     }
 
     [Fact]
-    public void Store_PersistsDashboardLayoutPreferences()
+    public void Store_PersistsDashboardPreferencesAndMonthlyBudget()
     {
         var folder = Path.Combine(Path.GetTempPath(), "duxiu-dashboard-tests", Guid.NewGuid().ToString("N"));
         var path = Path.Combine(folder, "ledger.db");
@@ -70,11 +70,13 @@ public sealed class DashboardServiceTests
             var settings = store.LoadSettings();
             settings.DashboardCardOrder = "action,overview,recent,analysis";
             settings.DashboardHiddenCards = "recent";
+            settings.MonthlyBudget = 5200;
             store.SaveSettings(settings);
 
             var loaded = store.LoadSettings();
             Assert.Equal("action,overview,recent,analysis", loaded.DashboardCardOrder);
             Assert.Equal("recent", loaded.DashboardHiddenCards);
+            Assert.Equal(5200, loaded.MonthlyBudget);
         }
         finally
         {
